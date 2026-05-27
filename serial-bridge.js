@@ -25,83 +25,82 @@ class SerialBridge {
      * @param {number} baudRate - defaults to 9600
      * @returns {Promise<boolean>}
      */
-    async open(baudRate = 9600) {
-        // Сначала гарантированно закрываем предыдущий порт если есть
-        if (this.port || this.reader || this.writer) {
-            console.log('[SerialBridge] Закрываю предыдущий порт перед открытием...');
-            try {
-                await this.close();
-            } catch (e) {
-                console.warn('[SerialBridge] Предупреждение при закрытии:', e.message);
-            }
-        }
-
-        try {
-            // Request port — must be triggered by user gesture
-            console.log('[SerialBridge] Запрос порта у пользователя...');
-            this.port = await navigator.serial.requestPort();
-
-            console.log('[SerialBridge] Открытие порта...');
-            await this.port.open({
-                baudRate: baudRate,
-                dataBits: 8,
-                stopBits: 1,
-                parity: 'none',
-                flowControl: 'none',
-				bufferSize: 32768
-            });
-
-            console.log('[SerialBridge] Порт открыт успешно');
-
-            this.isOpen = true;
-            this.writer = this.port.writable.getWriter();
-            this.reader = this.port.readable.getReader();
-			
-			// Очистка аппаратного буфера от данных которые накопились до открытия
+	async open(baudRate = 9600) {
+		// Сначала гарантированно закрываем предыдущий порт если есть
+		if (this.port || this.reader || this.writer) {
+			console.log('[SerialBridge] Закрываю предыдущий порт перед открытием...');
 			try {
-				let junkRead = 0;
-				while (true) {
-					const { value, done } = await this.reader.read();
-					if (done) break;
-					junkRead += value?.length || 0;
-					// Выходим после очистки ~4KB или если буфер пуст
-					if (junkRead > 4096 || !value || value.length === 0) break;
-				}
-				if (junkRead > 0) {
-					console.log('[SerialBridge] Очищено ' + junkRead + ' байт из буфера');
-				}
+				await this.close();
 			} catch (e) {
-				// Буфер пуст или ошибка — игнорируем
-				console.log('[SerialBridge] Буфер чист или ошибка очистки:', e.message);
+				console.warn('[SerialBridge] Предупреждение при закрытии:', e.message);
+			}
+		}
+
+		try {
+			console.log('[SerialBridge] Запрос порта у пользователя...');
+			this.port = await navigator.serial.requestPort();
+
+			console.log('[SerialBridge] Открытие порта...');
+			await this.port.open({
+				baudRate: baudRate,
+				dataBits: 8,
+				stopBits: 1,
+				parity: 'none',
+				flowControl: 'none'
+			});
+
+			console.log('[SerialBridge] Порт открыт успешно');
+
+			this.isOpen = true;
+			this._lastBaudRate = baudRate;
+			this.lineBuffer = '';
+
+			// Создаём writer
+			this.writer = this.port.writable.getWriter();
+
+			// Очистка аппаратного буфера с таймаутом
+			try {
+				const cleanupReader = this.port.readable.getReader();
+				const timeout = setTimeout(() => {
+					try { cleanupReader.cancel(); } catch (e) {}
+				}, 500);
+				
+				try {
+					const { value, done } = await cleanupReader.read();
+					clearTimeout(timeout);
+					if (value && value.length > 0) {
+						console.log('[SerialBridge] Очищено ' + value.length + ' байт из буфера');
+					}
+				} catch (e) {
+					clearTimeout(timeout);
+				}
+				
+				try { cleanupReader.releaseLock(); } catch (e) {}
+			} catch (e) {
+				console.log('[SerialBridge] Буфер чист');
 			}
 
-			// Пересоздаём reader для чистого чтения
-			try { this.reader.releaseLock(); } catch (e) {}
+			// Создаём reader для нормальной работы
 			this.reader = this.port.readable.getReader();
-			
-			
-			this._lastBaudRate = baudRate;
-            this.lineBuffer = '';
 
-            // Start async read loop
-            this.readLoopAbortController = new AbortController();
-            this._readLoop();
+			// Запускаем цикл чтения
+			this._readLoop();
 
-            return true;
-        } catch (err) {
-            this.isOpen = false;
-            
-            // Освобождаем ресурсы при ошибке
-            await this._cleanupResources();
-            
-            console.error('[SerialBridge] Ошибка открытия порта:', err);
-            
-            if (this.onError) {
-                this.onError(err);
-            }
-            throw err;
-        }
-    }
+			return true;
+		} catch (err) {
+			this.isOpen = false;
+			
+			// Освобождаем ресурсы при ошибке
+			await this._cleanupResources();
+			
+			console.error('[SerialBridge] Ошибка открытия порта:', err);
+			
+			if (this.onError) {
+				this.onError(err);
+			}
+			throw err;
+		}
+	}
 
     /**
      * Send raw string to port (like NMEASerialPort.SendData)
