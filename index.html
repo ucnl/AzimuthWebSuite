@@ -106,6 +106,7 @@
                     <input type="number" id="topo-hdg" placeholder="0" min="0" max="360" step="0.1" value="0">
                 </div>
                 <div class="topo-buttons">
+				    <button class="btn-get-gnss" onclick="App.getPhoneGPS()">📱 GPS</button>
 					<button class="btn-apply-topo" onclick="App.applyTopoBinding()">✓ Применить</button>
 					<button class="btn-cancel-topo" onclick="App.toggleTopoPanel()">✕ Отмена</button>
 					<button class="btn-reset-topo" onclick="App.clearTopoBinding()">🗑 Сброс</button>
