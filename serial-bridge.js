@@ -47,7 +47,8 @@ class SerialBridge {
                 dataBits: 8,
                 stopBits: 1,
                 parity: 'none',
-                flowControl: 'none'
+                flowControl: 'none',
+				bufferSize: 32768
             });
 
             console.log('[SerialBridge] Порт открыт успешно');
@@ -55,6 +56,31 @@ class SerialBridge {
             this.isOpen = true;
             this.writer = this.port.writable.getWriter();
             this.reader = this.port.readable.getReader();
+			
+			// Очистка аппаратного буфера от данных которые накопились до открытия
+			try {
+				let junkRead = 0;
+				while (true) {
+					const { value, done } = await this.reader.read();
+					if (done) break;
+					junkRead += value?.length || 0;
+					// Выходим после очистки ~4KB или если буфер пуст
+					if (junkRead > 4096 || !value || value.length === 0) break;
+				}
+				if (junkRead > 0) {
+					console.log('[SerialBridge] Очищено ' + junkRead + ' байт из буфера');
+				}
+			} catch (e) {
+				// Буфер пуст или ошибка — игнорируем
+				console.log('[SerialBridge] Буфер чист или ошибка очистки:', e.message);
+			}
+
+			// Пересоздаём reader для чистого чтения
+			try { this.reader.releaseLock(); } catch (e) {}
+			this.reader = this.port.readable.getReader();
+			
+			
+			this._lastBaudRate = baudRate;
             this.lineBuffer = '';
 
             // Start async read loop
@@ -122,88 +148,64 @@ class SerialBridge {
     /**
      * Internal read loop - accumulates bytes into NMEA lines
      */
-    async _readLoop() {
-        const decoder = new TextDecoder();
-        let buffer = '';
+	async _readLoop() {
+		const decoder = new TextDecoder();
+		let buffer = '';
 
-        console.log('[SerialBridge] Цикл чтения запущен');
+		console.log('[SerialBridge] Цикл чтения запущен');
 
-        try {
-            while (this.reader && this.isOpen) {
-                const { value, done } = await this.reader.read();
-                
-                if (done) {
-                    console.log('[SerialBridge] Поток завершён (done=true)');
-                    break;
-                }
+		try {
+			while (this.reader && this.isOpen) {
+				const { value, done } = await this.reader.read();
+				
+				if (done) {
+					console.log('[SerialBridge] Поток завершён (done=true)');
+					break;
+				}
 
-                // Raw data callback
-                if (this.onRawData) {
-                    try {
-                        this.onRawData(value);
-                    } catch (e) {
-                        console.warn('[SerialBridge] Ошибка в onRawData:', e);
-                    }
-                }
+				if (this.onRawData) {
+					try { this.onRawData(value); } catch (e) {}
+				}
 
-                // Decode and accumulate
-                buffer += decoder.decode(value, { stream: true });
+				buffer += decoder.decode(value, { stream: true });
 
-                // Extract complete NMEA lines (ending with \n or \r\n)
-                let newlineIdx;
-                while ((newlineIdx = buffer.indexOf('\n')) >= 0) {
-                    let line = buffer.substring(0, newlineIdx);
-                    buffer = buffer.substring(newlineIdx + 1);
+				let newlineIdx;
+				while ((newlineIdx = buffer.indexOf('\n')) >= 0) {
+					let line = buffer.substring(0, newlineIdx);
+					buffer = buffer.substring(newlineIdx + 1);
+					line = line.replace(/\r$/, '');
+					if (line.length === 0) continue;
 
-                    // Убираем \r если есть
-                    line = line.replace(/\r$/, '');
+					if (this.onMessage) {
+						try { this.onMessage(line); } catch (e) {}
+					}
+				}
 
-                    // Пропускаем пустые строки
-                    if (line.length === 0) continue;
-
-                    // Fire message event (like NewNMEAMessage)
-                    if (this.onMessage) {
-                        try {
-                            this.onMessage(line);
-                        } catch (e) {
-                            console.warn('[SerialBridge] Ошибка в onMessage:', e);
-                        }
-                    }
-                }
-
-                // Safety: if buffer gets too large without newlines, reset
-                if (buffer.length > 65535) {
-                    console.warn('[SerialBridge] Буфер переполнен (>64KB без \\n), сброс');
-                    buffer = '';
-                }
-            }
-        } catch (err) {
-            if (err.name === 'NetworkError') {
-                // Порт был физически отключен
-                console.log('[SerialBridge] Порт отключен (NetworkError)');
-            } else if (err.name === 'AbortError') {
-                // Read loop был отменён (close)
-                console.log('[SerialBridge] Цикл чтения остановлен (AbortError)');
-            } else {
-                console.error('[SerialBridge] Ошибка в цикле чтения:', err);
-                if (this.onError) {
-                    this.onError(err);
-                }
-            }
-        } finally {
-            console.log('[SerialBridge] Цикл чтения завершён');
-            this.isOpen = false;
-            
-            // Уведомляем о закрытии
-            if (this.onClose) {
-                try {
-                    this.onClose();
-                } catch (e) {
-                    console.warn('[SerialBridge] Ошибка в onClose:', e);
-                }
-            }
-        }
-    }
+				if (buffer.length > 65535) {
+					console.warn('[SerialBridge] Буфер переполнен, сброс');
+					buffer = '';
+				}
+			}
+		} catch (err) {
+			if (err.name === 'NetworkError') {
+				console.log('[SerialBridge] Порт отключен (NetworkError)');
+			} else if (err.name === 'AbortError') {
+				console.log('[SerialBridge] Цикл чтения остановлен (AbortError)');
+			} else {
+				console.error('[SerialBridge] Ошибка в цикле чтения:', err);
+				if (this.onError) {
+					this.onError(err);
+				}
+			}
+		} finally {
+			console.log('[SerialBridge] Цикл чтения завершён');
+			this.isOpen = false;
+			
+			if (this.onClose) {
+				try { this.onClose(); } catch (e) {}
+			}
+		}
+	}
 
     /**
      * Close the port and release all resources
