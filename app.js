@@ -97,8 +97,7 @@ const App = (() => {
 		});
 	}
 
-	
-	
+		
 	function cycleTheme() {
 		// Убираем все темы
 		document.documentElement.classList.remove(...themes);
@@ -121,6 +120,37 @@ const App = (() => {
         if (statusText) statusText.textContent = msg;
         console.log('[App]', msg);
     }
+	
+	function getPhoneGPS() {
+		const latEl = document.getElementById('topo-lat');
+		const lonEl = document.getElementById('topo-lon');
+		const statusEl = document.getElementById('topo-gnss-status');
+
+		if (!navigator.geolocation) {
+			statusEl.textContent = 'GPS недоступен';
+			statusEl.className = '';
+			return;
+		}
+
+		statusEl.textContent = 'Поиск GPS...';
+		statusEl.className = '';
+
+		navigator.geolocation.getCurrentPosition(
+			(pos) => {
+				latEl.value = pos.coords.latitude.toFixed(6);
+				lonEl.value = pos.coords.longitude.toFixed(6);
+				statusEl.textContent = `✓ ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)} (±${pos.coords.accuracy.toFixed(0)}м)`;
+				statusEl.className = 'locked';
+			},
+			(err) => {
+				statusEl.textContent = 'Ошибка: ' + err.message;
+				statusEl.className = '';
+			},
+			{ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+		);
+	}
+	
+	
 
     // ========== ИНИЦИАЛИЗАЦИЯ ==========
     function init() {
@@ -1780,6 +1810,7 @@ function exportGGA() {
 		showLogAnalysis, closeAnalysis, copyAnalysis,
 		saveLog, loadLog, togglePlayback,
 		exportCSV, exportGGA, exportPSIMSSB,
+		getPhoneGPS
 	};
 
 })();
