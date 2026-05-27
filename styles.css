@@ -1,0 +1,814 @@
+/* styles.css — Zima2 USBL Web PWA */
+
+/* ========== СБРОС И БАЗА ========== */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* ========== ТЕМА: INDOOR (по умолчанию) ========== */
+:root,
+:root.theme-indoor {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-tertiary: #0f3460;
+    --bg-card: #0f3460;
+    --bg-input: #0a0a1a;
+    --bg-overlay: rgba(22, 33, 62, 0.95);
+	--bg-timeout: #2d0a0a;
+    
+    --border-primary: #0f3460;
+    --border-accent: #e83e8c;
+    --border-success: #28a745;
+    --border-warning: #ffc107;
+    --border-danger: #dc3545;
+    
+    --text-primary: #e0e0e0;
+    --text-secondary: #aaa;
+    --text-muted: #666;
+    --text-accent: #4ec9b0;
+    --text-warning: #ffa500;
+    --text-info: #569cd6;
+    
+    --btn-connect: #28a745;
+    --btn-connect-hover: #218838;
+    --btn-disconnect: #dc3545;
+    --btn-disconnect-hover: #c82333;
+    --btn-start: #007bff;
+    --btn-start-hover: #0056b3;
+    --btn-stop: #ffc107;
+    --btn-stop-hover: #e0a800;
+    --btn-topo: #6f42c1;
+    --btn-topo-hover: #5a32a3;
+    --btn-topo-active: #e83e8c;
+    --btn-settings: #17a2b8;
+    --btn-settings-hover: #138496;
+    
+    --shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    --scale-color: #fff;
+	--btn-text: #fff;
+}
+
+/* ========== ТЕМА: LIGHT (солнце) ========== */
+:root.theme-light {
+    --bg-primary: #f5f5f5;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #e0e0e0;
+    --bg-card: #ffffff;
+    --bg-input: #ffffff;
+    --bg-overlay: rgba(255, 255, 255, 0.95);
+	--bg-timeout: #fff0f0;
+    
+    --border-primary: #cccccc;
+    --border-accent: #c2185b;
+    --border-success: #2e7d32;
+    --border-warning: #f57c00;
+    --border-danger: #c62828;
+    
+    --text-primary: #1a1a1a;
+    --text-secondary: #555555;
+    --text-muted: #888888;
+    --text-accent: #00695c;
+    --text-warning: #e65100;
+    --text-info: #1565c0;
+    
+    --btn-connect: #2e7d32;
+    --btn-connect-hover: #1b5e20;
+    --btn-disconnect: #c62828;
+    --btn-disconnect-hover: #b71c1c;
+    --btn-start: #1565c0;
+    --btn-start-hover: #0d47a1;
+    --btn-stop: #f57c00;
+    --btn-stop-hover: #e65100;
+    --btn-topo: #6a1b9a;
+    --btn-topo-hover: #4a148c;
+    --btn-topo-active: #c2185b;
+    --btn-settings: #00838f;
+    --btn-settings-hover: #006064;
+    
+    --shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    --scale-color: #1a1a1a;
+	--btn-text: #fff;
+}
+
+/* ========== ТЕМА: DARK CONTRAST (солнце + очки) ========== */
+:root.theme-dark-contrast {
+    --bg-primary: #000000;
+    --bg-secondary: #0a0a0a;
+    --bg-tertiary: #1a1a1a;
+    --bg-card: #111111;
+    --bg-input: #000000;
+    --bg-overlay: rgba(0, 0, 0, 0.95);
+	--bg-timeout: #330000;
+    
+    --border-primary: #444444;
+    --border-accent: #ff4081;
+    --border-success: #69f0ae;
+    --border-warning: #ffd740;
+    --border-danger: #ff5252;
+    
+    --text-primary: #ffffff;
+    --text-secondary: #cccccc;
+    --text-muted: #888888;
+    --text-accent: #69f0ae;
+    --text-warning: #ffd740;
+    --text-info: #40c4ff;
+    
+    --btn-connect: #69f0ae;
+    --btn-connect-hover: #00e676;
+    --btn-disconnect: #ff5252;
+    --btn-disconnect-hover: #ff1744;
+    --btn-start: #40c4ff;
+    --btn-start-hover: #00b0ff;
+    --btn-stop: #ffd740;
+    --btn-stop-hover: #ffc400;
+    --btn-topo: #b388ff;
+    --btn-topo-hover: #7c4dff;
+    --btn-topo-active: #ff4081;
+    --btn-settings: #64ffda;
+    --btn-settings-hover: #1de9b6;
+    
+    --shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
+    --scale-color: #ffffff;
+	--btn-text: #000;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* ========== СТРУКТУРА ПРИЛОЖЕНИЯ ========== */
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+}
+
+/* ========== ВЕРХНЯЯ ПАНЕЛЬ ========== */
+#top-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-bottom: 2px solid var(--border-primary);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    min-height: 50px;
+    z-index: 50;
+}
+
+#connection-indicator {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--border-danger);
+    flex-shrink: 0;
+    transition: background 0.3s;
+}
+#connection-indicator.connected { background: var(--border-success); }
+#connection-indicator.active { 
+    background: var(--border-warning); 
+    animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 8px rgba(255, 193, 7, 0); }
+}
+
+#device-label {
+    font-weight: 700;
+    font-size: 14px;
+    white-space: nowrap;
+    color: var(--text-accent);
+    letter-spacing: 0.3px;
+}
+
+#status-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex: 1;
+    min-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ========== КНОПКИ ========== */
+.top-btn {
+    padding: 7px 14px;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    letter-spacing: 0.3px;
+    outline: none;
+}
+.top-btn:disabled { 
+    opacity: 0.4; 
+    cursor: not-allowed; 
+    filter: grayscale(30%);
+}
+.top-btn:active:not(:disabled) { transform: scale(0.96); }
+
+.btn-connect { background: var(--btn-connect); color: var(--btn-text); }
+.btn-connect:hover:not(:disabled) { background: var(--btn-connect-hover); box-shadow: 0 2px 12px rgba(40,167,69,0.3); }
+
+.btn-disconnect { background: var(--btn-disconnect); color: var(--btn-text); }
+.btn-disconnect:hover:not(:disabled) { background: var(--btn-disconnect-hover); box-shadow: 0 2px 12px rgba(220,53,69,0.3); }
+
+.btn-start { background: var(--btn-start); color: var(--btn-text); }
+.btn-start:hover:not(:disabled) { background: var(--btn-start-hover); box-shadow: 0 2px 12px rgba(0,123,255,0.3); }
+
+.btn-stop { background: var(--btn-stop); color: #212529; }
+.btn-stop:hover:not(:disabled) { background: var(--btn-stop-hover); box-shadow: 0 2px 12px rgba(255,193,7,0.3); }
+
+.btn-topo { background: var(--btn-topo); color: var(--btn-text); }
+.btn-topo:hover:not(:disabled) { background: var(--btn-topo-hover); }
+.btn-topo.active { background: var(--btn-topo-active); }
+
+.btn-settings { background: var(--btn-settings); color: var(--btn-text); }
+.btn-settings:hover:not(:disabled) { background: var(--btn-settings-hover); }
+
+.btn-log { background: #555; color: #fff; font-size: 11px; padding: 5px 10px; }
+.btn-log:hover:not(:disabled) { background: #777; }
+.btn-log.recording { background: #dc3545; animation: pulse 1s infinite; }
+.btn-log.playing { background: #28a745; }
+
+
+#playback-progress {
+    align-self: center;
+    margin: 0 4px;
+}
+
+.dropdown-menu {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    overflow: hidden;
+}
+.dropdown-item {
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+.dropdown-item:hover {
+    background: var(--bg-tertiary);
+}
+
+/* ========== КАРТА ========== */
+#map-container {
+    flex: 1;
+    position: relative;
+    background: var(--bg-primary);
+    overflow: hidden;
+}
+
+#map-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+}
+#map-canvas:active { cursor: grabbing; }
+
+/* ========== ИНФО АНТЕННЫ ========== */
+#antenna-info {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: var(--bg-overlay);
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 11px;
+    line-height: 1.7;
+    z-index: 10;
+    cursor: pointer;
+    border: 1px solid var(--border-primary);
+    backdrop-filter: blur(8px);
+    min-width: 160px;
+}
+#antenna-info .ai-label { color: var(--text-secondary); }
+#antenna-info .ai-value { color: var(--text-accent); font-weight: 700; }
+
+/* ========== ШКАЛА ========== */
+#scale-bar {
+    position: absolute;
+    bottom: 15px;
+    right: 20px;
+    color: var(--scale-color);
+    text-shadow: 0 0 4px rgba(0,0,0,0.8);
+    font-size: 11px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* ========== НИЖНЯЯ ПАНЕЛЬ МАЯКОВ ========== */
+#beacons-bar {
+    display: flex;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    border-top: 2px solid var(--border-primary);
+    overflow-x: auto;
+    overflow-y: visible;
+    flex-shrink: 0;
+    min-height: 95px;
+    max-height: 25vh;       
+    align-items: stretch;
+}
+#beacons-bar::-webkit-scrollbar { height: 4px; }
+#beacons-bar::-webkit-scrollbar-track { background: transparent; }
+#beacons-bar::-webkit-scrollbar-thumb { background: var(--border-primary); border-radius: 2px; }
+
+#beacons-bar.empty {
+    align-items: center;
+    justify-content: center;
+}
+#beacons-bar.empty::after {
+    content: 'Нет данных маяков';
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.beacon-card {
+    flex: 0 0 auto;
+    width: 200px;          
+    padding: 7px 9px;      
+    border-radius: var(--radius);
+    background: var(--bg-card);
+    border: 2px solid var(--border-primary);
+    font-size: 11px;
+    line-height: 1.4;     
+    transition: border-color 0.3s, background 0.3s;
+    cursor: pointer;
+	pointer-events: auto;
+}
+.beacon-card:hover { border-color: var(--text-accent); }
+.beacon-card.timeout { border-color: var(--border-danger); background: var(--bg-timeout); }
+.beacon-card.warning { border-color: var(--border-warning); }
+
+.beacon-card .bc-msr { color: #8cc6ff; font-size: 10px; }
+.beacon-card .bc-vcc { color: #ffb347; font-size: 10px; }
+
+.beacon-card .bc-addr {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text-accent);
+    margin-bottom: 3px;
+}
+.beacon-card .bc-range { color: var(--text-warning); font-weight: 600; }
+.beacon-card .bc-azimuth { color: var(--text-info); }
+.beacon-card .bc-coords { 
+    color: var(--text-secondary); 
+    font-size: 10px; 
+    margin-top: 2px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    white-space: nowrap;      
+    overflow: hidden;         
+    text-overflow: ellipsis;  
+}
+
+.beacon-card .bc-age {
+    font-size: 10px;
+    margin-top: 4px;
+    font-weight: 600;
+}
+.bc-age.fresh { color: var(--border-success); }
+.bc-age.old { color: var(--border-warning); }
+.bc-age.stale { color: var(--border-danger); }
+
+/* ========== ПАНЕЛЬ ТОПОПРИВЯЗКИ ========== */
+#topo-panel {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg-overlay);
+    border: 2px solid var(--border-accent);
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    z-index: 100;
+    min-width: 300px;
+    max-width: 90vw;
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow);
+}
+#topo-panel.visible { display: block; }
+
+#topo-panel h3 {
+    color: var(--border-accent);
+    margin-bottom: 16px;
+    text-align: center;
+    font-size: 16px;
+    letter-spacing: 0.5px;
+}
+
+.topo-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.topo-row label {
+    width: 85px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: right;
+    flex-shrink: 0;
+}
+.topo-row input {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    transition: border-color 0.2s;
+    min-width: 0;
+}
+.topo-row input:focus {
+    outline: none;
+    border-color: var(--border-accent);
+    box-shadow: 0 0 0 2px rgba(232, 62, 140, 0.2);
+}
+.topo-row input[readonly] {
+    opacity: 0.7;
+    cursor: default;
+}
+
+#topo-gnss-status {
+    font-size: 11px;
+    color: var(--border-warning);
+    text-align: center;
+    margin-bottom: 12px;
+    min-height: 16px;
+    transition: color 0.3s;
+}
+#topo-gnss-status.locked { color: var(--border-success); }
+
+.topo-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+.topo-buttons button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+.topo-buttons button:active { transform: scale(0.96); }
+.btn-get-gnss { background: var(--btn-start); color: #fff; }
+.btn-get-gnss:hover { background: var(--btn-start-hover); }
+.btn-apply-topo { background: var(--btn-connect); color: #fff; }
+.btn-apply-topo:hover { background: var(--btn-connect-hover); }
+.btn-cancel-topo { background: #6c757d; color: #fff; }
+.btn-cancel-topo:hover { background: #5a6268; }
+
+.btn-reset-topo {
+    flex: 1;
+    padding: 10px;
+    background: #dc3545;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+.btn-reset-topo:hover { background: #c82333; }
+.btn-reset-topo:active { transform: scale(0.96); }
+
+.footer {
+    flex-shrink: 0;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-primary);
+    padding: 6px 14px;
+    text-align: center;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.footer-links {
+    display: flex;
+    gap: 12px;
+}
+
+.footer-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.footer-link:hover {
+    color: var(--text-accent);
+}
+
+.footer-info {
+    display: flex;
+    gap: 12px;
+}
+
+/* ========== МОДАЛЬНОЕ ОКНО НАСТРОЕК ========== */
+#settings-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(4px);
+}
+#settings-overlay.visible { display: flex; }
+
+#settings-modal {
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    width: 480px;
+    max-width: 95vw;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow);
+}
+
+#settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 2px solid var(--border-primary);
+}
+#settings-header h3 {
+    margin: 0;
+    color: var(--text-accent);
+    font-size: 16px;
+}
+#settings-header button {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s;
+}
+#settings-header button:hover { color: #fff; background: rgba(255,255,255,0.1); }
+
+#settings-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+#settings-body::-webkit-scrollbar { width: 5px; }
+#settings-body::-webkit-scrollbar-track { background: transparent; }
+#settings-body::-webkit-scrollbar-thumb { background: var(--border-primary); border-radius: 3px; }
+
+.settings-section {
+    margin-bottom: 18px;
+}
+.settings-section h4 {
+    color: var(--text-info);
+    font-size: 13px;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.settings-row label {
+    width: 110px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: right;
+    flex-shrink: 0;
+}
+.settings-row input[type="number"],
+.settings-row input[type="text"] {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: 'Consolas', monospace;
+    min-width: 0;
+}
+.settings-row input:focus {
+    outline: none;
+    border-color: var(--text-accent);
+}
+
+/* Чекбоксы маски адресов */
+#addr-checkboxes {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    margin-top: 6px;
+}
+#addr-checkboxes label {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+#addr-checkboxes label.checked {
+    background: var(--bg-tertiary);
+    color: var(--text-accent);
+}
+#addr-checkboxes input[type="checkbox"] {
+    width: 13px;
+    height: 13px;
+    cursor: pointer;
+    accent-color: var(--text-accent);
+}
+
+#settings-footer {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border-primary);
+}
+#settings-footer button {
+    padding: 8px 18px;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+.btn-apply { background: var(--btn-connect); color: #fff; }
+.btn-apply:hover { background: var(--btn-connect-hover); }
+.btn-close-settings { background: #6c757d; color: #fff; }
+.btn-close-settings:hover { background: #5a6268; }
+
+/* ========== ПАНЕЛЬ ТРЕКОВ (на карте) ========== */
+#tracks-control {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    gap: 6px;
+    z-index: 10;
+}
+.track-btn {
+    padding: 6px 10px;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    background: var(--bg-overlay);
+    color: var(--text-primary);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    backdrop-filter: blur(8px);
+    font-weight: 600;
+}
+.track-btn:hover { border-color: var(--text-accent); }
+.track-btn.active { background: var(--btn-start); border-color: var(--btn-start); color: #fff; }
+
+#calibration-panel {
+    display: none;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg-overlay);
+    border: 2px solid #fd7e14;
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    z-index: 100;
+    min-width: 280px;
+    backdrop-filter: blur(10px);
+}
+
+/* ========== АДАПТИВНОСТЬ ========== */
+@media (max-width: 768px) {
+    #top-bar { 
+        padding: 6px 8px; 
+        gap: 5px; 
+        min-height: 42px;
+    }
+    .top-btn { 
+        padding: 6px 10px; 
+        font-size: 10px; 
+    }
+    #device-label { font-size: 11px; }
+    #status-text { font-size: 9px; min-width: 80px; }
+    
+    #beacons-bar {
+        min-height: 80px;
+        max-height: 20vh;
+    }
+    
+    .beacon-card { 
+        width: 160px;
+        padding: 6px 8px;
+        font-size: 10px; 
+    }
+    .beacon-card .bc-addr { font-size: 13px; }
+    
+    .beacon-card .bc-coords { 
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    #antenna-info { 
+        font-size: 10px; 
+        padding: 7px 10px; 
+        top: 8px; 
+        left: 8px; 
+        min-width: 140px;
+    }
+    
+    #topo-panel { 
+        min-width: 260px; 
+        padding: 15px; 
+    }
+    
+    #settings-modal { width: 100%; max-height: 90vh; }
+    
+    #tracks-control { 
+        top: auto; 
+        bottom: 100px; 
+        right: 8px; 
+        flex-direction: column; 
+    }
+    
+    #addr-checkboxes {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .top-btn { padding: 5px 8px; font-size: 9px; }
+    #beacons-bar { 
+        min-height: 80px; 
+        max-height: 18vh;
+    }
+    .beacon-card { width: 140px; }
+    #addr-checkboxes {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* ========== ПОДДЕРЖКА NOTCH ========== */
+@supports (padding: max(0px)) {
+    #app {
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}
