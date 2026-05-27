@@ -286,7 +286,7 @@ const TrackManager = (() => {
 		for (const addr in tracks) {
 			const track = tracks[addr];
 			if (track.length < 2) continue;
-			const valid = track.filter(p => !p.isTimeout && !isNaN(p.lat));
+			const valid = track.filter(p => !p.isTimeout && p.lat != null && p.lon != null && !isNaN(p.lat) && !isNaN(p.lon));
 			if (valid.length < 2) continue;
 			kml += `
 		<Placemark>
@@ -300,7 +300,7 @@ const TrackManager = (() => {
 
 		// Трек станции
 		if (stationTrack.length >= 2) {
-			const validSt = stationTrack.filter(p => !isNaN(p.lat) && !isNaN(p.lon));
+			const validSt = stationTrack.filter(p => p.lat != null && p.lon != null && !isNaN(p.lat) && !isNaN(p.lon));
 			if (validSt.length >= 2) {
 				kml += `
 		<Placemark>

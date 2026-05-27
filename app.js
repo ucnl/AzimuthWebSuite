@@ -1673,8 +1673,8 @@ const App = (() => {
 		// Трек станции
 		for (const point of stTrack) {
 			const ts = new Date(point.ts).toISOString();
-			const lat = !isNaN(point.lat) ? point.lat.toFixed(6) : '';
-			const lon = !isNaN(point.lon) ? point.lon.toFixed(6) : '';
+			const lat = (point.lat != null && !isNaN(point.lat)) ? point.lat.toFixed(6) : '';
+			const lon = (point.lon != null && !isNaN(point.lon)) ? point.lon.toFixed(6) : '';
 			lines.push(`${ts},STATION,,${lat},${lon},,,,,,`);
 		}
 		
@@ -1683,8 +1683,8 @@ const App = (() => {
 			for (const point of allTracks[addr]) {
 				if (point.isTimeout) continue;
 				const ts = new Date(point.ts).toISOString();
-				const lat = !isNaN(point.lat) ? point.lat.toFixed(6) : '';
-				const lon = !isNaN(point.lon) ? point.lon.toFixed(6) : '';
+				const lat = (point.lat != null && !isNaN(point.lat)) ? point.lat.toFixed(6) : '';
+				const lon = (point.lon != null && !isNaN(point.lon)) ? point.lon.toFixed(6) : '';
 				const dpt = !isNaN(point.dpt) ? point.dpt.toFixed(1) : '';
 				const dist = !isNaN(point.dist) ? point.dist.toFixed(1) : '';
 				const azm = !isNaN(point.azm) ? point.azm.toFixed(1) : '';
@@ -1710,7 +1710,7 @@ function exportGGA() {
     for (const addr of trackAddresses) {
         const hexAddr = parseInt(addr).toString(16).toUpperCase(); // 0-F
         for (const point of allTracks[addr]) {
-            if (point.isTimeout || isNaN(point.lat) || isNaN(point.lon)) continue;
+            if (point.isTimeout || point.lat == null || point.lon == null || isNaN(point.lat) || isNaN(point.lon)) continue;
             const ts = new Date(point.ts);
             const timeStr = ts.toISOString().replace(/[-:]/g, '').substring(0, 15);
             const lat = Math.abs(point.lat);
@@ -1760,7 +1760,7 @@ function exportGGA() {
 		const lines = [];
 		for (const addr of trackAddresses) {
 			for (const point of allTracks[addr]) {
-				if (point.isTimeout || isNaN(point.lat) || isNaN(point.lon)) continue;
+				if (point.isTimeout || point.lat == null || point.lon == null || isNaN(point.lat) || isNaN(point.lon)) continue;
 				const ts = new Date(point.ts);
 				const timeStr = ts.toISOString().replace(/[-:]/g, '').substring(0, 15);
 				const btpId = 'B' + String(parseInt(addr) + 1).padStart(2, '0');
