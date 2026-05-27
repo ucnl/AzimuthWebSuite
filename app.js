@@ -49,7 +49,6 @@ const App = (() => {
 	let isGnssConnected = false;
 
     // ========== ВСПОМОГАТЕЛЬНЫЕ ==========
-	
 	function toggleDropdown(id) {
 		const menu = document.getElementById(id);
 		if (activeDropdown && activeDropdown !== menu) {
@@ -97,7 +96,6 @@ const App = (() => {
 		});
 	}
 
-		
 	function cycleTheme() {
 		// Убираем все темы
 		document.documentElement.classList.remove(...themes);
@@ -150,8 +148,6 @@ const App = (() => {
 		);
 	}
 	
-	
-
     // ========== ИНИЦИАЛИЗАЦИЯ ==========
     function init() {
 		
@@ -284,10 +280,12 @@ const App = (() => {
 
             await sleep(500);
 
-            const cmd = AZMManager.getDINFOCommand();
-            Logger.logOutgoing('AZM', cmd.trim());
-            await serialBridge.send(cmd);
-            console.log('[Serial] →', cmd.trim());
+            if (serialBridge && serialBridge.isOpen) {
+				const cmd = AZMManager.getDINFOCommand();
+				Logger.logOutgoing('AZM', cmd.trim());
+				await serialBridge.send(cmd);
+				console.log('[Serial] →', cmd.trim());
+			}
 
         } catch (err) {
             console.error('[App] Ошибка подключения:', err);
@@ -439,11 +437,11 @@ const App = (() => {
 		TrackManager.addPoint(beacon.address, dist, azm, beacon.latitudeDeg, beacon.longitudeDeg, beacon.depthM, beacon.isTimeout);
 	}
 
-    function onSerialError(error) {
-        console.error('[App] Ошибка порта:', error);
-        Logger.logError(error.message);
-        setStatus('Ошибка порта: ' + error.message);
-    }
+	function onSerialError(error) {
+		console.error('[App] Ошибка порта:', error);
+		Logger.logError(error.message);
+		setStatus('Ошибка порта: ' + error.message);
+	}
 
     function onSerialClose() {
         console.log('[App] Соединение закрыто');
@@ -482,8 +480,8 @@ const App = (() => {
 			};
 			gnssBridge.onClose = () => {
 				isGnssConnected = false;
-				Logger.logInfo('GNSS disconnected');
 				updateAllButtons();
+				Logger.logInfo('GNSS disconnected');
 			};
 
 			const saved = localStorage.getItem('zima2_settings');
@@ -553,7 +551,6 @@ const App = (() => {
 			}
 		}
 	}
-	
 	
 	
 	// ========== КАЛИБРОВКА ==========
@@ -984,7 +981,6 @@ const App = (() => {
 	}
 
     // ========== ЛОГГЕР ==========
-
     function saveLog() {
         if (Logger.getEntryCount() === 0) {
             alert('Нет данных для сохранения');
@@ -1663,9 +1659,7 @@ const App = (() => {
         if (ageTimer) clearInterval(ageTimer);
     });
 
-
 	// ========== ЭКСПОРТ ==========
-
 	function exportCSV() {
 		const allTracks = TrackManager.getAll();
 		const stTrack = TrackManager.stationTrack;
@@ -1707,47 +1701,46 @@ const App = (() => {
 		document.body.removeChild(a); URL.revokeObjectURL(url);
 	}
 
+	function exportGGA() {
+		const allTracks = TrackManager.getAll();
+		const trackAddresses = Object.keys(allTracks);
+		if (trackAddresses.length === 0) { alert('Нет данных треков'); return; }
 
-function exportGGA() {
-    const allTracks = TrackManager.getAll();
-    const trackAddresses = Object.keys(allTracks);
-    if (trackAddresses.length === 0) { alert('Нет данных треков'); return; }
+		const lines = [];
+		for (const addr of trackAddresses) {
+			const hexAddr = parseInt(addr).toString(16).toUpperCase(); // 0-F
+			for (const point of allTracks[addr]) {
+				if (point.isTimeout || point.lat == null || point.lon == null || isNaN(point.lat) || isNaN(point.lon)) continue;
+				const ts = new Date(point.ts);
+				const timeStr = ts.toISOString().replace(/[-:]/g, '').substring(0, 15);
+				const lat = Math.abs(point.lat);
+				const latDeg = Math.floor(lat);
+				const latMin = (lat - latDeg) * 60;
+				const latHemi = point.lat >= 0 ? 'N' : 'S';
+				const lon = Math.abs(point.lon);
+				const lonDeg = Math.floor(lon);
+				const lonMin = (lon - lonDeg) * 60;
+				const lonHemi = point.lon >= 0 ? 'E' : 'W';
+				const depth = !isNaN(point.dpt) ? point.dpt : 0;
+				const sentence = `B${hexAddr}GGA,${timeStr},${String(latDeg).padStart(2,'0')}${latMin.toFixed(4)},${latHemi},${String(lonDeg).padStart(3,'0')}${lonMin.toFixed(4)},${lonHemi},1,04,,${depth.toFixed(1)},M,,M,,`;
+				const nmeaLine = '$' + sentence;
+				let cs = 0;
+				for (let i = 1; i < nmeaLine.length; i++) cs ^= nmeaLine.charCodeAt(i);
+				lines.push(nmeaLine + '*' + cs.toString(16).toUpperCase().padStart(2, '0'));
+			}
+		}
 
-    const lines = [];
-    for (const addr of trackAddresses) {
-        const hexAddr = parseInt(addr).toString(16).toUpperCase(); // 0-F
-        for (const point of allTracks[addr]) {
-            if (point.isTimeout || point.lat == null || point.lon == null || isNaN(point.lat) || isNaN(point.lon)) continue;
-            const ts = new Date(point.ts);
-            const timeStr = ts.toISOString().replace(/[-:]/g, '').substring(0, 15);
-            const lat = Math.abs(point.lat);
-            const latDeg = Math.floor(lat);
-            const latMin = (lat - latDeg) * 60;
-            const latHemi = point.lat >= 0 ? 'N' : 'S';
-            const lon = Math.abs(point.lon);
-            const lonDeg = Math.floor(lon);
-            const lonMin = (lon - lonDeg) * 60;
-            const lonHemi = point.lon >= 0 ? 'E' : 'W';
-            const depth = !isNaN(point.dpt) ? point.dpt : 0;
-            const sentence = `B${hexAddr}GGA,${timeStr},${String(latDeg).padStart(2,'0')}${latMin.toFixed(4)},${latHemi},${String(lonDeg).padStart(3,'0')}${lonMin.toFixed(4)},${lonHemi},1,04,,${depth.toFixed(1)},M,,M,,`;
-            const nmeaLine = '$' + sentence;
-            let cs = 0;
-            for (let i = 1; i < nmeaLine.length; i++) cs ^= nmeaLine.charCodeAt(i);
-            lines.push(nmeaLine + '*' + cs.toString(16).toUpperCase().padStart(2, '0'));
-        }
-    }
-
-    if (lines.length === 0) { alert('Нет точек с координатами'); return; }
-    const blob = new Blob([lines.join('\r\n')], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `gga_tracks_${new Date().toISOString().slice(0,19).replace(/[:.]/g,'-')}.nmea`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
+		if (lines.length === 0) { alert('Нет точек с координатами'); return; }
+		const blob = new Blob([lines.join('\r\n')], { type: 'text/plain' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `gga_tracks_${new Date().toISOString().slice(0,19).replace(/[:.]/g,'-')}.nmea`;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	}
 
 	function exportPSIMSSB() {
 		const st = AZMManager.getState();
@@ -1796,9 +1789,6 @@ function exportGGA() {
 		document.body.appendChild(a); a.click();
 		document.body.removeChild(a); URL.revokeObjectURL(url);
 	}
-
-
-
 
     // ========== ПУБЛИЧНЫЙ API ==========
 	return {
