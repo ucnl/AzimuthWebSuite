@@ -26,21 +26,12 @@ class SerialBridge {
      * @returns {Promise<boolean>}
      */
 	async open(baudRate = 9600) {
-		// Сначала гарантированно закрываем предыдущий порт если есть
 		if (this.port || this.reader || this.writer) {
-			console.log('[SerialBridge] Закрываю предыдущий порт перед открытием...');
-			try {
-				await this.close();
-			} catch (e) {
-				console.warn('[SerialBridge] Предупреждение при закрытии:', e.message);
-			}
+			try { await this.close(); } catch (e) {}
 		}
 
 		try {
-			console.log('[SerialBridge] Запрос порта у пользователя...');
 			this.port = await navigator.serial.requestPort();
-
-			console.log('[SerialBridge] Открытие порта...');
 			await this.port.open({
 				baudRate: baudRate,
 				dataBits: 8,
@@ -49,55 +40,17 @@ class SerialBridge {
 				flowControl: 'none'
 			});
 
-			console.log('[SerialBridge] Порт открыт успешно');
-
 			this.isOpen = true;
 			this._lastBaudRate = baudRate;
 			this.lineBuffer = '';
-
-			// Создаём writer
 			this.writer = this.port.writable.getWriter();
-
-			// Очистка аппаратного буфера с таймаутом
-			try {
-				const cleanupReader = this.port.readable.getReader();
-				const timeout = setTimeout(() => {
-					try { cleanupReader.cancel(); } catch (e) {}
-				}, 500);
-				
-				try {
-					const { value, done } = await cleanupReader.read();
-					clearTimeout(timeout);
-					if (value && value.length > 0) {
-						console.log('[SerialBridge] Очищено ' + value.length + ' байт из буфера');
-					}
-				} catch (e) {
-					clearTimeout(timeout);
-				}
-				
-				try { cleanupReader.releaseLock(); } catch (e) {}
-			} catch (e) {
-				console.log('[SerialBridge] Буфер чист');
-			}
-
-			// Создаём reader для нормальной работы
 			this.reader = this.port.readable.getReader();
-
-			// Запускаем цикл чтения
 			this._readLoop();
-
 			return true;
 		} catch (err) {
 			this.isOpen = false;
-			
-			// Освобождаем ресурсы при ошибке
 			await this._cleanupResources();
-			
-			console.error('[SerialBridge] Ошибка открытия порта:', err);
-			
-			if (this.onError) {
-				this.onError(err);
-			}
+			if (this.onError) this.onError(err);
 			throw err;
 		}
 	}
@@ -149,12 +102,10 @@ class SerialBridge {
      */
 	async _readLoop() {
 		const decoder = new TextDecoder();
-		let buffer = '';
-
 		console.log('[SerialBridge] Цикл чтения запущен');
 
-		try {
-			while (this.reader && this.isOpen) {
+		while (this.reader && this.isOpen) {
+			try {
 				const { value, done } = await this.reader.read();
 				
 				if (done) {
@@ -162,47 +113,40 @@ class SerialBridge {
 					break;
 				}
 
-				if (this.onRawData) {
-					try { this.onRawData(value); } catch (e) {}
-				}
+				if (value && value.length > 0) {
+					this.lineBuffer += decoder.decode(value, { stream: true });
 
-				buffer += decoder.decode(value, { stream: true });
+					let idx;
+					while ((idx = this.lineBuffer.indexOf('\n')) >= 0) {
+						let line = this.lineBuffer.substring(0, idx);
+						this.lineBuffer = this.lineBuffer.substring(idx + 1);
+						line = line.replace(/\r$/, '').trim();
+						if (line && this.onMessage) {
+							try { this.onMessage(line); } catch (e) {}
+						}
+					}
 
-				let newlineIdx;
-				while ((newlineIdx = buffer.indexOf('\n')) >= 0) {
-					let line = buffer.substring(0, newlineIdx);
-					buffer = buffer.substring(newlineIdx + 1);
-					line = line.replace(/\r$/, '');
-					if (line.length === 0) continue;
-
-					if (this.onMessage) {
-						try { this.onMessage(line); } catch (e) {}
+					if (this.lineBuffer.length > 65535) {
+						console.warn('[SerialBridge] Буфер переполнен, сброс');
+						this.lineBuffer = '';
 					}
 				}
+			} catch (err) {
+				if (err.name === 'NetworkError' || err.name === 'AbortError') {
+					console.log('[SerialBridge] Порт отключен (' + err.name + ')');
+					break;
+				}
+				// Все остальные ошибки — логируем и продолжаем
+				console.warn('[SerialBridge] Ошибка чтения, продолжаем:', err.name);
+				this.lineBuffer = '';
+			}
+		}
 
-				if (buffer.length > 65535) {
-					console.warn('[SerialBridge] Буфер переполнен, сброс');
-					buffer = '';
-				}
-			}
-		} catch (err) {
-			if (err.name === 'NetworkError') {
-				console.log('[SerialBridge] Порт отключен (NetworkError)');
-			} else if (err.name === 'AbortError') {
-				console.log('[SerialBridge] Цикл чтения остановлен (AbortError)');
-			} else {
-				console.error('[SerialBridge] Ошибка в цикле чтения:', err);
-				if (this.onError) {
-					this.onError(err);
-				}
-			}
-		} finally {
-			console.log('[SerialBridge] Цикл чтения завершён');
-			this.isOpen = false;
-			
-			if (this.onClose) {
-				try { this.onClose(); } catch (e) {}
-			}
+		console.log('[SerialBridge] Цикл чтения завершён');
+		this.isOpen = false;
+		
+		if (this.onClose) {
+			try { this.onClose(); } catch (e) {}
 		}
 	}
 
