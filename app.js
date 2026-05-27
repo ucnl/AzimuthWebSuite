@@ -471,8 +471,14 @@ const App = (() => {
 			gnssBridge = new SerialBridge();
 			gnssBridge.onMessage = onGnssMessage;
 			gnssBridge.onError = (e) => {
-				console.error('[GNSS] Ошибка:', e);
-				Logger.logError('GNSS: ' + e.message);
+				console.error('[GNSS] Ошибка:', e.message);
+				Logger.logError('GNSS: ' + e.message);				
+				setTimeout(() => {
+					if (gnssBridge && !gnssBridge.isOpen && !isGnssConnected) {
+						console.log('[GNSS] Автопереподключение...');
+						connectGNSS();
+					}
+				}, 2000);
 			};
 			gnssBridge.onClose = () => {
 				isGnssConnected = false;
@@ -505,6 +511,7 @@ const App = (() => {
 	}
 
 	function onGnssMessage(rawLine) {
+		
 		const line = rawLine.trim();
 		Logger.logIncoming('GNSS', line);
 
