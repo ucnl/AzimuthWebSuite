@@ -471,12 +471,6 @@ const App = (() => {
 			gnssBridge.onError = (e) => {
 				console.error('[GNSS] Ошибка:', e.message);
 				Logger.logError('GNSS: ' + e.message);				
-				setTimeout(() => {
-					if (gnssBridge && !gnssBridge.isOpen && !isGnssConnected) {
-						console.log('[GNSS] Автопереподключение...');
-						connectGNSS();
-					}
-				}, 2000);
 			};
 			gnssBridge.onClose = () => {
 				isGnssConnected = false;
@@ -1323,7 +1317,7 @@ const App = (() => {
 		ctx.fillText('АНТ', ax, ay - 26);
 	}
 
-	 function drawBeacons() {
+	function drawBeacons() {
 		const beacons = AZMManager.getBeaconsArray();
 		if (!beacons || beacons.length === 0) return;
 
@@ -1411,7 +1405,7 @@ const App = (() => {
 		});
 	}
 
-	 function autoScale() {
+	function autoScale() {
 		const beacons = AZMManager.getBeaconsArray();
 		const anchor = TrackManager.getAnchor();
 		let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
