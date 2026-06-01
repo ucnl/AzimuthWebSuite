@@ -27,6 +27,7 @@ const AZMManager = (() => {
         waterTempC: NaN, pressureMBar: NaN,
 		speedMps: NaN, courseDeg: NaN,
         salinityPSU: 0.0, soundSpeedMps: NaN, maxDistM: 1000.0, addressMask: 1,
+		soundSpeedAuto: true,
         phiDeg: 0.0, offsetXM: 0.0, offsetYM: 0.0,
         isInterrogationActive: false, isDeviceInfoValid: false,
         deviceType: 0, serialNumber: '',
@@ -72,6 +73,17 @@ const AZMManager = (() => {
         if (!isNaN(ndata.locPitchDeg)) state.antennaPitchDeg = ndata.locPitchDeg;
         if (!isNaN(ndata.locRollDeg)) state.antennaRollDeg = ndata.locRollDeg;
         if (!isNaN(ndata.locHeadingDeg)) state.antennaHeadingDeg = ndata.locHeadingDeg;
+		
+		// ВЫЧИСЛЕНИЕ СКОРОСТИ ЗВУКА
+		if (state.soundSpeedAuto && !isNaN(state.waterTempC) && !isNaN(state.salinityPSU) && state.salinityPSU > 0) {
+			state.soundSpeedMps = SoundSpeed.calc(
+				state.waterTempC, 
+				state.salinityPSU, 
+				state.antennaDepthM || 0
+			);
+		}
+		
+		
         state.lastUpdateTime = Date.now();
     }
 
@@ -117,7 +129,8 @@ const AZMManager = (() => {
 			let projectionM = NaN;
 
 			if (!isNaN(beacon.propTimeS)) {
-				const sos = (state.soundSpeedMps > 0) ? state.soundSpeedMps : DEFAULT_SOUND_SPEED_MPS;
+				const sos = (state.soundSpeedMps > 0) ? state.soundSpeedMps : DEFAULT_SOUND_SPEED_MPS;				
+				
 				beacon.slantRangeM = beacon.propTimeS * sos;
 				if (!isNaN(state.antennaDepthM) && !isNaN(beacon.depthM)) {
 					projectionM = slantRangeProjection(state.antennaDepthM, beacon.depthM, beacon.slantRangeM);
@@ -279,6 +292,7 @@ const AZMManager = (() => {
     function setSalinity(psu) { state.salinityPSU = psu; }
     function setMaxDistance(m) { state.maxDistM = m; }
     function setSoundSpeed(mps) { state.soundSpeedMps = mps; }
+	function setSoundSpeedAuto(auto) { state.soundSpeedAuto = !!auto; }
     function setAddressMask(mask) { state.addressMask = mask; }
     function setAntennaOffsets(xM, yM, phiDeg) { state.offsetXM = xM; state.offsetYM = yM; state.phiDeg = phiDeg; }
 
@@ -305,6 +319,7 @@ const AZMManager = (() => {
         processRawLine, processParsedMessage, processNDTA,
         getDINFOCommand, getStartCommand, getStopCommand,
         setAntennaPosition, setSalinity, setMaxDistance, setSoundSpeed,
+		setSoundSpeedAuto,
         setAddressMask, setAntennaOffsets,
         recalcAllBeacons,
         getState, getBeacons, getBeaconsArray, tickAge, reset,
