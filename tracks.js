@@ -43,25 +43,30 @@ const TrackManager = (() => {
 
     // ========== ТРЕК СТАНЦИИ ==========
 
-    function addStationPoint(lat, lon) {
-        if (isNaN(lat) || isNaN(lon)) return;
+	 function addStationPoint(lat, lon, headingDeg) {
+		if (isNaN(lat) || isNaN(lon)) return;
 
-        // Первая точка с GNSS — якорь
-        if (stationTrack.length === 0 && !isNaN(lat)) {
-            setAnchor(lat, lon);
-        }
+		// Первая точка с GNSS — якорь
+		if (stationTrack.length === 0 && !isNaN(lat)) {
+			setAnchor(lat, lon);
+		}
 
-        const m = geoToMeters(lat, lon);
+		const m = geoToMeters(lat, lon);
 
-        // Не добавляем если координаты не изменились
-        if (stationTrack.length > 0) {
-            const last = stationTrack[stationTrack.length - 1];
-            if (Math.abs(m.x - last.x) < 0.001 && Math.abs(m.y - last.y) < 0.001) return;
-        }
+		// Не добавляем если координаты не изменились
+		if (stationTrack.length > 0) {
+			const last = stationTrack[stationTrack.length - 1];
+			if (Math.abs(m.x - last.x) < 0.001 && Math.abs(m.y - last.y) < 0.001) return;
+		}
 
-        stationTrack.push({ x: m.x, y: m.y, lat, lon, ts: Date.now() });		
-        while (stationTrack.length > MAX_STORED_STATION) stationTrack.shift();
-    }
+		stationTrack.push({ 
+			x: m.x, y: m.y, 
+			lat, lon, 
+			ts: Date.now(),
+			heading: (!isNaN(headingDeg) ? headingDeg : null)
+		});
+		while (stationTrack.length > MAX_STORED_STATION) stationTrack.shift();
+	}
 
     function clearStationTrack() {
         stationTrack = [];
@@ -110,53 +115,62 @@ const TrackManager = (() => {
 
     // ========== ТРЕКИ МАЯКОВ ==========
 
-    function addPoint(address, dist, azm, lat, lon, dpt, isTimeout) {
-        if (isNaN(dist) || isNaN(azm)) return;
+	function addPoint(address, dist, azm, lat, lon, dpt, isTimeout, xM, yM, zM) {
+		// Принимаем точку даже без dist/azm, если есть относительные координаты
+		if (isNaN(dist) && isNaN(xM)) return;
 
-        if (!tracks[address]) {
-            tracks[address] = [];
-        }
+		if (!tracks[address]) {
+			tracks[address] = [];
+		}
 
-        const track = tracks[address];
+		const track = tracks[address];
 
-        // Вычисляем метры: если есть абсолютные координаты — от якоря, иначе — полярные от станции
-        let x, y;
-        if (!isNaN(lat) && !isNaN(lon) && !isNaN(anchorLat)) {
-            const m = geoToMeters(lat, lon);
-            x = m.x;
-            y = m.y;
-        } else {
-            x = NaN;
-            y = NaN;
-        }
+		// Вычисляем метры от якоря: если есть абсолютные координаты — от якоря, иначе NaN
+		let x, y;
+		if (!isNaN(lat) && !isNaN(lon) && !isNaN(anchorLat)) {
+			const m = geoToMeters(lat, lon);
+			x = m.x;
+			y = m.y;
+		} else {
+			x = NaN;
+			y = NaN;
+		}
 
-        // Фильтрация по минимальной дистанции
-        if (track.length > 0 && settings.minPointDistanceM > 0) {
-            const last = track[track.length - 1];
-            if (!last.isTimeout) {
-                if (!isNaN(x) && !isNaN(last.x)) {
-                    const d = Math.sqrt((x - last.x) ** 2 + (y - last.y) ** 2);
-                    if (d < settings.minPointDistanceM) return;
-                } else {
-                    const angDiff = (azm - last.azm) * Math.PI / 180;
-                    const d = Math.sqrt(dist * dist + last.dist * last.dist - 2 * dist * last.dist * Math.cos(angDiff));
-                    if (d < settings.minPointDistanceM) return;
-                }
-            }
-        }
+		// Фильтрация по минимальной дистанции
+		if (track.length > 0 && settings.minPointDistanceM > 0) {
+			const last = track[track.length - 1];
+			if (!last.isTimeout) {
+				// Если есть относительные координаты — сравниваем по ним
+				if (!isNaN(xM) && !isNaN(last.xM)) {
+					const d = Math.sqrt((xM - last.xM) ** 2 + (yM - last.yM) ** 2);
+					if (d < settings.minPointDistanceM) return;
+				} else if (!isNaN(x) && !isNaN(last.x)) {
+					const d = Math.sqrt((x - last.x) ** 2 + (y - last.y) ** 2);
+					if (d < settings.minPointDistanceM) return;
+				} else if (!isNaN(dist) && !isNaN(last.dist) && !isNaN(azm) && !isNaN(last.azm)) {
+					const angDiff = (azm - last.azm) * Math.PI / 180;
+					const d = Math.sqrt(dist * dist + last.dist * last.dist - 2 * dist * last.dist * Math.cos(angDiff));
+					if (d < settings.minPointDistanceM) return;
+				}
+			}
+		}
 
-        track.push({
-            dist, azm,
-            x, y,
-            lat: !isNaN(lat) ? lat : null,
-            lon: !isNaN(lon) ? lon : null,
-            dpt: isNaN(dpt) ? 0 : dpt,
-            ts: Date.now(),
-            isTimeout: !!isTimeout,
-        });
+		track.push({
+			dist: isNaN(dist) ? null : dist,
+			azm: isNaN(azm) ? null : azm,
+			x, y,
+			lat: !isNaN(lat) ? lat : null,
+			lon: !isNaN(lon) ? lon : null,
+			dpt: isNaN(dpt) ? 0 : dpt,
+			ts: Date.now(),
+			isTimeout: !!isTimeout,
+			xM: !isNaN(xM) ? xM : null,
+			yM: !isNaN(yM) ? yM : null,
+			zM: !isNaN(zM) ? zM : (!isNaN(dpt) ? dpt : null),
+		});
 
-        while (track.length > MAX_STORED_POINTS) track.shift();
-    }
+		while (track.length > MAX_STORED_POINTS) track.shift();
+	}
 
     // ========== ОЧИСТКА ==========
 

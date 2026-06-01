@@ -387,55 +387,89 @@ const App = (() => {
 		updateAllButtons();
     }
 
-	function handleBeaconUpdate(beacon) {
-		if (!beacon) return;
+function handleBeaconUpdate(beacon) {
+    if (!beacon) return;
 
-		let dist, azm;
+    let dist, azm;
 
-		if (!isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.absoluteAzimuthDeg) && beacon.absoluteDistanceM > 0) {
-			dist = beacon.absoluteDistanceM;
-			azm = beacon.absoluteAzimuthDeg;
-		} else if (beacon.dhFilter) {
-			return; // фильтр есть, но нет валидных данных — не добавляем в трек
-		} else if (!isNaN(beacon.slantRangeProjectionM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeProjectionM > 0) {
-			dist = beacon.slantRangeProjectionM;
-			azm = beacon.azimuthDeg + (AZMManager.getState().antennaHeadingDeg || 0);
-		} else if (!isNaN(beacon.slantRangeM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeM > 0) {
-			dist = beacon.slantRangeM;
-			azm = beacon.azimuthDeg + (AZMManager.getState().antennaHeadingDeg || 0);
-		} else {
-			return;
-		}
-		
-		// Если идёт калибровка — добавляем точку
-		if (isCalibrating && !isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.azimuthDeg)) {
-	
-			const st = AZMManager.getState();
-			if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaHeadingDeg)) {
-				AngularCalibration.addPoint(
-					new Date(),
-					st.antennaHeadingDeg,
-					st.antennaLatDeg,
-					st.antennaLonDeg,
-					beacon.azimuthDeg,
-					beacon.slantRangeProjectionM || beacon.slantRangeM,
-					beacon.propTimeS,
-					st.antennaDepthM,
-					beacon.depthM
-				);
-				const count = AngularCalibration.getCount();
-				const maxPoints = parseInt(document.getElementById('cfg-cal-points')?.value) || 100;
-				const statusEl = document.getElementById('cal-status');
-				if (statusEl) statusEl.textContent = 'Собрано: ' + count;
+    if (!isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.absoluteAzimuthDeg) && beacon.absoluteDistanceM > 0) {
+        dist = beacon.absoluteDistanceM;
+        azm = beacon.absoluteAzimuthDeg;
+    } else if (beacon.dhFilter) {
+        return;
+    } else if (!isNaN(beacon.slantRangeProjectionM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeProjectionM > 0) {
+        dist = beacon.slantRangeProjectionM;
+        azm = beacon.azimuthDeg + (AZMManager.getState().antennaHeadingDeg || 0);
+    } else if (!isNaN(beacon.slantRangeM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeM > 0) {
+        dist = beacon.slantRangeM;
+        azm = beacon.azimuthDeg + (AZMManager.getState().antennaHeadingDeg || 0);
+    }
+
+    // Вычисляем относительные координаты в системе Head-Up
+    let xM = NaN, yM = NaN, zM = NaN;
+    const st = AZMManager.getState();
+
+    // Если есть топопривязка и абсолютные координаты маяка — через географию
+    if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg) && !isNaN(st.antennaHeadingDeg) &&
+        !isNaN(beacon.latitudeDeg) && !isNaN(beacon.longitudeDeg)) {
+        
+		const mlat = (st.antennaLatDeg + beacon.latitudeDeg) / 2 * Math.PI / 180;
+		const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * mlat) + 1.175 * Math.cos(4 * mlat);
+		const mPerDegLon = 111412.84 * Math.cos(mlat) - 93.5 * Math.cos(3 * mlat);
+
+		const deltaLatM = (beacon.latitudeDeg - st.antennaLatDeg) * mPerDegLat;
+		const deltaLonM = (beacon.longitudeDeg - st.antennaLonDeg) * mPerDegLon;
 				
-				if (count >= maxPoints) {
-					stopCalibration();
-				}
-			}
-		}
+        const headingRad = st.antennaHeadingDeg * Math.PI / 180;
+        const cosH = Math.cos(headingRad);
+        const sinH = Math.sin(headingRad);
+        
+        xM = deltaLatM * cosH + deltaLonM * sinH;
+        yM = -deltaLatM * sinH + deltaLonM * cosH;
+        zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
+    }
+    // Если нет топопривязки — через полярные координаты
+    else if (!isNaN(dist) && !isNaN(azm) && !isNaN(st.antennaHeadingDeg)) {
+        const relativeAzmRad = (azm - st.antennaHeadingDeg) * Math.PI / 180;
+        xM = dist * Math.cos(relativeAzmRad);
+        yM = dist * Math.sin(relativeAzmRad);
+        zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
+    }
+    // Если вообще ничего нет
+    else {
+        zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
+    }
 
-		TrackManager.addPoint(beacon.address, dist, azm, beacon.latitudeDeg, beacon.longitudeDeg, beacon.depthM, beacon.isTimeout);
-	}
+    TrackManager.addPoint(
+        beacon.address, dist, azm,
+        beacon.latitudeDeg, beacon.longitudeDeg, beacon.depthM,
+        beacon.isTimeout,
+        xM, yM, zM
+    );
+
+    // Калибровка (без изменений)
+    if (isCalibrating && !isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.azimuthDeg)) {
+        AngularCalibration.addPoint(
+            new Date(),
+            st.antennaHeadingDeg,
+            st.antennaLatDeg,
+            st.antennaLonDeg,
+            beacon.azimuthDeg,
+            beacon.slantRangeProjectionM || beacon.slantRangeM,
+            beacon.propTimeS,
+            st.antennaDepthM,
+            beacon.depthM
+        );
+        const count = AngularCalibration.getCount();
+        const maxPoints = parseInt(document.getElementById('cfg-cal-points')?.value) || 100;
+        const statusEl = document.getElementById('cal-status');
+        if (statusEl) statusEl.textContent = 'Собрано: ' + count;
+
+        if (count >= maxPoints) {
+            stopCalibration();
+        }
+    }
+}
 
 	function onSerialError(error) {
 		console.error('[App] Ошибка порта:', error);
@@ -515,7 +549,7 @@ const App = (() => {
 		if (data.type === 'rmc' && !isNaN(data.latitude) && !isNaN(data.longitude)) {
 			AZMManager.setAntennaPosition(data.latitude, data.longitude, st.antennaHeadingDeg);
 			if (!isNaN(data.speedMps)) AZMManager.setSpeedCourse(data.speedMps, data.course);
-			TrackManager.addStationPoint(data.latitude, data.longitude);
+			TrackManager.addStationPoint(data.latitude, data.longitude, st.antennaHeadingDeg);
 			updateAntennaInfoUI();
 			
 			if (topoVisible) {
@@ -825,7 +859,10 @@ const App = (() => {
         document.getElementById('cfg-mask').value = st.addressMask;
         document.getElementById('cfg-maxdist').value = st.maxDistM;
         document.getElementById('cfg-salinity').value = st.salinityPSU;
-        document.getElementById('cfg-soundspeed').value = isNaN(st.soundSpeedMps) ? '' : st.soundSpeedMps;
+        const sosInput = document.getElementById('cfg-soundspeed');
+		if (sosInput) {
+			sosInput.value = (!isNaN(st.soundSpeedMps) && !st.soundSpeedAuto) ? st.soundSpeedMps.toFixed(1) : '';
+		}
         document.getElementById('cfg-offsetx').value = st.offsetXM;
         document.getElementById('cfg-offsety').value = st.offsetYM;
         document.getElementById('cfg-phi').value = st.phiDeg;
@@ -851,8 +888,10 @@ const App = (() => {
         const mask = parseInt(document.getElementById('cfg-mask').value) || 1;
         const maxDist = parseFloat(document.getElementById('cfg-maxdist').value) || 1000;
         const salinity = parseFloat(document.getElementById('cfg-salinity').value) || 0;
-        const soundSpeedVal = document.getElementById('cfg-soundspeed').value;
-        const soundSpeed = soundSpeedVal ? parseFloat(soundSpeedVal) : NaN;
+		
+		const soundSpeedVal = document.getElementById('cfg-soundspeed').value;
+		const soundSpeed = soundSpeedVal ? parseFloat(soundSpeedVal) : NaN;
+		
         const offsX = parseFloat(document.getElementById('cfg-offsetx').value) || 0;
         const offsY = parseFloat(document.getElementById('cfg-offsety').value) || 0;
         const phi = parseFloat(document.getElementById('cfg-phi').value) || 0;
@@ -868,7 +907,8 @@ const App = (() => {
         AZMManager.setAddressMask(mask);
         AZMManager.setMaxDistance(maxDist);
         AZMManager.setSalinity(salinity);
-        AZMManager.setSoundSpeed(soundSpeed);
+        AZMManager.setSoundSpeedAuto(isNaN(soundSpeed));  // пусто = авто
+		if (!isNaN(soundSpeed)) AZMManager.setSoundSpeed(soundSpeed);
         AZMManager.setAntennaOffsets(offsX, offsY, phi);
 
         TrackManager.setMaxPoints(maxPoints);
@@ -935,6 +975,7 @@ const App = (() => {
 			mask: AZMManager.getState().addressMask,
 			maxDist: AZMManager.getState().maxDistM,
 			salinity: AZMManager.getState().salinityPSU,
+			soundSpeedAuto: AZMManager.getState().soundSpeedAuto,
 			soundSpeed: AZMManager.getState().soundSpeedMps,
 			offsetX: AZMManager.getState().offsetXM,
 			offsetY: AZMManager.getState().offsetYM,
@@ -955,6 +996,7 @@ const App = (() => {
 				if (data.mask !== undefined) AZMManager.setAddressMask(data.mask);
 				if (data.maxDist !== undefined) AZMManager.setMaxDistance(data.maxDist);
 				if (data.salinity !== undefined) AZMManager.setSalinity(data.salinity);
+				if (data.soundSpeedAuto !== undefined) AZMManager.setSoundSpeedAuto(data.soundSpeedAuto);
 				if (data.soundSpeed !== undefined) AZMManager.setSoundSpeed(data.soundSpeed);
 				if (data.offsetX !== undefined && data.offsetY !== undefined && data.phi !== undefined) {
 					AZMManager.setAntennaOffsets(data.offsetX, data.offsetY, data.phi);
@@ -1064,7 +1106,7 @@ const App = (() => {
 			if (gnssData.type === 'rmc' && !isNaN(gnssData.latitude) && !isNaN(gnssData.longitude)) {
 				AZMManager.setAntennaPosition(gnssData.latitude, gnssData.longitude, st.antennaHeadingDeg);
 				if (!isNaN(gnssData.speedMps)) AZMManager.setSpeedCourse(gnssData.speedMps, gnssData.course);
-				TrackManager.addStationPoint(gnssData.latitude, gnssData.longitude);
+				TrackManager.addStationPoint(gnssData.latitude, gnssData.longitude, AZMManager.getState().antennaHeadingDeg);
 				updateAntennaInfoUI();
 			} else if (gnssData.type === 'hdt' && !isNaN(gnssData.heading)) {
 				hasTrueHeading = true;
@@ -1706,7 +1748,11 @@ const App = (() => {
 			for (const point of allTracks[addr]) {
 				if (point.isTimeout || point.lat == null || point.lon == null || isNaN(point.lat) || isNaN(point.lon)) continue;
 				const ts = new Date(point.ts);
-				const timeStr = ts.toISOString().replace(/[-:]/g, '').substring(0, 15);
+				const hh = String(ts.getUTCHours()).padStart(2, '0');
+				const mm = String(ts.getUTCMinutes()).padStart(2, '0');
+				const ss = String(ts.getUTCSeconds()).padStart(2, '0');
+				const ss2 = String(ts.getUTCMilliseconds() / 10).padStart(2, '0'); // сотые доли
+				const timeStr = `${hh}${mm}${ss}.${ss2}`;
 				const lat = Math.abs(point.lat);
 				const latDeg = Math.floor(lat);
 				const latMin = (lat - latDeg) * 60;
@@ -1737,51 +1783,43 @@ const App = (() => {
 	}
 
 	function exportPSIMSSB() {
-		const st = AZMManager.getState();
-		if (isNaN(st.antennaLatDeg) || isNaN(st.antennaLonDeg) || isNaN(st.antennaHeadingDeg)) {
-			alert('Нет топопривязки'); return;
-		}
-
 		const allTracks = TrackManager.getAll();
 		const trackAddresses = Object.keys(allTracks);
 		if (trackAddresses.length === 0) { alert('Нет данных треков'); return; }
 
-		const spLatRad = st.antennaLatDeg * Math.PI / 180;
-		const spLonRad = st.antennaLonDeg * Math.PI / 180;
-		const headingRad = st.antennaHeadingDeg * Math.PI / 180;
-		const cosH = Math.cos(headingRad); const sinH = Math.sin(headingRad);
-
 		const lines = [];
 		for (const addr of trackAddresses) {
 			for (const point of allTracks[addr]) {
-				if (point.isTimeout || point.lat == null || point.lon == null || isNaN(point.lat) || isNaN(point.lon)) continue;
+				if (point.isTimeout) continue;
+				if (point.xM == null || point.yM == null || isNaN(point.xM) || isNaN(point.yM)) continue;
+
 				const ts = new Date(point.ts);
-				const timeStr = ts.toISOString().replace(/[-:]/g, '').substring(0, 15);
+				// Только время: hhmmss (по спецификации PSIMSSB)
+				const hh = String(ts.getUTCHours()).padStart(2, '0');
+				const mm = String(ts.getUTCMinutes()).padStart(2, '0');
+				const ss = String(ts.getUTCSeconds()).padStart(2, '0');
+				const timeStr = `${hh}${mm}${ss}`;
 				const btpId = 'B' + String(parseInt(addr) + 1).padStart(2, '0');
-				const epLatRad = point.lat * Math.PI / 180;
-				const epLonRad = point.lon * Math.PI / 180;
-				const mlat = (spLatRad + epLatRad) / 2;
-				const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * mlat) + 1.175 * Math.cos(4 * mlat);
-				const mPerDegLon = 111412.84 * Math.cos(mlat) - 93.5 * Math.cos(3 * mlat);
-				const deltaLatM = (spLatRad - epLatRad) * mPerDegLat;
-				const deltaLonM = (spLonRad - epLonRad) * mPerDegLon;
-				const xM = deltaLatM * cosH + deltaLonM * sinH;
-				const yM = -deltaLatM * sinH + deltaLonM * cosH;
-				const zM = !isNaN(point.dpt) ? point.dpt : 0;
-				const sentence = `PSIMSSB,${timeStr},${btpId},A,,C,H,M,${xM.toFixed(2)},${yM.toFixed(2)},${zM.toFixed(2)},0.0,N,,`;
+				const zM = (point.zM != null && !isNaN(point.zM)) ? point.zM : (!isNaN(point.dpt) ? point.dpt : 0);
+
+				const sentence = `PSIMSSB,${timeStr},${btpId},A,,C,H,M,${point.xM.toFixed(2)},${point.yM.toFixed(2)},${zM.toFixed(2)},0.0,N,,`;
 				const nmeaLine = '$' + sentence;
-				let cs = 0; for (let i = 1; i < nmeaLine.length; i++) cs ^= nmeaLine.charCodeAt(i);
+				let cs = 0;
+				for (let i = 1; i < nmeaLine.length; i++) cs ^= nmeaLine.charCodeAt(i);
 				lines.push(nmeaLine + '*' + cs.toString(16).toUpperCase().padStart(2, '0'));
 			}
 		}
 
-		if (lines.length === 0) { alert('Нет точек с координатами'); return; }
+		if (lines.length === 0) { alert('Нет точек с относительными координатами. Нужна топопривязка.'); return; }
 		const blob = new Blob([lines.join('\r\n')], { type: 'text/plain' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
-		a.href = url; a.download = `psimssb_tracks_${new Date().toISOString().slice(0,19).replace(/[:.]/g,'-')}.nmea`;
-		document.body.appendChild(a); a.click();
-		document.body.removeChild(a); URL.revokeObjectURL(url);
+		a.href = url;
+		a.download = `psimssb_tracks_${new Date().toISOString().slice(0,19).replace(/[:.]/g,'-')}.nmea`;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
 	}
 
     // ========== ПУБЛИЧНЫЙ API ==========
