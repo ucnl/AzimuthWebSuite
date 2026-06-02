@@ -3,6 +3,9 @@
 
 const App = (() => {
 
+    const APP_VERSION = '1.2.0';
+
+
     // ========== DOM-ЭЛЕМЕНТЫ ==========
     let canvas, ctx;
     let mapContainer, beaconsBar, scaleBarEl;
@@ -150,6 +153,8 @@ const App = (() => {
 	
     // ========== ИНИЦИАЛИЗАЦИЯ ==========
     function init() {
+		
+		document.getElementById('app-version').textContent = `${APP_VERSION}`;
 		
 		LogStorage.open().catch(e => console.warn('IndexedDB недоступна:', e));
         console.log('[App] Инициализация...');
