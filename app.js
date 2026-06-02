@@ -227,6 +227,7 @@ const App = (() => {
 		}		
 		
         loadTopoBinding();
+		loadCalibrationFromStorage();
 		updateAllButtons();
         updateSettingsUI();
         updateAntennaInfoUI();
@@ -387,89 +388,86 @@ const App = (() => {
 		updateAllButtons();
     }
 
-function handleBeaconUpdate(beacon) {
-    if (!beacon) return;
+	function handleBeaconUpdate(beacon) {
+		if (!beacon) return;
 
-    let dist, azm;
+		let dist, azm;
 
-    if (!isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.absoluteAzimuthDeg) && beacon.absoluteDistanceM > 0) {
-        dist = beacon.absoluteDistanceM;
-        azm = beacon.absoluteAzimuthDeg;
-    } else if (beacon.dhFilter) {
-        return;
-    } else if (!isNaN(beacon.slantRangeProjectionM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeProjectionM > 0) {
-        dist = beacon.slantRangeProjectionM;
-        azm = beacon.azimuthDeg + (AZMManager.getState().antennaHeadingDeg || 0);
-    } else if (!isNaN(beacon.slantRangeM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeM > 0) {
-        dist = beacon.slantRangeM;
-        azm = beacon.azimuthDeg + (AZMManager.getState().antennaHeadingDeg || 0);
-    }
+		if (!isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.absoluteAzimuthDeg) && beacon.absoluteDistanceM > 0) {
+			dist = beacon.absoluteDistanceM;
+			azm = beacon.absoluteAzimuthDeg;
+		} else if (beacon.dhFilter) {
+			return;
+		} else if (!isNaN(beacon.slantRangeProjectionM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeProjectionM > 0) {
+			dist = beacon.slantRangeProjectionM;
+			azm = beacon.azimuthDeg + (AZMManager.getState().antennaHeadingDeg || 0);
+		} else if (!isNaN(beacon.slantRangeM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeM > 0) {
+			dist = beacon.slantRangeM;
+			azm = beacon.azimuthDeg + (AZMManager.getState().antennaHeadingDeg || 0);
+		}
 
-    // Вычисляем относительные координаты в системе Head-Up
-    let xM = NaN, yM = NaN, zM = NaN;
-    const st = AZMManager.getState();
+		// Вычисляем относительные координаты в системе Head-Up
+		let xM = NaN, yM = NaN, zM = NaN;
+		const st = AZMManager.getState();
 
-    // Если есть топопривязка и абсолютные координаты маяка — через географию
-    if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg) && !isNaN(st.antennaHeadingDeg) &&
-        !isNaN(beacon.latitudeDeg) && !isNaN(beacon.longitudeDeg)) {
-        
-		const mlat = (st.antennaLatDeg + beacon.latitudeDeg) / 2 * Math.PI / 180;
-		const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * mlat) + 1.175 * Math.cos(4 * mlat);
-		const mPerDegLon = 111412.84 * Math.cos(mlat) - 93.5 * Math.cos(3 * mlat);
+		// Если есть топопривязка и абсолютные координаты маяка — через географию
+		if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg) && !isNaN(st.antennaHeadingDeg) &&
+			!isNaN(beacon.latitudeDeg) && !isNaN(beacon.longitudeDeg)) {
+			
+			const deltas = GeoUtils.deltasByDegrees(st.antennaLatDeg, st.antennaLonDeg, beacon.latitudeDeg, beacon.longitudeDeg);
+			const deltaLatM = deltas.deltaLatM;
+			const deltaLonM = deltas.deltaLonM;
+					
+			const headingRad = st.antennaHeadingDeg * Math.PI / 180;
+			const cosH = Math.cos(headingRad);
+			const sinH = Math.sin(headingRad);
+			
+			xM = deltaLatM * cosH + deltaLonM * sinH;
+			yM = -deltaLatM * sinH + deltaLonM * cosH;
+			zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
+		}
+		// Если нет топопривязки — через полярные координаты
+		else if (!isNaN(dist) && !isNaN(azm) && !isNaN(st.antennaHeadingDeg)) {
+			const relativeAzmRad = (azm - st.antennaHeadingDeg) * Math.PI / 180;
+			xM = dist * Math.cos(relativeAzmRad);
+			yM = dist * Math.sin(relativeAzmRad);
+			zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
+		}
+		// Если вообще ничего нет
+		else {
+			zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
+		}
 
-		const deltaLatM = (beacon.latitudeDeg - st.antennaLatDeg) * mPerDegLat;
-		const deltaLonM = (beacon.longitudeDeg - st.antennaLonDeg) * mPerDegLon;
-				
-        const headingRad = st.antennaHeadingDeg * Math.PI / 180;
-        const cosH = Math.cos(headingRad);
-        const sinH = Math.sin(headingRad);
-        
-        xM = deltaLatM * cosH + deltaLonM * sinH;
-        yM = -deltaLatM * sinH + deltaLonM * cosH;
-        zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
-    }
-    // Если нет топопривязки — через полярные координаты
-    else if (!isNaN(dist) && !isNaN(azm) && !isNaN(st.antennaHeadingDeg)) {
-        const relativeAzmRad = (azm - st.antennaHeadingDeg) * Math.PI / 180;
-        xM = dist * Math.cos(relativeAzmRad);
-        yM = dist * Math.sin(relativeAzmRad);
-        zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
-    }
-    // Если вообще ничего нет
-    else {
-        zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
-    }
+		TrackManager.addPoint(
+			beacon.address, dist, azm,
+			beacon.latitudeDeg, beacon.longitudeDeg, beacon.depthM,
+			beacon.isTimeout,
+			xM, yM, zM
+		);
 
-    TrackManager.addPoint(
-        beacon.address, dist, azm,
-        beacon.latitudeDeg, beacon.longitudeDeg, beacon.depthM,
-        beacon.isTimeout,
-        xM, yM, zM
-    );
+		// Калибровка (без изменений)
+		if (isCalibrating && !isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.azimuthDeg)) {
+			AngularCalibration.addPoint(
+				new Date(),
+				st.antennaHeadingDeg,
+				st.antennaLatDeg,
+				st.antennaLonDeg,
+				beacon.azimuthDeg,
+				beacon.slantRangeProjectionM || beacon.slantRangeM,
+				beacon.propTimeS,
+				st.antennaDepthM,
+				beacon.depthM
+			);
+			const count = AngularCalibration.getCount();
+			const maxPoints = parseInt(document.getElementById('cfg-cal-points')?.value) || 100;
+			const statusEl = document.getElementById('cal-status');
+			if (statusEl) statusEl.textContent = 'Собрано: ' + count;
 
-    // Калибровка (без изменений)
-    if (isCalibrating && !isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.azimuthDeg)) {
-        AngularCalibration.addPoint(
-            new Date(),
-            st.antennaHeadingDeg,
-            st.antennaLatDeg,
-            st.antennaLonDeg,
-            beacon.azimuthDeg,
-            beacon.slantRangeProjectionM || beacon.slantRangeM,
-            beacon.propTimeS,
-            st.antennaDepthM,
-            beacon.depthM
-        );
-        const count = AngularCalibration.getCount();
-        const maxPoints = parseInt(document.getElementById('cfg-cal-points')?.value) || 100;
-        const statusEl = document.getElementById('cal-status');
-        if (statusEl) statusEl.textContent = 'Собрано: ' + count;
-
-        if (count >= maxPoints) {
-            stopCalibration();
-        }
-    }
-}
+			if (count >= maxPoints) {
+				stopCalibration();
+			}
+		}
+	}
 
 	function onSerialError(error) {
 		console.error('[App] Ошибка порта:', error);
@@ -662,6 +660,118 @@ function handleBeaconUpdate(beacon) {
 			document.getElementById('cal-status').textContent = 'Недостаточно точек';
 		}
 	}
+
+    // ========== КАЛИБРОВОЧНАЯ ТАБЛИЦА ==========
+	async function loadCalibrationFile() {
+		try {
+			// Если File System Access API доступен (Chrome/Vivaldi)
+			if (window.showOpenFilePicker) {
+				const [fileHandle] = await window.showOpenFilePicker({
+					types: [{
+						description: 'CSV Files',
+						accept: { 'text/csv': ['.csv', '.txt'] }
+					}]
+				});
+				const file = await fileHandle.getFile();
+				const text = await file.text();
+				applyCalibrationData(text, file.name);
+			} else {
+				// Fallback — старый способ
+				const input = document.createElement('input');
+				input.type = 'file';
+				input.accept = '.csv,.txt';
+				input.onchange = (e) => {
+					const file = e.target.files[0];
+					if (!file) return;
+					const reader = new FileReader();
+					reader.onload = (ev) => {
+						applyCalibrationData(ev.target.result, file.name);
+					};
+					reader.readAsText(file);
+				};
+				input.click();
+			}
+		} catch (e) {
+			if (e.name !== 'AbortError') {
+				console.error('[App] Ошибка загрузки калибровки:', e);
+				alert('Ошибка загрузки: ' + e.message);
+			}
+		}
+	}
+
+	function applyCalibrationData(text, filename) {
+		try {
+			const { angles, errors } = AntennaCorrector.parseFromText(text);
+			AZMManager.loadAntennaCalibration(angles, errors);
+			
+			// Сохраняем в localStorage
+			saveCalibrationToStorage(angles, errors);
+			
+			// Обновляем UI
+			updateCalibrationUI(angles.length);
+			
+			// Пересчитываем маяки
+			AZMManager.recalcAllBeacons();
+			
+			setStatus(`Калибровка загружена: ${angles.length} точек`);
+		} catch (e) {
+			alert('Ошибка формата файла: ' + e.message);
+		}
+	}
+
+	function resetCalibration() {
+		if (confirm('Сбросить калибровочную таблицу антенны?')) {
+			AZMManager.resetAntennaCalibration();
+			localStorage.removeItem('antenna_calibration');
+			updateCalibrationUI(0);
+			AZMManager.recalcAllBeacons();
+			setStatus('Калибровка сброшена');
+		}
+	}
+
+	function updateCalibrationUI(pointCount) {
+		const infoRow = document.getElementById('calibration-info');
+		const statusEl = document.getElementById('calibration-status');
+		const resetBtn = document.getElementById('btn-reset-calibration');
+		
+		if (pointCount > 0) {
+			if (infoRow) infoRow.style.display = 'flex';
+			if (statusEl) statusEl.textContent = `✓ Загружено ${pointCount} точек`;
+			if (resetBtn) resetBtn.style.display = 'inline-block';
+		} else {
+			if (infoRow) infoRow.style.display = 'none';
+			if (statusEl) statusEl.textContent = '';
+			if (resetBtn) resetBtn.style.display = 'none';
+		}
+	}
+
+	function saveCalibrationToStorage(angles, errors) {
+		try {
+			localStorage.setItem('antenna_calibration', JSON.stringify({ angles, errors }));
+		} catch (e) {
+			console.warn('Не удалось сохранить калибровку:', e);
+		}
+	}
+
+	function loadCalibrationFromStorage() {
+		try {
+			const saved = localStorage.getItem('antenna_calibration');
+			if (saved) {
+				const data = JSON.parse(saved);
+				if (data.angles && data.errors && data.angles.length >= 2) {
+					AZMManager.loadAntennaCalibration(data.angles, data.errors);
+					updateCalibrationUI(data.angles.length);
+					return true;
+				}
+			}
+		} catch (e) {
+			console.warn('Ошибка загрузки калибровки из storage:', e);
+		}
+		updateCalibrationUI(0);
+		return false;
+	}
+
+
 
     // ========== УПРАВЛЕНИЕ ОПРОСОМ ==========
     async function startInterrogation() {
@@ -1822,6 +1932,52 @@ function handleBeaconUpdate(beacon) {
 		URL.revokeObjectURL(url);
 	}
 
+	function exportPSIMSSB_NE() {
+		const allTracks = TrackManager.getAll();
+		const trackAddresses = Object.keys(allTracks);
+		if (trackAddresses.length === 0) { alert('Нет данных треков'); return; }
+
+		const lines = [];
+		for (const addr of trackAddresses) {
+			for (const point of allTracks[addr]) {
+				if (point.isTimeout) continue;
+				if (point.lat == null || point.lon == null || isNaN(point.lat) || isNaN(point.lon)) continue;
+
+				const ts = new Date(point.ts);
+				const hh = String(ts.getUTCHours()).padStart(2, '0');
+				const mm = String(ts.getUTCMinutes()).padStart(2, '0');
+				const ss = String(ts.getUTCSeconds()).padStart(2, '0');
+				const timeStr = `${hh}${mm}${ss}`;
+				
+				const btpId = 'B' + String(parseInt(addr) + 1).padStart(2, '0');
+				
+				// Конвертируем lat/lon в UTM
+				const utm = UTM.fromLatLon(point.lat, point.lon);
+				const easting = utm.easting;
+				const northing = utm.northing;
+				const zM = !isNaN(point.dpt) ? point.dpt : 0;
+
+				// C,E — East-referenced: X=Easting, Y=Northing
+				const sentence = `PSIMSSB,${timeStr},${btpId},A,,C,E,M,${easting.toFixed(2)},${northing.toFixed(2)},${zM.toFixed(2)},0.0,N,,`;
+				const nmeaLine = '$' + sentence;
+				let cs = 0;
+				for (let i = 1; i < nmeaLine.length; i++) cs ^= nmeaLine.charCodeAt(i);
+				lines.push(nmeaLine + '*' + cs.toString(16).toUpperCase().padStart(2, '0'));
+			}
+		}
+
+		if (lines.length === 0) { alert('Нет точек с координатами'); return; }
+		const blob = new Blob([lines.join('\r\n')], { type: 'text/plain' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `psimssb_utm_tracks_${new Date().toISOString().slice(0,19).replace(/[:.]/g,'-')}.nmea`;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	}
+
     // ========== ПУБЛИЧНЫЙ API ==========
 	return {
 		init,
@@ -1838,8 +1994,10 @@ function handleBeaconUpdate(beacon) {
 		toggleDropdown, closeAllDropdowns,
 		showLogAnalysis, closeAnalysis, copyAnalysis,
 		saveLog, loadLog, togglePlayback,
-		exportCSV, exportGGA, exportPSIMSSB,
-		getPhoneGPS
+		exportCSV, exportGGA, exportPSIMSSB, exportPSIMSSB_NE,
+		getPhoneGPS,
+		loadCalibrationFile,
+		resetCalibration
 	};
 
 })();

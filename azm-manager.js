@@ -2,6 +2,8 @@
 // ФИНАЛЬНАЯ ВЕРСИЯ БЕЗ ЛОГОВ
 
 const AZMManager = (() => {
+	
+	const isUseMedian = 1;
 
     // ========== ГЛОБАЛЬНЫЕ ЗАВИСИМОСТИ ==========
     const DHTrackFilter = window.DHTrackFilter;
@@ -32,6 +34,7 @@ const AZMManager = (() => {
         isInterrogationActive: false, isDeviceInfoValid: false,
         deviceType: 0, serialNumber: '',
         beacons: {}, lastUpdateTime: 0,
+		antennaCorrector: new AntennaCorrector.AZMAntennaCorrector(),
     };
 
     let timeProvider = () => new Date();
@@ -102,7 +105,7 @@ const AZMManager = (() => {
 			if (!isNaN(ndata.msrDB)) beacon.msrDB = ndata.msrDB;
 			if (!isNaN(ndata.remoteDepthM)) beacon.depthM = ndata.remoteDepthM;
 			if (!isNaN(ndata.propTimeS)) beacon.propTimeS = ndata.propTimeS;
-			if (!isNaN(ndata.hAngleDeg)) beacon.azimuthDeg = ndata.hAngleDeg;
+			if (!isNaN(ndata.hAngleDeg)) beacon.azimuthDeg = state.antennaCorrector.correctAngle(ndata.hAngleDeg);
 			if (!isNaN(ndata.vAngleDeg)) beacon.elevationDeg = ndata.vAngleDeg;
 			if (!isNaN(ndata.slantRangeM) && ndata.slantRangeM > 0.001) beacon.slantRangeM = ndata.slantRangeM;
 			if (!isNaN(ndata.slantRangeProjectionM) && ndata.slantRangeProjectionM > 0.001) beacon.slantRangeProjectionM = ndata.slantRangeProjectionM;
@@ -183,7 +186,10 @@ const AZMManager = (() => {
 						beacon.absoluteAzimuthDeg = polarResult.a_deg;
 						
 						if (!beacon.smoother && TrackMovingAverageSmoother) {
-							beacon.smoother = new TrackMovingAverageSmoother(DEFAULT_USBL_S_FIFO, DEFAULT_USBL_S_THRESHOLD);
+							if (isUseMedian == 1)
+								beacon.smoother = new TrackMedianFilter(DEFAULT_USBL_S_FIFO, DEFAULT_USBL_S_THRESHOLD);
+							else
+								beacon.smoother = new TrackMovingAverageSmoother(DEFAULT_USBL_S_FIFO, DEFAULT_USBL_S_THRESHOLD);
 						}
 						if (beacon.smoother) {
 							const smoothResult = beacon.smoother.process(geoResult.lat, geoResult.lon,
@@ -282,6 +288,21 @@ const AZMManager = (() => {
         return processParsedMessage(parsed);
     }
 
+    // ========== КАЛИБРОВОЧНАЯ ТАБЛИЦА ==========
+	
+	function loadAntennaCalibration(angles, errors) {
+		state.antennaCorrector.loadCalibration(angles, errors);
+	}
+
+	function resetAntennaCalibration() {
+		state.antennaCorrector.reset();
+	}
+
+	function isAntennaCalibrated() {
+		return state.antennaCorrector.isCalibrated;
+	}
+
+
     // ========== КОМАНДЫ ==========
     function getDINFOCommand() { return AZMParser.buildDINFO_GET(); }
     function getStartCommand() { return AZMParser.buildSTRSTP(state.addressMask, state.salinityPSU, state.soundSpeedMps, state.maxDistM); }
@@ -325,6 +346,9 @@ const AZMManager = (() => {
         getState, getBeacons, getBeaconsArray, tickAge, reset,
         DEFAULT_SOUND_SPEED_MPS,
 		setSpeedCourse,
+		loadAntennaCalibration,
+		resetAntennaCalibration,
+		isAntennaCalibrated,
 		setTimeProvider: (fn) => { timeProvider = fn; },
     };
 })();

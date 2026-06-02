@@ -35,9 +35,7 @@ const SmoothModule = (() => {
                 return { lat, lon, dpt, ts };
             }
 
-            const distToPrev = haversineInverse(
-                this.prevLat, this.prevLon, lat, lon, Haversine.WGS84_A
-            );
+            const distToPrev = GeoUtils.haversineDistance(this.prevLat, this.prevLon, lat, lon);
 
             if (distToPrev >= this.maxDistToReset) {
                 this.reset();
@@ -53,7 +51,7 @@ const SmoothModule = (() => {
                 this.points.shift();
             }
 
-            const deltas = getDeltasByGeopoints_WGS84(this.anchorLat, this.anchorLon, lat, lon);
+            const deltas = GeoUtils.getDeltasByGeopoints_WGS84(this.anchorLat, this.anchorLon, lat, lon);
             this.points.push(new MPoint(deltas.deltaLonM, deltas.deltaLatM));
 
             let meanX = 0, meanY = 0;
@@ -67,7 +65,7 @@ const SmoothModule = (() => {
             meanX /= fWeight;
             meanY /= fWeight;
 
-            const result = geopointOffsetByDeltas_WGS84(this.anchorLat, this.anchorLon, meanY, meanX);
+            const result = GeoUtils.geopointOffsetByDeltas_WGS84(this.anchorLat, this.anchorLon, meanY, meanX);
             this.prevLat = result.lat;
             this.prevLon = result.lon;
 
@@ -83,27 +81,8 @@ const SmoothModule = (() => {
         }
     }
 
-    function getDeltasByGeopoints_WGS84(lat1, lon1, lat2, lon2) {
-        const mlat = (lat1 + lat2) / 2.0;
-        const mPerDegLat = 111132.92 - 559.82 * Math.cos(2.0 * mlat) + 1.175 * Math.cos(4.0 * mlat);
-        const mPerDegLon = 111412.84 * Math.cos(mlat) - 93.5 * Math.cos(3.0 * mlat);
-        const deltaLatM = (lat1 - lat2) * mPerDegLat * (180.0 / Math.PI);
-        const deltaLonM = (lon1 - lon2) * mPerDegLon * (180.0 / Math.PI);
-        return { deltaLatM, deltaLonM };
-    }
-
-    function geopointOffsetByDeltas_WGS84(lat, lon, deltaLatM, deltaLonM) {
-        const mPerDegLat = 111132.92 - 559.82 * Math.cos(2.0 * lat) + 1.175 * Math.cos(4.0 * lat);
-        const mPerDegLon = 111412.84 * Math.cos(lat) - 93.5 * Math.cos(3.0 * lat);
-        const newLat = lat - (Math.PI / 180.0) * deltaLatM / mPerDegLat;
-        const newLon = lon - (Math.PI / 180.0) * deltaLonM / mPerDegLon;
-        return { lat: newLat, lon: newLon };
-    }
-
     // Экспорт в глобальную область
     window.TrackMovingAverageSmoother = TrackMovingAverageSmoother;
-    window.getDeltasByGeopoints_WGS84 = getDeltasByGeopoints_WGS84;
-    window.geopointOffsetByDeltas_WGS84 = geopointOffsetByDeltas_WGS84;
 
     return TrackMovingAverageSmoother;
 

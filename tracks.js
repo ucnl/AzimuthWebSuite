@@ -26,16 +26,14 @@ const TrackManager = (() => {
         anchorLon = lon;
     }
 
-    function geoToMeters(lat, lon) {
-        if (isNaN(anchorLat) || isNaN(anchorLon)) return { x: 0, y: 0 };
-        const mlat = (lat + anchorLat) / 2 * Math.PI / 180;
-        const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * mlat) + 1.175 * Math.cos(4 * mlat);
-        const mPerDegLon = 111412.84 * Math.cos(mlat) - 93.5 * Math.cos(3 * mlat);
-        return {
-            x: (lon - anchorLon) * mPerDegLon,
-            y: (lat - anchorLat) * mPerDegLat,
-        };
-    }
+	function geoToMeters(lat, lon) {
+		if (isNaN(anchorLat) || isNaN(anchorLon)) return { x: 0, y: 0 };
+		const deltas = GeoUtils.deltasByDegrees(anchorLat, anchorLon, lat, lon);
+		return {
+			x: deltas.deltaLonM,   // Easting
+			y: deltas.deltaLatM    // Northing
+		};
+	}
 
     function getAnchor() {
         return { lat: anchorLat, lon: anchorLon };
