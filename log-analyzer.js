@@ -32,7 +32,7 @@ const LogAnalyzer = (() => {
             if (e.type === 'incoming' && (port === 'AZM' || port.includes('AZM'))) {
                 ndtaCount++;
                 if (e.data) parseNDTAForReport(e.data, report);
-            } else if (e.type === 'incoming' && (port === 'GNSS' || port.includes('GNSS'))) {
+            } else if (e.type === 'incoming' && isPositionPort(port)) {
                 gnssCount++;
                 if (e.data) parseGNSSForReport(e.data, e.timestamp, report);
             } else if (e.type === 'outgoing') {
@@ -58,7 +58,24 @@ const LogAnalyzer = (() => {
             report.compass.maxJump = report.compass.jumps.reduce((a, b) => a.rate > b.rate ? a : b);
         }
 
+        report.compass.maxHeadingRate = findMaxHeadingRate(entries);
+
         return report;
+    }
+    
+    // Проверка портов
+    function isHeadingPort(port) {
+        return port === 'GNSS' || port.includes('GNSS') || 
+               port === 'HDM' || port.includes('HDM');
+    }
+
+    function isPositionPort(port) {
+        return port === 'GNSS' || port.includes('GNSS');
+    }
+
+    // Проверка типа heading-записи
+    function isHeadingRecord(gnss) {
+        return gnss && (gnss.type === 'hdt' || gnss.type === 'hdm' || gnss.type === 'hdg') && !isNaN(gnss.heading);
     }
 
     function parseNDTAForReport(data, report) {
@@ -99,7 +116,7 @@ const LogAnalyzer = (() => {
     }
 
     function parseGNSSForReport(data, timestamp, report) {
-        // Данные GNSS учитываются в findHeadingJumps/findGNSSGaps отдельно
+        // Данные GNSS учитываются в других функциях отдельно
     }
 
     function findHeadingJumps(entries, thresholdDegPerSec = 30) {
@@ -108,9 +125,9 @@ const LogAnalyzer = (() => {
 
         for (const e of entries) {
             const port = e.port || '';
-            if (e.type === 'incoming' && (port === 'GNSS' || port.includes('GNSS'))) {
+            if (e.type === 'incoming' && isHeadingPort(port)) {
                 const gnss = GNSSParser.parse(e.data || '');
-                if (gnss && (gnss.type === 'hdt' || gnss.type === 'hdm')) {
+                if (isHeadingRecord(gnss)) {
                     if (!isNaN(prevHdg) && prevTime > 0) {
                         const dt = (e.timestamp - prevTime) / 1000;
                         let dHdg = Math.abs(gnss.heading - prevHdg);
@@ -140,7 +157,7 @@ const LogAnalyzer = (() => {
 
         for (const e of entries) {
             const port = e.port || '';
-            if (e.type === 'incoming' && (port === 'GNSS' || port.includes('GNSS'))) {
+            if (e.type === 'incoming' && isPositionPort(port)) {
                 const gnss = GNSSParser.parse(e.data || '');
                 if (gnss && gnss.type === 'rmc') {
                     if (prevTime > 0) {
@@ -155,6 +172,150 @@ const LogAnalyzer = (() => {
         }
 
         return gaps;
+    }
+
+	function findMaxHeadingRate(entries) {
+		let prevHdg = NaN, prevTime = 0;
+		let maxRate = 0;
+		let maxRateEntry = null;
+
+		for (const e of entries) {
+			const port = e.port || '';
+			if (e.type === 'incoming' && isHeadingPort(port)) {
+				const gnss = GNSSParser.parse(e.data || '');
+				if (isHeadingRecord(gnss)) {
+					if (!isNaN(prevHdg) && prevTime > 0 && e.timestamp) {
+						const dt = (e.timestamp - prevTime) / 1000;
+						if (dt > 0) {
+							let dHdg = Math.abs(gnss.heading - prevHdg);
+							if (dHdg > 180) dHdg = 360 - dHdg;
+							
+							// Мгновенная скорость (°/с)
+							const instantRate = dHdg / dt;
+							// Нормализованная скорость за 1 секунду
+							const ratePerSec = dHdg * (1.0 / dt);
+							
+							if (instantRate > maxRate) {
+								maxRate = instantRate;
+								maxRateEntry = {
+									from: prevHdg,
+									to: gnss.heading,
+									dt: dt,
+									dHdg: dHdg,
+									instantRate: instantRate,
+									ratePerSec: ratePerSec,
+									timestamp: e.timestamp,
+								};
+							}
+						}
+					}
+					prevHdg = gnss.heading;
+					prevTime = e.timestamp || 0;
+				}
+			}
+		}
+
+		return maxRateEntry;
+	}
+
+    function calcHeadingRMS(entries) {
+        let sum = 0, count = 0;
+        let prev = NaN;
+
+        for (const e of entries) {
+            const port = e.port || '';
+            if (e.type === 'incoming' && isHeadingPort(port)) {
+                const gnss = GNSSParser.parse(e.data || '');
+                if (isHeadingRecord(gnss)) {
+                    if (!isNaN(prev)) {
+                        let diff = Math.abs(gnss.heading - prev);
+                        if (diff > 180) diff = 360 - diff;
+                        sum += diff * diff;
+                        count++;
+                    }
+                    prev = gnss.heading;
+                }
+            }
+        }
+
+        if (count === 0) return null;
+        return { rms: Math.sqrt(sum / count), count };
+    }
+
+    function calcGNSSStatic(entries) {
+        const points = [];
+        let totalSpeed = 0, speedCount = 0;
+
+        for (const e of entries) {
+            const port = e.port || '';
+            if (e.type === 'incoming' && isPositionPort(port)) {
+                const gnss = GNSSParser.parse(e.data || '');
+                if (gnss?.type === 'rmc' && !isNaN(gnss.latitude) && !isNaN(gnss.longitude)) {
+                    points.push({ lat: gnss.latitude, lon: gnss.longitude });
+                    if (!isNaN(gnss.speedMps)) {
+                        totalSpeed += gnss.speedMps;
+                        speedCount++;
+                    }
+                }
+            }
+        }
+
+        if (points.length < 5) return null;
+
+        const avgSpeed = speedCount > 0 ? totalSpeed / speedCount : 0;
+
+        let cLat = 0, cLon = 0;
+        points.forEach(p => { cLat += p.lat; cLon += p.lon; });
+        cLat /= points.length;
+        cLon /= points.length;
+
+        const cLatRad = cLat * Math.PI / 180;
+        const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * cLatRad) + 1.175 * Math.cos(4 * cLatRad);
+        const mPerDegLon = 111412.84 * Math.cos(cLatRad) - 93.5 * Math.cos(3 * cLatRad);
+
+        let sx = 0, sy = 0;
+        points.forEach(p => {
+            const dx = (p.lon - cLon) * mPerDegLon;
+            const dy = (p.lat - cLat) * mPerDegLat;
+            sx += dx * dx;
+            sy += dy * dy;
+        });
+
+        return {
+            stdX: Math.sqrt(sx / points.length),
+            stdY: Math.sqrt(sy / points.length),
+            drms: Math.sqrt(sx / points.length + sy / points.length),
+            avgSpeed,
+            points: points.length,
+        };
+    }
+
+    function calcBeaconSTD(track) {
+        const valid = track.filter(p => !p.isTimeout && p.lat != null && p.lon != null && !isNaN(p.lat) && !isNaN(p.lon));
+        if (valid.length < 5) return null;
+
+        let cLat = 0, cLon = 0;
+        valid.forEach(p => { cLat += p.lat; cLon += p.lon; });
+        cLat /= valid.length;
+        cLon /= valid.length;
+
+        const cLatRad = cLat * Math.PI / 180;
+        const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * cLatRad) + 1.175 * Math.cos(4 * cLatRad);
+        const mPerDegLon = 111412.84 * Math.cos(cLatRad) - 93.5 * Math.cos(3 * cLatRad);
+
+        let sx = 0, sy = 0;
+        valid.forEach(p => {
+            const dx = (p.lon - cLon) * mPerDegLon;
+            const dy = (p.lat - cLat) * mPerDegLat;
+            sx += dx * dx;
+            sy += dy * dy;
+        });
+
+        const stdX = Math.sqrt(sx / valid.length);
+        const stdY = Math.sqrt(sy / valid.length);
+        const drms = Math.sqrt(stdX * stdX + stdY * stdY);
+
+        return { stdX, stdY, drms, points: valid.length };
     }
 
     function formatReport(report) {
@@ -182,156 +343,76 @@ const LogAnalyzer = (() => {
                 html += `Успешно: <b>${pct}%</b> (${b.succeeded}/${b.total}) | `;
                 html += `Ср.дальность: <b>${avgRange}м</b> | `;
                 html += `Ср.MSR: <b>${avgMsr}dB</b>`;
-				const allTracks = TrackManager.getAll();
-				const beaconTrack = allTracks[addr];
-				if (beaconTrack) {
-					const std = calcBeaconSTD(beaconTrack);
-					if (std) {
-						html += ` | DRMS: <b>${std.drms.toFixed(2)}м</b>`;
-					}
-				}
+                const allTracks = TrackManager.getAll();
+                const beaconTrack = allTracks[addr];
+                if (beaconTrack) {
+                    const std = calcBeaconSTD(beaconTrack);
+                    if (std) {
+                        html += ` | DRMS: <b>${std.drms.toFixed(2)}м</b>`;
+                    }
+                }
                 html += `</div>`;
             }
         }
 
         html += `<h3 style="margin-top:16px;">🧭 Компас</h3>`;
+        
         const jumps = report.compass.jumps || [];
         const gaps = report.compass.gaps || [];
 
         html += `<div>Скачков heading (>30°/с): <b>${jumps.length}</b></div>`;
-		const entries = Logger.getEntries();
-		const headingRMS = calcHeadingRMS(entries);
-		if (headingRMS) {
-			html += `<div style="margin-top:4px;">Heading RMS: <b>${headingRMS.rms.toFixed(2)}°</b> (n=${headingRMS.count})</div>`;
+        
+        const entries = Logger.getEntries();
+        const headingRMS = calcHeadingRMS(entries);
+        if (headingRMS) {
+            html += `<div style="margin-top:4px;">Heading RMS: <b>${headingRMS.rms.toFixed(2)}°</b> (n=${headingRMS.count})</div>`;
+        }
+        
+		const maxRate = report.compass.maxHeadingRate;
+		if (maxRate) {
+			const rateColor = maxRate.instantRate > 10 ? '#e74c3c' : maxRate.instantRate > 3 ? '#f39c12' : '#27ae60';
+			html += `<div style="margin-top:4px;">`;
+			html += `Макс. скорость изменения курса: <b style="color:${rateColor};">${maxRate.ratePerSec.toFixed(1)}°/с</b>`;
+			html += ` (Δ${maxRate.dHdg.toFixed(1)}° за ${maxRate.dt.toFixed(2)}с, мгновенная: ${maxRate.instantRate.toFixed(1)}°/с)`;
+			html += `</div>`;
+			
+			let qualityNote = '';
+			if (maxRate.instantRate > 10) {
+				qualityNote = '⚠️ Очень высокий шум';
+			} else if (maxRate.instantRate > 6) {
+				qualityNote = '⚠️ Повышенный шум';
+			} else if (maxRate.instantRate > 3) {
+				qualityNote = 'Приемлемый уровень шума';
+			} else {
+				qualityNote = '✅ Отличное качество данных';
+			}
+			html += `<div style="margin-left:10px; color:#888; font-size:0.9em;">${qualityNote}</div>`;
 		}
+        
         if (jumps.length > 0) {
             const max = jumps.reduce((a, b) => a.rate > b.rate ? a : b);
-            html += `<div>Макс. скачок: <b>${max.from.toFixed(1)}° → ${max.to.toFixed(1)}° за ${max.dt.toFixed(2)}с (${max.rate.toFixed(0)}°/с)</b></div>`;
+            html += `<div style="margin-top:4px;">Макс. скачок: <b>${max.from.toFixed(1)}° → ${max.to.toFixed(1)}° за ${max.dt.toFixed(2)}с (${max.rate.toFixed(0)}°/с)</b></div>`;
         }
 
         html += `<div style="margin-top:4px;">Потерь GNSS (>5с): <b>${gaps.length}</b></div>`;
-		
-		const gnssStatic = calcGNSSStatic(entries);
-		if (gnssStatic) {
-			html += `<div style="margin-top:4px;">GNSS DRMS: <b>${gnssStatic.drms.toFixed(2)}м</b> | Ср. скорость: <b>${gnssStatic.avgSpeed.toFixed(2)} м/с</b> (n=${gnssStatic.points})</div>`;
-		}
+        
+        const gnssStatic = calcGNSSStatic(entries);
+        if (gnssStatic) {
+            html += `<div style="margin-top:4px;">GNSS DRMS: <b>${gnssStatic.drms.toFixed(2)}м</b> | Ср. скорость: <b>${gnssStatic.avgSpeed.toFixed(2)} м/с</b> (n=${gnssStatic.points})</div>`;
+        }
 
         return html;
     }
-	
-	
-	function calcBeaconSTD(track) {
-		const valid = track.filter(p => !p.isTimeout && p.lat != null && p.lon != null && !isNaN(p.lat) && !isNaN(p.lon));
-		if (valid.length < 5) return null;
 
-		let cLat = 0, cLon = 0;
-		valid.forEach(p => { cLat += p.lat; cLon += p.lon; });
-		cLat /= valid.length;
-		cLon /= valid.length;
-
-		const cLatRad = cLat * Math.PI / 180;
-		const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * cLatRad) + 1.175 * Math.cos(4 * cLatRad);
-		const mPerDegLon = 111412.84 * Math.cos(cLatRad) - 93.5 * Math.cos(3 * cLatRad);
-
-		let sx = 0, sy = 0;
-		valid.forEach(p => {
-			const dx = (p.lon - cLon) * mPerDegLon;
-			const dy = (p.lat - cLat) * mPerDegLat;
-			sx += dx * dx;
-			sy += dy * dy;
-		});
-
-		const stdX = Math.sqrt(sx / valid.length);
-		const stdY = Math.sqrt(sy / valid.length);
-		const drms = Math.sqrt(stdX * stdX + stdY * stdY);
-
-		return { stdX, stdY, drms, points: valid.length };
-	}
-
-	function calcHeadingRMS(entries) {
-		let sum = 0, count = 0;
-		let prev = NaN;
-
-		for (const e of entries) {
-			const port = e.port || '';
-			if (e.type === 'incoming' && (port === 'GNSS' || port.includes('GNSS'))) {
-				const gnss = GNSSParser.parse(e.data || '');
-				if (gnss && (gnss.type === 'hdt' || gnss.type === 'hdm') && !isNaN(gnss.heading)) {
-					if (!isNaN(prev)) {
-						let diff = Math.abs(gnss.heading - prev);
-						if (diff > 180) diff = 360 - diff;
-						sum += diff * diff;
-						count++;
-					}
-					prev = gnss.heading;
-				}
-			}
-		}
-
-		if (count === 0) return null;
-		return { rms: Math.sqrt(sum / count), count };
-	}
-
-	function calcGNSSStatic(entries) {
-		const points = [];
-		let totalSpeed = 0, speedCount = 0;
-
-		for (const e of entries) {
-			const port = e.port || '';
-			if (e.type === 'incoming' && (port === 'GNSS' || port.includes('GNSS'))) {
-				const gnss = GNSSParser.parse(e.data || '');
-				if (gnss?.type === 'rmc' && !isNaN(gnss.latitude) && !isNaN(gnss.longitude)) {
-					points.push({ lat: gnss.latitude, lon: gnss.longitude });
-					if (!isNaN(gnss.speedMps)) {
-						totalSpeed += gnss.speedMps;
-						speedCount++;
-					}
-				}
-			}
-		}
-
-		if (points.length < 5) return null;
-
-		const avgSpeed = speedCount > 0 ? totalSpeed / speedCount : 0;
-
-		let cLat = 0, cLon = 0;
-		points.forEach(p => { cLat += p.lat; cLon += p.lon; });
-		cLat /= points.length;
-		cLon /= points.length;
-
-		const cLatRad = cLat * Math.PI / 180;
-		const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * cLatRad) + 1.175 * Math.cos(4 * cLatRad);
-		const mPerDegLon = 111412.84 * Math.cos(cLatRad) - 93.5 * Math.cos(3 * cLatRad);
-
-		let sx = 0, sy = 0;
-		points.forEach(p => {
-			const dx = (p.lon - cLon) * mPerDegLon;
-			const dy = (p.lat - cLat) * mPerDegLat;
-			sx += dx * dx;
-			sy += dy * dy;
-		});
-
-		return {
-			stdX: Math.sqrt(sx / points.length),
-			stdY: Math.sqrt(sy / points.length),
-			drms: Math.sqrt(sx / points.length + sy / points.length),
-			avgSpeed,
-			points: points.length,
-		};
-	}
-	
-	
-	
-	
-	
     return {
-		analyze,
-		findHeadingJumps,
-		findGNSSGaps,
-		formatReport,
-		calcBeaconSTD,
-		calcHeadingRMS,
-		calcGNSSStatic,
+        analyze,
+        findHeadingJumps,
+        findGNSSGaps,
+        findMaxHeadingRate,
+        formatReport,
+        calcBeaconSTD,
+        calcHeadingRMS,
+        calcGNSSStatic,
     };
 
 })();

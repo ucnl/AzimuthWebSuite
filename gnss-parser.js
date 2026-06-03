@@ -104,17 +104,52 @@ const GNSSParser = (() => {
         };
     }
 
-    function parseHDG(fields) {
-        // $HCHDG,heading,deviation,var,var_dir*CS
-        const heading = safeFloat(fields[0]);
-        if (isNaN(heading)) return null;
+	function parseHDG(fields) {
+		// $HCHDG,heading,deviation,dev_dir,variation,var_dir*CS
+		// Пример: $GNHDG,148.7,,,7.9,E*2F
+		const magneticHeading = safeFloat(fields[0]);
+		if (isNaN(magneticHeading)) return null;
 
-        return {
-            type: 'hdm',
-            heading: heading,
-            isTrue: false,
-        };
-    }
+		const deviation = safeFloat(fields[1]);      // девиация (может быть "")
+		const devDir = (fields[2] || '').trim();      // направление девиации (E/W)
+		const variation = safeFloat(fields[3]);        // магнитное склонение
+		const varDir = (fields[4] || '').trim();       // направление склонения (E/W)
+
+		// Вычисляем истинный курс
+		let trueHeading = magneticHeading;
+		
+		// Учитываем девиацию (если есть)
+		if (!isNaN(deviation) && devDir) {
+			if (devDir === 'E' || devDir === 'e') {
+				trueHeading += deviation;
+			} else if (devDir === 'W' || devDir === 'w') {
+				trueHeading -= deviation;
+			}
+		}
+		
+		// Учитываем магнитное склонение
+		if (!isNaN(variation) && varDir) {
+			if (varDir === 'E' || varDir === 'e') {
+				trueHeading += variation;
+			} else if (varDir === 'W' || varDir === 'w') {
+				trueHeading -= variation;
+			}
+		}
+		
+		// Нормализуем в диапазон 0-360°
+		trueHeading = ((trueHeading % 360) + 360) % 360;
+
+		return {
+			type: 'hdg',
+			heading: trueHeading,        // истинный курс (True Heading)
+			magneticHeading: magneticHeading,
+			deviation: !isNaN(deviation) ? deviation : null,
+			devDir: devDir || null,
+			variation: !isNaN(variation) ? variation : null,
+			varDir: varDir || null,
+			isTrue: true,                // теперь это истинный курс
+		};
+	}
 
     function parseHDM(fields) {
         // $HCHDM,heading,M*CS
