@@ -1,4 +1,4 @@
-// azm-manager.js — Конвейер обработки данных Zima2 USBL
+ // azm-manager.js — Конвейер обработки данных Zima2 USBL
 // ФИНАЛЬНАЯ ВЕРСИЯ БЕЗ ЛОГОВ
 
 const AZMManager = (() => {
@@ -14,13 +14,19 @@ const AZMManager = (() => {
     const rad2deg = Vincenty.rad2deg;
     const wrap2PI = Vincenty.wrap2PI;
 
-    // ========== КОНСТАНТЫ ==========
-    const DEFAULT_USBL_DH_FIFO = 8;
-    const DEFAULT_USBL_DH_MAX_SPEED = 1.0;
-    const DEFAULT_USBL_DH_THRESHOLD = 5.0;
-    const DEFAULT_USBL_S_FIFO = 4;
-    const DEFAULT_USBL_S_THRESHOLD = 100.0;
-    const DEFAULT_SOUND_SPEED_MPS = 1480.0;
+	// ========== КОНСТАНТЫ ==========
+	const DEFAULT_USBL_DH_FIFO = 8;
+	const DEFAULT_USBL_DH_FIFO_FAR = 4;
+	const DEFAULT_USBL_DH_THRESHOLD = 5.0;
+	const DEFAULT_USBL_DH_THRESHOLD_FAR = 200.0;      // дальность > 3000 м
+	const DEFAULT_USBL_DH_THRESHOLD_MEDIUM = 100.0;    // дальность 1500–3000 м
+	const DEFAULT_USBL_DH_THRESHOLD_NEAR = 15.0;      // дальность 500–1500 м
+	const DEFAULT_USBL_DH_FAR_LIMIT = 3000.0;          // граница "далеко"
+	const DEFAULT_USBL_DH_MEDIUM_LIMIT = 1500.0;       // граница "средне"
+	const DEFAULT_USBL_DH_NEAR_LIMIT = 500.0;          // граница "близко"
+	const DEFAULT_USBL_S_FIFO = 4;
+	const DEFAULT_USBL_S_THRESHOLD = 100.0;
+	const DEFAULT_SOUND_SPEED_MPS = 1480.0;
 
     // ========== СОСТОЯНИЕ ==========
     let state = {
@@ -31,6 +37,7 @@ const AZMManager = (() => {
         salinityPSU: 0.0, soundSpeedMps: NaN, maxDistM: 1000.0, addressMask: 1,
 		soundSpeedAuto: true,
         phiDeg: 0.0, offsetXM: 0.0, offsetYM: 0.0,
+		maxBeaconSpeedMps: 1.0,
         isInterrogationActive: false, isDeviceInfoValid: false,
         deviceType: 0, serialNumber: '',
         beacons: {}, lastUpdateTime: 0,
@@ -164,7 +171,8 @@ const AZMManager = (() => {
 				const absRange = polarResult.r_a;
 
 				if (!beacon.dhFilter && DHTrackFilter) {
-					beacon.dhFilter = new DHTrackFilter(DEFAULT_USBL_DH_FIFO, DEFAULT_USBL_DH_MAX_SPEED, DEFAULT_USBL_DH_THRESHOLD);
+					const currentMaxSpeed = (state.maxBeaconSpeedMps > 0) ? state.maxBeaconSpeedMps : 1.0;
+					beacon.dhFilter = new DHTrackFilter(DEFAULT_USBL_DH_FIFO, currentMaxSpeed, DEFAULT_USBL_DH_THRESHOLD);
 				}
 
 				const latRad = deg2rad(state.antennaLatDeg);
@@ -177,33 +185,67 @@ const AZMManager = (() => {
 				}
 
 				if (beacon.dhFilter) {
+					const distForThreshold = hasProjection ? projectionM : beacon.slantRangeM;
+					if (!isNaN(distForThreshold)) {
+						if (distForThreshold > 3000) {
+							beacon.dhFilter.dstThreshold = 150;
+							beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
+						} else if (distForThreshold > 1500) {
+							beacon.dhFilter.dstThreshold = 50;
+							beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
+						} else if (distForThreshold > 500) {
+							beacon.dhFilter.dstThreshold = 15;
+							beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO);
+						} else {
+							beacon.dhFilter.dstThreshold = DEFAULT_USBL_DH_THRESHOLD;
+							beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO);
+						}
+					}
+					
+					if (beacon.dhFilter.maxSpeedMps !== state.maxBeaconSpeedMps) {
+						beacon.dhFilter.maxSpeedMps = state.maxBeaconSpeedMps;
+					}
+					
 					const now = timeProvider();
-					const dhResult = beacon.dhFilter.process(geoResult.lat, geoResult.lon,
-						!isNaN(beacon.depthM) ? beacon.depthM : 0, now);
+					const dhResult = beacon.dhFilter.process(geoResult.lat, geoResult.lon, !isNaN(beacon.depthM) ? beacon.depthM : 0, now);
 						
 					if (dhResult.accepted) {
 						// Обновляем абсолютные координаты только если фильтр принял точку
 						beacon.absoluteAzimuthDeg = polarResult.a_deg;
+						beacon.absoluteDistanceM = absRange;
+						beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
 						
-						if (!beacon.smoother && TrackMovingAverageSmoother) {
-							if (isUseMedian == 1)
-								beacon.smoother = new TrackMedianFilter(DEFAULT_USBL_S_FIFO, DEFAULT_USBL_S_THRESHOLD);
-							else
-								beacon.smoother = new TrackMovingAverageSmoother(DEFAULT_USBL_S_FIFO, DEFAULT_USBL_S_THRESHOLD);
-						}
-						if (beacon.smoother) {
-							const smoothResult = beacon.smoother.process(geoResult.lat, geoResult.lon,
-								!isNaN(beacon.depthM) ? beacon.depthM : 0, now);
-							beacon.absoluteDistanceM = absRange;
-							beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
-							beacon.latitudeDeg = rad2deg(smoothResult.lat);
-							beacon.longitudeDeg = rad2deg(smoothResult.lon);
+						// Сглаживатель — только на дистанциях до 1000 м
+						const distForSmoother = hasProjection ? projectionM : beacon.slantRangeM;
+						const useSmoother = !isNaN(distForSmoother) && distForSmoother <= 1000.0;
+						
+						if (useSmoother) {
+							if (!beacon.smoother && TrackMovingAverageSmoother) {
+								if (isUseMedian == 1)
+									beacon.smoother = new TrackMedianFilter(DEFAULT_USBL_S_FIFO, DEFAULT_USBL_S_THRESHOLD);
+								else
+									beacon.smoother = new TrackMovingAverageSmoother(DEFAULT_USBL_S_FIFO, DEFAULT_USBL_S_THRESHOLD);
+							}
+							if (beacon.smoother) {
+								const smoothResult = beacon.smoother.process(geoResult.lat, geoResult.lon,
+									!isNaN(beacon.depthM) ? beacon.depthM : 0, now);
+								beacon.latitudeDeg = rad2deg(smoothResult.lat);
+								beacon.longitudeDeg = rad2deg(smoothResult.lon);
+							} else {
+								beacon.latitudeDeg = rad2deg(geoResult.lat);
+								beacon.longitudeDeg = rad2deg(geoResult.lon);
+							}
 						} else {
-							beacon.absoluteDistanceM = absRange;
-							beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
+							// Дальше 1000 м — без сглаживателя, сразу координаты
 							beacon.latitudeDeg = rad2deg(geoResult.lat);
 							beacon.longitudeDeg = rad2deg(geoResult.lon);
 						}
+					} else {
+						// Точка отвергнута — сохраняем измеренные значения для отрисовки серым
+						beacon.rejectedLatitudeDeg = rad2deg(geoResult.lat);
+						beacon.rejectedLongitudeDeg = rad2deg(geoResult.lon);
+						beacon.rejectedDistanceM = absRange;
+						beacon.rejectedAzimuthDeg = polarResult.a_deg;
 					}
 				} else {
 					// Нет фильтра — используем как есть
@@ -316,6 +358,20 @@ const AZMManager = (() => {
 	function setSoundSpeedAuto(auto) { state.soundSpeedAuto = !!auto; }
     function setAddressMask(mask) { state.addressMask = mask; }
     function setAntennaOffsets(xM, yM, phiDeg) { state.offsetXM = xM; state.offsetYM = yM; state.phiDeg = phiDeg; }
+	function setMaxBeaconSpeed(maxSpeedMps) {
+    if (!isNaN(maxSpeedMps) && maxSpeedMps >= 0.5 && maxSpeedMps <= 5) {
+        state.maxBeaconSpeedMps = maxSpeedMps;
+        // Обновляем скорость во всех существующих фильтрах маяков
+        for (var addr in state.beacons) {
+            if (state.beacons.hasOwnProperty(addr)) {
+                var beacon = state.beacons[addr];
+                if (beacon.dhFilter) {
+                    beacon.dhFilter.maxSpeedMps = maxSpeedMps;
+                }
+            }
+        }
+    }
+}
 
     function recalcAllBeacons() {
         for (const addr in state.beacons) {
@@ -341,7 +397,7 @@ const AZMManager = (() => {
         getDINFOCommand, getStartCommand, getStopCommand,
         setAntennaPosition, setSalinity, setMaxDistance, setSoundSpeed,
 		setSoundSpeedAuto,
-        setAddressMask, setAntennaOffsets,
+        setAddressMask, setAntennaOffsets, setMaxBeaconSpeed,
         recalcAllBeacons,
         getState, getBeacons, getBeaconsArray, tickAge, reset,
         DEFAULT_SOUND_SPEED_MPS,

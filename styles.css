@@ -48,6 +48,11 @@
     --shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     --scale-color: #fff;
 	--btn-text: #fff;
+	
+	--map-grid: rgba(255, 255, 255, 0.1);
+    --map-axis: rgba(255, 255, 255, 0.25);
+    --map-text: #ffffff;
+    --antenna-fill: rgba(0, 255, 255, 0.5);
 }
 
 /* ========== ТЕМА: LIGHT (солнце) ========== */
@@ -90,6 +95,11 @@
     --shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     --scale-color: #1a1a1a;
 	--btn-text: #fff;
+	
+	--map-grid: rgba(0, 0, 0, 0.08);
+    --map-axis: rgba(0, 0, 0, 0.2);
+    --map-text: #1a1a1a;
+    --antenna-fill: rgba(0, 100, 200, 0.4);
 }
 
 /* ========== ТЕМА: DARK CONTRAST (солнце + очки) ========== */
@@ -132,6 +142,152 @@
     --shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
     --scale-color: #ffffff;
 	--btn-text: #000;
+	
+	--map-grid: rgba(255, 255, 255, 0.3);
+    --map-axis: rgba(255, 255, 255, 0.6);
+    --map-text: #ffffff;
+    --antenna-fill: rgba(0, 255, 255, 0.5);
+}
+
+/* ========== ТЕМА: JACK BLACK (Черный фон, белый текст, серые акценты) ========== */
+:root.theme-jack-black {
+    --bg-primary: #000000;
+    --bg-secondary: #0a0a0a;
+    --bg-tertiary: #1a1a1a;
+    --bg-card: #0f0f0f;
+    --bg-input: #000000;
+    --bg-overlay: rgba(10, 10, 10, 0.95);
+    --bg-timeout: #2a0a0a;
+    
+    --border-primary: #444444;
+    --border-accent: #e0e0e0;
+    --border-success: #666666;
+    --border-warning: #888888;
+    --border-danger: #ff4444;
+    
+    --text-primary: #ffffff;
+    --text-secondary: #aaaaaa;
+    --text-muted: #666666;
+    --text-accent: #cccccc;
+    --text-warning: #ffaa00;
+    --text-info: #88aacc;
+    
+    --btn-connect: #333333;
+    --btn-connect-hover: #4d4d4d;
+    --btn-disconnect: #ff4444;
+    --btn-disconnect-hover: #cc0000;
+    --btn-start: #555555;
+    --btn-start-hover: #707070;
+    --btn-stop: #888888;
+    --btn-stop-hover: #aaaaaa;
+    --btn-topo: #666666;
+    --btn-topo-hover: #808080;
+    --btn-topo-active: #cccccc;
+    --btn-settings: #444444;
+    --btn-settings-hover: #666666;
+    
+    --shadow: 0 4px 20px rgba(255, 255, 255, 0.05);
+    --scale-color: #ffffff;
+    --btn-text: #000000;  /* На кнопках темный текст для контраста */
+	
+	--map-grid: rgba(255, 255, 255, 0.3);
+    --map-axis: rgba(255, 255, 255, 0.6);
+    --map-text: #ffffff;
+    --antenna-fill: rgba(0, 255, 255, 0.5);
+}
+
+/* ========== ТЕМА: JACK WHITE (Белый фон, черный текст, серые акценты) ========== */
+:root.theme-jack-white {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f0f0f0;
+    --bg-tertiary: #e0e0e0;
+    --bg-card: #f5f5f5;
+    --bg-input: #ffffff;
+    --bg-overlay: rgba(240, 240, 240, 0.95);
+    --bg-timeout: #fff0f0;
+    
+    --border-primary: #cccccc;
+    --border-accent: #000000;
+    --border-success: #444444;
+    --border-warning: #888888;
+    --border-danger: #cc0000;
+    
+    --text-primary: #000000;
+    --text-secondary: #444444;
+    --text-muted: #888888;
+    --text-accent: #000000;
+    --text-warning: #cc5500;
+    --text-info: #0044cc;
+    
+    --btn-connect: #333333;
+    --btn-connect-hover: #1a1a1a;
+    --btn-disconnect: #cc0000;
+    --btn-disconnect-hover: #990000;
+    --btn-start: #000000;
+    --btn-start-hover: #333333;
+    --btn-stop: #666666;
+    --btn-stop-hover: #888888;
+    --btn-topo: #444444;
+    --btn-topo-hover: #222222;
+    --btn-topo-active: #000000;
+    --btn-settings: #555555;
+    --btn-settings-hover: #777777;
+    
+    --shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    --scale-color: #000000;
+    --btn-text: #ffffff;  /* На кнопках белый текст */
+	
+	--map-grid: rgba(0, 0, 0, 0.15);
+    --map-axis: rgba(0, 0, 0, 0.35);
+    --map-text: #000000;
+    --antenna-fill: rgba(0, 100, 200, 0.4);
+}
+
+/* ========== ТЕМА: VAX (Вырвиглазно-зеленый на черном, в стиле терминалов VAX/VT) ========== */
+:root.theme-vax {
+    --bg-primary: #0c0c0c;
+    --bg-secondary: #000000;
+    --bg-tertiary: #0a1a0a;
+    --bg-card: #0a0f0a;
+    --bg-input: #000000;
+    --bg-overlay: rgba(0, 0, 0, 0.95);
+    --bg-timeout: #1a0a0a;
+    
+    --border-primary: #1aff1a;
+    --border-accent: #39ff14;
+    --border-success: #00ff00;
+    --border-warning: #ccff00;
+    --border-danger: #ff3333;
+    
+    --text-primary: #33ff33;
+    --text-secondary: #00cc00;
+    --text-muted: #006600;
+    --text-accent: #66ff66;
+    --text-warning: #ccff00;
+    --text-info: #00ffff;
+    
+    --btn-connect: #00aa00;
+    --btn-connect-hover: #00ff00;
+    --btn-disconnect: #cc0000;
+    --btn-disconnect-hover: #ff3333;
+    --btn-start: #008800;
+    --btn-start-hover: #00cc00;
+    --btn-stop: #aaaa00;
+    --btn-stop-hover: #cccc00;
+    --btn-topo: #33ff33;
+    --btn-topo-hover: #66ff66;
+    --btn-topo-active: #ff00ff;
+    --btn-settings: #00aa00;
+    --btn-settings-hover: #00ff00;
+    
+    --shadow: 0 0 20px rgba(0, 255, 0, 0.2);
+    --scale-color: #33ff33;
+    --btn-text: #000000;  /* На зеленых кнопках черный текст читается лучше */
+	
+	--map-grid: rgba(51, 255, 51, 0.25);
+    --map-axis: rgba(51, 255, 51, 0.6);
+    --map-text: #33ff33;
+    --antenna-fill: rgba(51, 255, 51, 0.3);
 }
 
 html, body {
