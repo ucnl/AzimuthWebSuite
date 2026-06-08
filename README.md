@@ -2,6 +2,8 @@
 
 # AzimuthWebSuite
 
+[История версий](CHANGELOG.md)
+
 **Web-приложение для работы с гидроакустической системой позиционирования Zima2 USBL.**
 
 Полностью браузерное PWA (Progressive Web Application). Не требует установки, работает через Web Serial API. Заменяет десктопное приложение AzimuthSuite.
