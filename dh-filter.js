@@ -31,7 +31,7 @@ const DHTrackFilter = (() => {
             if (dstThresholdM <= 0) throw new Error('dstThresholdM must be > 0');
 
             this.fifoSize = fifoSize;
-            this.maxSpeedMps = maxSpeedMps;
+            this._maxSpeedMps = maxSpeedMps;
             this.dstThreshold = dstThresholdM;
 
             this.sides = [[], []];
@@ -78,6 +78,30 @@ const DHTrackFilter = (() => {
                 this.pSideIdx = this.sSideIdx;
             }
         }
+		
+		get maxSpeedMps() {
+			return this._maxSpeedMps;
+		}
+		
+		set maxSpeedMps(value) {
+			if (value > 0) {
+				this._maxSpeedMps = value;
+			}
+		}
+		
+		setFifoSize(newSize) {
+			if (newSize < 2) return;
+			if (newSize === this.fifoSize) return;
+			
+			this.fifoSize = newSize;
+			
+			// Обрезаем обе очереди до нового размера
+			for (let i = 0; i < 2; i++) {
+				while (this.sides[i].length > this.fifoSize) {
+					this.sides[i].shift();
+				}
+			}
+		}
 
         process(lat, lon, dpt, ts) {
             const primary = this.sides[this.pSideIdx];
@@ -93,7 +117,7 @@ const DHTrackFilter = (() => {
             const lastPoint = primary[primary.length - 1];
             const testPoint = new GeoPoint3DTd(lat, lon, dpt, ts, lastPoint);
 
-            const speedOk = testPoint.dist2Prev < testPoint.time2Prev * this.maxSpeedMps;
+            const speedOk = testPoint.dist2Prev < testPoint.time2Prev * this._maxSpeedMps;
             const thresholdOk = testPoint.dist2Prev < this.dstThreshold;
 
             if (speedOk || thresholdOk) {
@@ -123,4 +147,4 @@ const DHTrackFilter = (() => {
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = DHTrackFilter;
-}
+} 
