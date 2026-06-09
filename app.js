@@ -3,13 +3,13 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.2.3';
+    const APP_VERSION = '1.2.4';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
     let canvas, ctx;
     let mapContainer, beaconsBar, scaleBarEl;
-    let topoPanel, settingsOverlay;
+    let topoPanel;
     let connectionIndicator, statusText, deviceLabel;
 	
     let btnTracksShow, btnTracksClear, btnTracksExport;
@@ -36,13 +36,10 @@ const App = (() => {
     let isConnected = false;
     let ageTimer = null;
     let topoVisible = false;
-    let settingsVisible = false;
+
 	let isCalibrating = false;
 	let compassMode = 'auto';
 	let hasTrueHeading = false;
-	
-	const themes = ['theme-indoor', 'theme-light', 'theme-dark-contrast', 'theme-jack-black', 'theme-jack-white', 'theme-vax'];
-	let currentTheme = 0;
 	
 	const PLAYBACK_SPEEDS = [1, 2, 4, 8];
 
@@ -135,18 +132,9 @@ const App = (() => {
 	}
 
 	function cycleTheme() {
-		// Убираем все темы
-		document.documentElement.classList.remove(...themes);
-		// Следующая тема
-		currentTheme = (currentTheme + 1) % themes.length;
-		// Применяем
-		if (currentTheme > 0) {
-			document.documentElement.classList.add(themes[currentTheme]);
-		}
-		// Сохраняем
-		localStorage.setItem('theme', currentTheme);
-		setStatus('Тема: ' + ['Indoor', 'Light', 'Dark', 'Jack Black', 'Jack White', 'VAX'][currentTheme]);
-    }
+		const themeName = Themes.cycleTheme();
+		setStatus('Тема: ' + themeName);
+	}
 	
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
@@ -187,59 +175,57 @@ const App = (() => {
 	}
 	
     // ========== ИНИЦИАЛИЗАЦИЯ ==========
-    function init() {
-		
+	 function init() {
 		document.getElementById('app-version').textContent = `${APP_VERSION}`;
 		
 		LogStorage.open().catch(e => console.warn('IndexedDB недоступна:', e));
-        console.log('[App] Инициализация...');
+		console.log('[App] Инициализация...');
 
-        canvas = document.getElementById('map-canvas');
-        ctx = canvas.getContext('2d');
-        mapContainer = document.getElementById('map-container');
-        beaconsBar = document.getElementById('beacons-bar');
-        scaleBarEl = document.getElementById('scale-bar');
-        topoPanel = document.getElementById('topo-panel');
-        settingsOverlay = document.getElementById('settings-overlay');
+		canvas = document.getElementById('map-canvas');
+		ctx = canvas.getContext('2d');
+		mapContainer = document.getElementById('map-container');
+		beaconsBar = document.getElementById('beacons-bar');
+		scaleBarEl = document.getElementById('scale-bar');
+		topoPanel = document.getElementById('topo-panel');
+		settingsOverlay = document.getElementById('settings-overlay');
 
-        connectionIndicator = document.getElementById('connection-indicator');
-        statusText = document.getElementById('status-text');
-        deviceLabel = document.getElementById('device-label');
+		connectionIndicator = document.getElementById('connection-indicator');
+		statusText = document.getElementById('status-text');
+		deviceLabel = document.getElementById('device-label');
 
 		btnConnection = document.getElementById('btn-connection');
 		btnInterrogation = document.getElementById('btn-interrogation');
 		btnGnss = document.getElementById('btn-gnss');		
 		
-        btnSettings = document.getElementById('btn-settings');
-        btnTracksShow = document.getElementById('btn-tracks-show');
-        btnTracksClear = document.getElementById('btn-tracks-clear');
-        btnTracksExport = document.getElementById('btn-tracks-export');
+		btnSettings = document.getElementById('btn-settings');
+		btnTracksShow = document.getElementById('btn-tracks-show');
+		btnTracksClear = document.getElementById('btn-tracks-clear');
+		btnTracksExport = document.getElementById('btn-tracks-export');
 
-        playbackProgress = document.getElementById('playback-progress');
-        playbackProgressFill = document.getElementById('playback-progress-fill');
+		playbackProgress = document.getElementById('playback-progress');
+		playbackProgressFill = document.getElementById('playback-progress-fill');
 		
 		calibrationPanel = document.getElementById('calibration-panel');
 		
 		analysisPanel = document.getElementById('analysis-panel');
 		analysisContent = document.getElementById('analysis-content');
 
-        if (!canvas || !ctx) {
-            console.error('[App] Canvas не найден!');
-            return;
-        }
+		if (!canvas || !ctx) {
+			console.error('[App] Canvas не найден!');
+			return;
+		}
 
-        // Инициализация логгера
-        Logger.onEntry = onLogEntry;
-        Logger.onPlaybackStart = onPlaybackStart;
-        Logger.onPlaybackEnd = onPlaybackEnd;
-        Logger.onPlaybackProgress = onPlaybackProgress;
+		// Инициализация логгера
+		Logger.onEntry = onLogEntry;
+		Logger.onPlaybackStart = onPlaybackStart;
+		Logger.onPlaybackEnd = onPlaybackEnd;
+		Logger.onPlaybackProgress = onPlaybackProgress;
 
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-        initMouseHandlers();
-        initTouchHandlers();
-        buildAddressCheckboxes();
-        loadSettings();
+		resizeCanvas();
+		window.addEventListener('resize', resizeCanvas);
+		initMouseHandlers();
+		initTouchHandlers();
+		loadSettings();  // ← оставить
 		
 		document.addEventListener('click', function(e) {
 			if (!e.target.closest('.dropdown')) {
@@ -260,30 +246,45 @@ const App = (() => {
 		
 		if (!compassMode) compassMode = 'auto';
 		
-		const savedTheme = parseInt(localStorage.getItem('theme') || '0');
-		currentTheme = savedTheme;
-		if (currentTheme > 0) {
-			document.documentElement.classList.add(themes[currentTheme]);
-		}		
+		Themes.init();
+
+		// ИНИЦИАЛИЗАЦИЯ ЛИНЕЙКИ
+		UIRuler.init(canvas, ctx, {
+			getOffsetX: () => offsetX,
+			getOffsetY: () => offsetY,
+			getScale: () => scale,
+			drawCallback: () => drawAll(),
+			setStatus: (msg) => setStatus(msg)
+		});
 		
-        loadTopoBinding();
+		// ИНИЦИАЛИЗАЦИЯ НАСТРОЕК	
+		UISettings.init('settings-overlay', {
+			getSettingsData: () => updateSettingsUI(),
+			applySettingsData: () => applySettings(),
+			loadSettingsData: () => loadSettings()
+		});
+		
+		// Вызов построения чекбоксов маски (через модуль)
+		UISettings.buildAddressCheckboxes();
+		
+		loadTopoBinding();
 		loadCalibrationFromStorage();
 		updateAllButtons();
-        updateSettingsUI();
-        updateAntennaInfoUI();
+		updateSettingsUI();
+		updateAntennaInfoUI();
 
-        requestAnimationFrame(renderLoop);
-        ageTimer = setInterval(tickAll, 1000);
-        updateAllButtons();
-				
+		requestAnimationFrame(renderLoop);
+		ageTimer = setInterval(tickAll, 1000);
+		updateAllButtons();
+		
 		// Инициализация контролов скорости воспроизведения
 		const btnSpeedDown = document.getElementById('btn-speed-down');
 		const btnSpeedUp = document.getElementById('btn-speed-up');
 		if (btnSpeedDown) btnSpeedDown.onclick = () => decreasePlaybackSpeed();
 		if (btnSpeedUp) btnSpeedUp.onclick = () => increasePlaybackSpeed();
 
-        console.log('[App] Инициализация завершена');
-    }
+		console.log('[App] Инициализация завершена');
+	}
 
     // ========== ТАЙМЕР СТАРЕНИЯ ==========
     function tickAll() {
@@ -1018,188 +1019,6 @@ const App = (() => {
 	}
 
 
-    // ========== НАСТРОЙКИ ==========
-    function openSettings() {
-        settingsVisible = true;
-        settingsOverlay.classList.add('visible');
-        updateSettingsUI();
-    }
-
-    function closeSettings() {
-        settingsVisible = false;
-        settingsOverlay.classList.remove('visible');
-    }
-
-    function updateSettingsUI() {
-        const st = AZMManager.getState();
-        const trs = TrackManager.getSettings();
-
-        document.getElementById('cfg-mask').value = st.addressMask;
-        document.getElementById('cfg-maxdist').value = st.maxDistM;
-        document.getElementById('cfg-salinity').value = st.salinityPSU;
-        const sosInput = document.getElementById('cfg-soundspeed');
-		if (sosInput) {
-			sosInput.value = (!isNaN(st.soundSpeedMps) && !st.soundSpeedAuto) ? st.soundSpeedMps.toFixed(1) : '';
-		}
-        document.getElementById('cfg-offsetx').value = st.offsetXM;
-        document.getElementById('cfg-offsety').value = st.offsetYM;
-        document.getElementById('cfg-phi').value = st.phiDeg;
-        document.getElementById('cfg-maxpoints').value = trs.maxPointsPerTrack;
-        document.getElementById('cfg-minpointdist').value = trs.minPointDistanceM;
-		
-		const gnssBaudEl = document.getElementById('cfg-gnss-baud');
-		if (gnssBaudEl) {
-			const saved = localStorage.getItem('zima2_settings');
-			if (saved) {
-				const data = JSON.parse(saved);
-				gnssBaudEl.value = data.gnssBaudrate || '38400';
-			}
-		}
-		
-		const compassEl = document.getElementById('cfg-compass-mode');
-		if (compassEl) compassEl.value = compassMode;
-		
-		const maxSpeedEl = document.getElementById('cfg-max-beacon-speed');
-		if (maxSpeedEl) maxSpeedEl.value = st.maxBeaconSpeedMps || 1.0;  // значение по умолчанию
-
-        syncCheckboxesFromMask();
-    }
-
-    function applySettings() {
-        const mask = parseInt(document.getElementById('cfg-mask').value) || 1;
-        const maxDist = parseFloat(document.getElementById('cfg-maxdist').value) || 1000;
-        const salinity = parseFloat(document.getElementById('cfg-salinity').value) || 0;
-		
-		const soundSpeedVal = document.getElementById('cfg-soundspeed').value;
-		const soundSpeed = soundSpeedVal ? parseFloat(soundSpeedVal) : NaN;
-		
-        const offsX = parseFloat(document.getElementById('cfg-offsetx').value) || 0;
-        const offsY = parseFloat(document.getElementById('cfg-offsety').value) || 0;
-        const phi = parseFloat(document.getElementById('cfg-phi').value) || 0;
-        const maxPoints = parseInt(document.getElementById('cfg-maxpoints').value) || 500;
-        const minDist = parseFloat(document.getElementById('cfg-minpointdist').value) || 0.5;
-		const maxBeaconSpeed = parseFloat(document.getElementById('cfg-max-beacon-speed')?.value) || 1.0;
-		
-		const newCompassMode = document.getElementById('cfg-compass-mode')?.value;
-		if (newCompassMode) {
-			compassMode = newCompassMode;
-			if (compassMode !== 'auto') hasTrueHeading = false;
-		}
-
-        AZMManager.setAddressMask(mask);
-        AZMManager.setMaxDistance(maxDist);
-        AZMManager.setSalinity(salinity);
-        AZMManager.setSoundSpeedAuto(isNaN(soundSpeed));  // пусто = авто
-		if (!isNaN(soundSpeed)) AZMManager.setSoundSpeed(soundSpeed);
-        AZMManager.setAntennaOffsets(offsX, offsY, phi);
-		
-		if (!isNaN(maxBeaconSpeed) && maxBeaconSpeed >= 0.5 && maxBeaconSpeed <= 5) {
-			AZMManager.setMaxBeaconSpeed(maxBeaconSpeed);
-		}
-
-        TrackManager.setMaxPoints(maxPoints);
-        TrackManager.setMinDistance(minDist);
-
-        saveSettings();
-
-        if (isConnected && AZMManager.getState().isInterrogationActive) {
-            const cmd = AZMManager.getStartCommand();
-            Logger.logOutgoing('AZM', cmd.trim());
-            serialBridge.send(cmd);
-        }
-
-        closeSettings();
-        setStatus('Настройки применены');
-    }
-
-    function onMaskChanged() { syncCheckboxesFromMask(); }
-
-    function buildAddressCheckboxes() {
-        const container = document.getElementById('addr-checkboxes');
-        if (!container) return;
-
-        let html = '';
-        for (let addr = 0; addr < 16; addr++) {
-            html += `
-                <label id="aclbl_${addr}">
-                    <input type="checkbox" value="${addr}" onchange="App.onAddrCheckboxChanged()">
-                    ${addr + 1}
-                </label>`;
-        }
-        container.innerHTML = html;
-    }
-
-    function syncCheckboxesFromMask() {
-        const maskInput = document.getElementById('cfg-mask');
-        if (!maskInput) return;
-        const mask = parseInt(maskInput.value) || 0;
-
-        for (let addr = 0; addr < 16; addr++) {
-            const cb = document.querySelector(`#aclbl_${addr} input`);
-            const lbl = document.getElementById(`aclbl_${addr}`);
-            if (cb) {
-                const bit = 1 << addr;
-                cb.checked = (mask & bit) !== 0;
-                if (lbl) lbl.classList.toggle('checked', cb.checked);
-            }
-        }
-    }
-
-    function onAddrCheckboxChanged() {
-        let mask = 0;
-        for (let addr = 0; addr < 16; addr++) {
-            const cb = document.querySelector(`#aclbl_${addr} input`);
-            if (cb && cb.checked) mask |= 1 << addr;
-            const lbl = document.getElementById(`aclbl_${addr}`);
-            if (lbl) lbl.classList.toggle('checked', cb && cb.checked);
-        }
-        document.getElementById('cfg-mask').value = mask;
-    }
-
-	function saveSettings() {
-		const data = {
-			mask: AZMManager.getState().addressMask,
-			maxDist: AZMManager.getState().maxDistM,
-			salinity: AZMManager.getState().salinityPSU,
-			soundSpeedAuto: AZMManager.getState().soundSpeedAuto,
-			soundSpeed: AZMManager.getState().soundSpeedMps,
-			offsetX: AZMManager.getState().offsetXM,
-			offsetY: AZMManager.getState().offsetYM,
-			phi: AZMManager.getState().phiDeg,
-			maxTrackPoints: TrackManager.getSettings().maxPointsPerTrack,
-			minPointDist: TrackManager.getSettings().minPointDistanceM,
-			gnssBaudrate: parseInt(document.getElementById('cfg-gnss-baud')?.value) || 38400,
-			compassMode: compassMode,
-			maxBeaconSpeed: AZMManager.getState().maxBeaconSpeedMps || 1.0,
-		};
-		try { localStorage.setItem('zima2_settings', JSON.stringify(data)); } catch (e) {}
-	}
-
-	function loadSettings() {
-		try {
-			const saved = localStorage.getItem('zima2_settings');
-			if (saved) {
-				const data = JSON.parse(saved);
-				if (data.mask !== undefined) AZMManager.setAddressMask(data.mask);
-				if (data.maxDist !== undefined) AZMManager.setMaxDistance(data.maxDist);
-				if (data.salinity !== undefined) AZMManager.setSalinity(data.salinity);
-				if (data.soundSpeedAuto !== undefined) AZMManager.setSoundSpeedAuto(data.soundSpeedAuto);
-				if (data.soundSpeed !== undefined) AZMManager.setSoundSpeed(data.soundSpeed);
-				if (data.offsetX !== undefined && data.offsetY !== undefined && data.phi !== undefined)	AZMManager.setAntennaOffsets(data.offsetX, data.offsetY, data.phi);
-				if (data.maxTrackPoints !== undefined) TrackManager.setMaxPoints(data.maxTrackPoints);
-				if (data.minPointDist !== undefined) TrackManager.setMinDistance(data.minPointDist);
-				if (data.gnssBaudrate !== undefined && document.getElementById('cfg-gnss-baud')) document.getElementById('cfg-gnss-baud').value = data.gnssBaudrate;
-				if (data.compassMode) { 
-				    compassMode = data.compassMode; 
-					const el = document.getElementById('cfg-compass-mode'); 
-					if (el) 
-						el.value = data.compassMode; 
-				}
-				if (data.maxBeaconSpeed !== undefined) AZMManager.setMaxBeaconSpeed(data.maxBeaconSpeed);
-			}
-		} catch (e) {}
-	}
-
     // ========== ЛОГГЕР ==========
     function saveLog() {
         if (Logger.getEntryCount() === 0) {
@@ -1428,6 +1247,7 @@ const App = (() => {
 		drawBeacons();
 		drawAntenna();
 		drawScaleBar();
+		drawRuler();
 
 		const beacons = AZMManager.getBeaconsArray();
 		const hash = beacons.map(b => `${b.address}:${b.dataAge}:${b.isTimeout}:${b.absoluteDistanceM?.toFixed(0)}:${b.absoluteAzimuthDeg?.toFixed(0)}`).join('|');
@@ -1492,30 +1312,7 @@ const App = (() => {
 	
 	
 	function getCanvasColors() {
-		const rootStyles = getComputedStyle(document.documentElement);
-		
-		// Пробуем получить из CSS-переменных, иначе fallback
-		let text = rootStyles.getPropertyValue('--map-text').trim();
-		let grid = rootStyles.getPropertyValue('--map-grid').trim();
-		let axis = rootStyles.getPropertyValue('--map-axis').trim();
-		
-		if (!text) {
-			text = document.documentElement.classList.contains('theme-light') ? '#1a1a1a' : '#ffffff';
-		}
-		if (!grid) {
-			grid = document.documentElement.classList.contains('theme-light') ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.06)';
-		}
-		if (!axis) {
-			axis = document.documentElement.classList.contains('theme-light') ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)';
-		}
-		
-		return {
-			text: text,
-			textSecondary: text,
-			stroke: text,
-			grid: grid,
-			axis: axis
-		};
+		return Themes.getCanvasColors();
 	}
 
 	function drawGrid() {
@@ -1587,8 +1384,7 @@ const App = (() => {
 		ctx.lineTo(ax, ay + 18);
 		ctx.lineTo(ax - 18, ay);
 		ctx.closePath();
-		const rootStyles = getComputedStyle(document.documentElement);
-		const antennaFill = rootStyles.getPropertyValue('--antenna-fill').trim() || 'rgba(0, 255, 255, 0.5)';
+	    const antennaFill = Themes.getAntennaFill();
 		ctx.fillStyle = antennaFill;
 		ctx.fill();
 		ctx.strokeStyle = cc.stroke;
@@ -1895,6 +1691,18 @@ const App = (() => {
             offsetY = canvas.height / 2;
             autoScaleEnabled = true;
         });
+		
+		canvas.addEventListener('click', (e) => {
+			if (UIRuler.isActive()) {
+				UIRuler.handleClick(e);
+			}
+		});
+		
+		canvas.addEventListener('mousemove', (e) => {
+			if (!isDragging && UIRuler.isActive() && UIRuler.getPointsCount() === 1) {
+				UIRuler.handleMouseMove(e);
+			}
+		});
     }
 
     function initTouchHandlers() {
@@ -2131,6 +1939,170 @@ const App = (() => {
 		URL.revokeObjectURL(url);
 	}
 
+	// ========== ЛИНЕЙКА (обёртки для вызова из HTML) ==========
+	function toggleRuler() {
+		UIRuler.toggle();
+	}
+
+	function drawRuler() {
+		UIRuler.draw();
+	}	
+	
+	
+	// ========== Настройки ==========
+	
+	function openSettings() {
+		UISettings.open();
+	}
+
+	function closeSettings() {
+		UISettings.close();
+	}
+
+	function applySettings() {
+		// Получаем значения из UI
+		const mask = UISettings.getInt('cfg-mask', 1);
+		const maxDist = UISettings.getFloat('cfg-maxdist', 1000);
+		const salinity = UISettings.getFloat('cfg-salinity', 0);
+		
+		const soundSpeedVal = UISettings.getValue('cfg-soundspeed', '');
+		const soundSpeed = soundSpeedVal ? parseFloat(soundSpeedVal) : NaN;
+		
+		const offsX = UISettings.getFloat('cfg-offsetx', 0);
+		const offsY = UISettings.getFloat('cfg-offsety', 0);
+		const phi = UISettings.getFloat('cfg-phi', 0);
+		const maxPoints = UISettings.getInt('cfg-maxpoints', 500);
+		const minDist = UISettings.getFloat('cfg-minpointdist', 0.5);
+		const maxBeaconSpeed = UISettings.getFloat('cfg-max-beacon-speed', 1.0);
+		
+		const newCompassMode = UISettings.getValue('cfg-compass-mode');
+		if (newCompassMode) {
+			compassMode = newCompassMode;
+			if (compassMode !== 'auto') hasTrueHeading = false;
+		}
+		
+		// Применяем настройки к менеджерам
+		AZMManager.setAddressMask(mask);
+		AZMManager.setMaxDistance(maxDist);
+		AZMManager.setSalinity(salinity);
+		AZMManager.setSoundSpeedAuto(isNaN(soundSpeed));
+		if (!isNaN(soundSpeed)) AZMManager.setSoundSpeed(soundSpeed);
+		AZMManager.setAntennaOffsets(offsX, offsY, phi);
+		
+		if (!isNaN(maxBeaconSpeed) && maxBeaconSpeed >= 0.5 && maxBeaconSpeed <= 5) {
+			AZMManager.setMaxBeaconSpeed(maxBeaconSpeed);
+		}
+		
+		TrackManager.setMaxPoints(maxPoints);
+		TrackManager.setMinDistance(minDist);
+		
+		// Сохраняем
+		saveSettings();
+		
+		// Перезапускаем опрос если активен
+		if (isConnected && AZMManager.getState().isInterrogationActive) {
+			const cmd = AZMManager.getStartCommand();
+			Logger.logOutgoing('AZM', cmd.trim());
+			serialBridge.send(cmd);
+		}
+		
+		setStatus('Настройки применены');
+	}
+
+	function updateSettingsUI() {
+		const st = AZMManager.getState();
+		const trs = TrackManager.getSettings();
+		
+		UISettings.setValue('cfg-mask', st.addressMask);
+		UISettings.setValue('cfg-maxdist', st.maxDistM);
+		UISettings.setValue('cfg-salinity', st.salinityPSU);
+		
+		const sosInput = document.getElementById('cfg-soundspeed');
+		if (sosInput) {
+			sosInput.value = (!isNaN(st.soundSpeedMps) && !st.soundSpeedAuto) ? st.soundSpeedMps.toFixed(1) : '';
+		}
+		
+		UISettings.setValue('cfg-offsetx', st.offsetXM);
+		UISettings.setValue('cfg-offsety', st.offsetYM);
+		UISettings.setValue('cfg-phi', st.phiDeg);
+		UISettings.setValue('cfg-maxpoints', trs.maxPointsPerTrack);
+		UISettings.setValue('cfg-minpointdist', trs.minPointDistanceM);
+		
+		const gnssBaudEl = document.getElementById('cfg-gnss-baud');
+		if (gnssBaudEl) {
+			const saved = localStorage.getItem('zima2_settings');
+			if (saved) {
+				const data = JSON.parse(saved);
+				gnssBaudEl.value = data.gnssBaudrate || '38400';
+			}
+		}
+		
+		const compassEl = document.getElementById('cfg-compass-mode');
+		if (compassEl) compassEl.value = compassMode;
+		
+		const maxSpeedEl = document.getElementById('cfg-max-beacon-speed');
+		if (maxSpeedEl) maxSpeedEl.value = st.maxBeaconSpeedMps || 1.0;
+		
+		UISettings.syncCheckboxesFromMask(st.addressMask);
+	}
+
+	function saveSettings() {
+		const data = {
+			mask: AZMManager.getState().addressMask,
+			maxDist: AZMManager.getState().maxDistM,
+			salinity: AZMManager.getState().salinityPSU,
+			soundSpeedAuto: AZMManager.getState().soundSpeedAuto,
+			soundSpeed: AZMManager.getState().soundSpeedMps,
+			offsetX: AZMManager.getState().offsetXM,
+			offsetY: AZMManager.getState().offsetYM,
+			phi: AZMManager.getState().phiDeg,
+			maxTrackPoints: TrackManager.getSettings().maxPointsPerTrack,
+			minPointDist: TrackManager.getSettings().minPointDistanceM,
+			gnssBaudrate: parseInt(document.getElementById('cfg-gnss-baud')?.value) || 38400,
+			compassMode: compassMode,
+			maxBeaconSpeed: AZMManager.getState().maxBeaconSpeedMps || 1.0,
+		};
+		try { localStorage.setItem('zima2_settings', JSON.stringify(data)); } catch (e) {}
+	}
+
+	function loadSettings() {
+		try {
+			const saved = localStorage.getItem('zima2_settings');
+			if (saved) {
+				const data = JSON.parse(saved);
+				if (data.mask !== undefined) AZMManager.setAddressMask(data.mask);
+				if (data.maxDist !== undefined) AZMManager.setMaxDistance(data.maxDist);
+				if (data.salinity !== undefined) AZMManager.setSalinity(data.salinity);
+				if (data.soundSpeedAuto !== undefined) AZMManager.setSoundSpeedAuto(data.soundSpeedAuto);
+				if (data.soundSpeed !== undefined) AZMManager.setSoundSpeed(data.soundSpeed);
+				if (data.offsetX !== undefined && data.offsetY !== undefined && data.phi !== undefined) {
+					AZMManager.setAntennaOffsets(data.offsetX, data.offsetY, data.phi);
+				}
+				if (data.maxTrackPoints !== undefined) TrackManager.setMaxPoints(data.maxTrackPoints);
+				if (data.minPointDist !== undefined) TrackManager.setMinDistance(data.minPointDist);
+				if (data.gnssBaudrate !== undefined && document.getElementById('cfg-gnss-baud')) {
+					document.getElementById('cfg-gnss-baud').value = data.gnssBaudrate;
+				}
+				if (data.compassMode) { 
+					compassMode = data.compassMode; 
+					const el = document.getElementById('cfg-compass-mode'); 
+					if (el) el.value = data.compassMode; 
+				}
+				if (data.maxBeaconSpeed !== undefined) AZMManager.setMaxBeaconSpeed(data.maxBeaconSpeed);
+			}
+		} catch (e) {}
+	}
+
+	function onMaskChanged() {
+		const mask = UISettings.getInt('cfg-mask', 0);
+		UISettings.syncCheckboxesFromMask(mask);
+	}
+
+	function onAddrCheckboxChanged() {
+		const mask = UISettings.getMaskFromCheckboxes();
+		UISettings.updateMaskInput(mask);
+	}
+
     // ========== ПУБЛИЧНЫЙ API ==========
 	return {
 		init,
@@ -2152,7 +2124,8 @@ const App = (() => {
 		exportCSV, exportGGA, exportPSIMSSB, exportPSIMSSB_NE,
 		getPhoneGPS,
 		loadCalibrationFile,
-		resetCalibration
+		resetCalibration,
+		toggleRuler,
 	};
 
 })();
