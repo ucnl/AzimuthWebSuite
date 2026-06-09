@@ -82,6 +82,7 @@
 			<div id="tracks-control">
 				<button class="track-btn active" id="btn-tracks-show" onclick="App.toggleTracks()">📐 Треки</button>
 				<button class="track-btn" id="btn-tracks-clear" onclick="App.clearTracks()">🗑 Очистить</button>
+				<button id="btn-ruler" class="track-btn" onclick="App.toggleRuler()">📏 Линейка</button>
 				<div id="playback-progress" style="display:none; width:150px; height:4px; background:#333; border-radius:2px;">
 					<div id="playback-progress-fill" style="width:0%; height:100%; background:#4a90e2; border-radius:2px;"></div>
 				</div>
@@ -330,6 +331,9 @@
 	<script src="azm-manager.js"></script>
 	<script src="utm.js"></script>
 	<script src="tracks.js"></script>
+	<script src="modules/ui-themes.js"></script>
+	<script src="modules/ui-settings.js"></script>
+	<script src="modules/ui-ruler.js"></script>
 	<script src="app.js"></script>
 </body>
 </html>
