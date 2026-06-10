@@ -445,6 +445,7 @@ body {
     height: 100%;
     display: block;
     cursor: grab;
+	background-color: var(--bg-primary);
 }
 #map-canvas:active { cursor: grabbing; }
 

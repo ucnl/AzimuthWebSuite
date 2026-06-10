@@ -1078,6 +1078,8 @@ const App = (() => {
         if (ageTimer) clearInterval(ageTimer);
     });
 
+
+
 	// ========== ЭКСПОРТ ==========
 	function exportCSV() { ExportManager.exportCSV(); }
 	function exportGGA() { ExportManager.exportGGA(); }
