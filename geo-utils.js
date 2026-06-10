@@ -3,6 +3,8 @@
 const GeoUtils = (() => {
 
     const WGS84_A = 6378137.0;
+    const WGS84_B = 6356752.314245; // малая полуось
+    const E2 = (WGS84_A * WGS84_A - WGS84_B * WGS84_B) / (WGS84_A * WGS84_A); // эксцентриситет
 
     /**
      * Вычисляет разницу в метрах между двумя географическими точками
@@ -80,13 +82,84 @@ const GeoUtils = (() => {
         };
     }
 
+    /**
+     * Преобразует географические координаты в экранные (пиксели)
+     * @param {number} latDeg — широта точки в градусах
+     * @param {number} lonDeg — долгота точки в градусах
+     * @param {number} anchorLatDeg — широта якоря (центра карты) в градусах
+     * @param {number} anchorLonDeg — долгота якоря в градусах
+     * @param {number} offsetX — смещение canvas по X
+     * @param {number} offsetY — смещение canvas по Y
+     * @param {number} scale — масштаб (пикселей на метр)
+     * @returns {{ x: number, y: number }} — координаты в пикселях
+     */
+    function geoToScreen(latDeg, lonDeg, anchorLatDeg, anchorLonDeg, offsetX, offsetY, scale) {
+        const deltas = deltasByDegrees(anchorLatDeg, anchorLonDeg, latDeg, lonDeg);
+        return {
+            x: offsetX + deltas.deltaLonM * scale,
+            y: offsetY - deltas.deltaLatM * scale
+        };
+    }
+
+    /**
+     * Преобразует экранные координаты (пиксели) в географические
+     * @param {number} screenX — X в пикселях
+     * @param {number} screenY — Y в пикселях
+     * @param {number} anchorLatDeg — широта якоря в градусах
+     * @param {number} anchorLonDeg — долгота якоря в градусах
+     * @param {number} offsetX — смещение canvas по X
+     * @param {number} offsetY — смещение canvas по Y
+     * @param {number} scale — масштаб (пикселей на метр)
+     * @returns {{ lat: number, lon: number }} — координаты в градусах
+     */
+    function screenToGeo(screenX, screenY, anchorLatDeg, anchorLonDeg, offsetX, offsetY, scale) {
+        const deltaLonM = (screenX - offsetX) / scale;
+        const deltaLatM = (offsetY - screenY) / scale;
+        
+        const anchorLatRad = anchorLatDeg * Math.PI / 180;
+        const mpd = metersPerDegree(anchorLatRad);
+        
+        const lat = anchorLatDeg + deltaLatM / mpd.mPerDegLat;
+        const lon = anchorLonDeg + deltaLonM / mpd.mPerDegLon;
+        
+        return { lat, lon };
+    }
+
+    /**
+     * Радиус кривизны меридиана (для точных расчётов)
+     * @param {number} latRad — широта в радианах
+     * @returns {number}
+     */
+    function meridianRadius(latRad) {
+        const sinLat = Math.sin(latRad);
+        return WGS84_A * (1 - E2) / Math.pow(1 - E2 * sinLat * sinLat, 1.5);
+    }
+
+    /**
+     * Радиус кривизны первого вертикала (для точных расчётов)
+     * @param {number} latRad — широта в радианах
+     * @returns {number}
+     */
+    function primeVerticalRadius(latRad) {
+        const sinLat = Math.sin(latRad);
+        return WGS84_A / Math.sqrt(1 - E2 * sinLat * sinLat);
+    }
+
     return {
         WGS84_A,
         getDeltasByGeopoints_WGS84,
         geopointOffsetByDeltas_WGS84,
         metersPerDegree,
         haversineDistance,
-        deltasByDegrees
+        deltasByDegrees,
+        geoToScreen,
+        screenToGeo,
+        meridianRadius,
+        primeVerticalRadius
     };
 
 })();
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = GeoUtils;
+}
