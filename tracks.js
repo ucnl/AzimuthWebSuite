@@ -267,78 +267,6 @@ const TrackManager = (() => {
 		}
 	}
 
-    // ========== ЭКСПОРТ KML ==========
-
-	 function exportKML(name) {
-		name = name || 'Zima2_USBL_Tracks';
-		const xmlHeader = '<?xml version="1.0" encoding="UTF-8"?>';
-		let kml = `<kml xmlns="http://www.opengis.net/kml/2.2">
-	  <Document>
-		<name>${escapeXml(name)}</name>
-		<description>Zima2 USBL треки. Экспортировано: ${new Date().toISOString()}</description>
-	`;
-
-		// Стили маяков
-		for (const addr in tracks) {
-			const hue = (parseInt(addr) * 60) % 360;
-			const hex = hslToHex(hue, 70, 55);
-			kml += `
-		<Style id="beacon_${addr}_style">
-		  <LineStyle><color>ff${hex.substring(4, 6)}${hex.substring(2, 4)}${hex.substring(0, 2)}</color><width>3</width></LineStyle>
-		</Style>`;
-		}
-
-		// Стиль станции
-		kml += `
-		<Style id="station_style">
-		  <LineStyle><color>ff00ffff</color><width>3</width></LineStyle>
-		</Style>`;
-
-		// Треки маяков
-		for (const addr in tracks) {
-			const track = tracks[addr];
-			if (track.length < 2) continue;
-			const valid = track.filter(p => !p.isTimeout && p.lat != null && p.lon != null && !isNaN(p.lat) && !isNaN(p.lon));
-			if (valid.length < 2) continue;
-			kml += `
-		<Placemark>
-		  <name>Маяк #${parseInt(addr) + 1}</name>
-		  <styleUrl>#beacon_${addr}_style</styleUrl>
-		  <LineString><tessellate>1</tessellate><coordinates>
-	${valid.map(p => `        ${p.lon.toFixed(6)},${p.lat.toFixed(6)},0`).join('\n')}
-		  </coordinates></LineString>
-		</Placemark>`;
-		}
-
-		// Трек станции
-		if (stationTrack.length >= 2) {
-			const validSt = stationTrack.filter(p => p.lat != null && p.lon != null && !isNaN(p.lat) && !isNaN(p.lon));
-			if (validSt.length >= 2) {
-				kml += `
-		<Placemark>
-		  <name>Станция</name>
-		  <styleUrl>#station_style</styleUrl>
-		  <LineString><tessellate>1</tessellate><coordinates>
-	${validSt.map(p => `        ${p.lon.toFixed(6)},${p.lat.toFixed(6)},0`).join('\n')}
-		  </coordinates></LineString>
-		</Placemark>`;
-			}
-		}
-
-		kml += `\n  </Document>\n</kml>`;
-		return xmlHeader + '\n' + kml;
-	}
-
-    function downloadKML(filename) {
-        const ts = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-        filename = filename || `zima2_tracks_${ts}.kml`;
-        const blob = new Blob([exportKML()], { type: 'application/vnd.google-earth.kml+xml' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = filename;
-        document.body.appendChild(a); a.click();
-        document.body.removeChild(a); URL.revokeObjectURL(url);
-    }
 
     function getStats() {
         const stats = {};
@@ -379,7 +307,7 @@ const TrackManager = (() => {
 		getTrack, getTrackedAddresses,
 		setMaxPoints, setMinDistance,
 		setShowTracks, toggleShowTracks, getSettings,
-		drawTracks, exportKML, downloadKML, getStats,
+		drawTracks, getStats,
 		addStationPoint, clearStationTrack, drawStationTrack,
 		setAnchor, getAnchor,
 		get stationTrack() { return stationTrack; },

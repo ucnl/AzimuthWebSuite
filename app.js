@@ -3,41 +3,27 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.2.4';
+    const APP_VERSION = '1.2.5';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
     let canvas, ctx;
-    let mapContainer, beaconsBar, scaleBarEl;
-    let topoPanel;
+    let mapContainer, beaconsBar, scaleBarEl;   
     let connectionIndicator, statusText, deviceLabel;
-	
-    let btnTracksShow, btnTracksClear, btnTracksExport;
-	
+	let btnTracksShow, btnTracksClear;
 	let btnConnection, btnInterrogation, btnSettings;
 	let btnGnss;
-	
     let playbackProgress, playbackProgressFill;
-	
-	let calibrationPanel;
-	
 	let activeDropdown = null;
 	let lastBeaconsHash = '';
-
-    // ========== СОСТОЯНИЕ КАРТЫ ==========
-    let scale = 100;
-    let offsetX = 0, offsetY = 0;
-    let isDragging = false;
-    let lastMouseX = 0, lastMouseY = 0;
-    let autoScaleEnabled = true;
+    
+    let lastMouseX = 0, lastMouseY = 0;    
 
     // ========== СОСТОЯНИЕ ПРИЛОЖЕНИЯ ==========
     let serialBridge = null;
     let isConnected = false;
     let ageTimer = null;
-    let topoVisible = false;
 
-	let isCalibrating = false;
 	let compassMode = 'auto';
 	let hasTrueHeading = false;
 	
@@ -145,35 +131,6 @@ const App = (() => {
         console.log('[App]', msg);
     }
 	
-	function getPhoneGPS() {
-		const latEl = document.getElementById('topo-lat');
-		const lonEl = document.getElementById('topo-lon');
-		const statusEl = document.getElementById('topo-gnss-status');
-
-		if (!navigator.geolocation) {
-			statusEl.textContent = 'GPS недоступен';
-			statusEl.className = '';
-			return;
-		}
-
-		statusEl.textContent = 'Поиск GPS...';
-		statusEl.className = '';
-
-		navigator.geolocation.getCurrentPosition(
-			(pos) => {
-				latEl.value = pos.coords.latitude.toFixed(6);
-				lonEl.value = pos.coords.longitude.toFixed(6);
-				statusEl.textContent = `✓ ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)} (±${pos.coords.accuracy.toFixed(0)}м)`;
-				statusEl.className = 'locked';
-			},
-			(err) => {
-				statusEl.textContent = 'Ошибка: ' + err.message;
-				statusEl.className = '';
-			},
-			{ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-		);
-	}
-	
     // ========== ИНИЦИАЛИЗАЦИЯ ==========
 	 function init() {
 		document.getElementById('app-version').textContent = `${APP_VERSION}`;
@@ -185,9 +142,7 @@ const App = (() => {
 		ctx = canvas.getContext('2d');
 		mapContainer = document.getElementById('map-container');
 		beaconsBar = document.getElementById('beacons-bar');
-		scaleBarEl = document.getElementById('scale-bar');
-		topoPanel = document.getElementById('topo-panel');
-		settingsOverlay = document.getElementById('settings-overlay');
+		scaleBarEl = document.getElementById('scale-bar');				
 
 		connectionIndicator = document.getElementById('connection-indicator');
 		statusText = document.getElementById('status-text');
@@ -203,9 +158,7 @@ const App = (() => {
 		btnTracksExport = document.getElementById('btn-tracks-export');
 
 		playbackProgress = document.getElementById('playback-progress');
-		playbackProgressFill = document.getElementById('playback-progress-fill');
-		
-		calibrationPanel = document.getElementById('calibration-panel');
+		playbackProgressFill = document.getElementById('playback-progress-fill');		
 		
 		analysisPanel = document.getElementById('analysis-panel');
 		analysisContent = document.getElementById('analysis-content');
@@ -220,9 +173,8 @@ const App = (() => {
 		Logger.onPlaybackStart = onPlaybackStart;
 		Logger.onPlaybackEnd = onPlaybackEnd;
 		Logger.onPlaybackProgress = onPlaybackProgress;
-
-		resizeCanvas();
-		window.addEventListener('resize', resizeCanvas);
+		
+		window.addEventListener('resize', () => UICanvas.resizeCanvas());
 		initMouseHandlers();
 		initTouchHandlers();
 		loadSettings();  // ← оставить
@@ -236,8 +188,8 @@ const App = (() => {
 		const antennaInfo = document.getElementById('antenna-info');
 		if (antennaInfo) {
 			antennaInfo.addEventListener('click', function() {
-				autoScaleEnabled = true;
-				autoScale();
+				UICanvas.setAutoScaleEnabled(true);
+				UICanvas.autoScale();
 			});
 		}
 		
@@ -247,13 +199,22 @@ const App = (() => {
 		if (!compassMode) compassMode = 'auto';
 		
 		Themes.init();
+		
+		// ИНИЦИАЛИЗАЦИЯ ОТРИСОВК
+		UICanvas.init(canvas, mapContainer, {
+			getAZMManager: () => AZMManager,
+			getTrackManager: () => TrackManager,
+			getUIRuler: () => UIRuler,
+			getThemes: () => Themes,
+			setStatus: (msg) => setStatus(msg)
+		});
 
 		// ИНИЦИАЛИЗАЦИЯ ЛИНЕЙКИ
 		UIRuler.init(canvas, ctx, {
-			getOffsetX: () => offsetX,
-			getOffsetY: () => offsetY,
-			getScale: () => scale,
-			drawCallback: () => drawAll(),
+			getOffsetX: () => UICanvas.getOffset().x,
+			getOffsetY: () => UICanvas.getOffset().y,
+			getScale: () => UICanvas.getScale(),
+			drawCallback: () => UICanvas.drawAll(),
 			setStatus: (msg) => setStatus(msg)
 		});
 		
@@ -267,8 +228,35 @@ const App = (() => {
 		// Вызов построения чекбоксов маски (через модуль)
 		UISettings.buildAddressCheckboxes();
 		
-		loadTopoBinding();
-		loadCalibrationFromStorage();
+		// ИНИЦИАЛИЗАЦИЯ ТОПОПРИВЯЗКИ
+		UITopo.init('topo-panel', {
+			setStatus: (msg) => setStatus(msg),
+			getGnssConnected: () => isGnssConnected,
+			setAntennaPosition: (lat, lon, hdg) => AZMManager.setAntennaPosition(lat, lon, hdg),
+			recalcAllBeacons: () => AZMManager.recalcAllBeacons(),
+			updateAntennaInfoUI: () => updateAntennaInfoUI(),
+			updateAllButtons: () => updateAllButtons()
+		});
+		
+		// Загружаем сохранённую привязку
+		UITopo.loadTopoBinding();
+		
+		// ИНИЦИАЛИЗАЦИЯ КАЛИБРОВКИ
+		UICalibration.init('calibration-panel', {
+			getState: () => AZMManager.getState(),
+			setAntennaOffsets: (x, y, phi) => AZMManager.setAntennaOffsets(x, y, phi),
+			saveSettings: () => saveSettings(),
+			setStatus: (msg) => setStatus(msg),
+			isConnected: () => isConnected,
+			getSerialBridge: () => serialBridge,
+			getStartCommand: () => AZMManager.getStartCommand(),
+			logOutgoing: (port, data) => Logger.logOutgoing(port, data),
+			recalcAllBeacons: () => AZMManager.recalcAllBeacons()
+		});
+		
+		// Загружаем сохранённую калибровку
+		UICalibration.loadCalibrationFromStorage();
+		
 		updateAllButtons();
 		updateSettingsUI();
 		updateAntennaInfoUI();
@@ -287,9 +275,7 @@ const App = (() => {
 	}
 
     // ========== ТАЙМЕР СТАРЕНИЯ ==========
-    function tickAll() {
-        AZMManager.tickAge();
-    }
+    function tickAll() { AZMManager.tickAge(); }
 
     // ========== ПОДКЛЮЧЕНИЕ К ПОРТУ ==========
     async function connectSerial() {
@@ -487,7 +473,7 @@ const App = (() => {
 		}
 
 		// Калибровка — только для принятых
-		if (isCalibrating && isFilterAccepted && !isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.azimuthDeg)) {
+		if (UICalibration.isActive() && isFilterAccepted && !isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.azimuthDeg)) {
 			AngularCalibration.addPoint(
 				new Date(),
 				st.antennaHeadingDeg,
@@ -499,11 +485,7 @@ const App = (() => {
 				st.antennaDepthM,
 				beacon.depthM
 			);
-			const count = AngularCalibration.getCount();
-			const maxPoints = parseInt(document.getElementById('cfg-cal-points')?.value) || 100;
-			const statusEl = document.getElementById('cal-status');
-			if (statusEl) statusEl.textContent = 'Собрано: ' + count;
-			if (count >= maxPoints) stopCalibration();
+			UICalibration.addPoint();
 		}
 	}
 
@@ -544,6 +526,7 @@ const App = (() => {
 			};
 			gnssBridge.onClose = () => {
 				isGnssConnected = false;
+				UITopo.setGnssConnected(false);
 				updateAllButtons();
 				Logger.logInfo('GNSS disconnected');
 			};
@@ -553,6 +536,7 @@ const App = (() => {
 			await gnssBridge.open(gnssBaud);
 
 			isGnssConnected = true;
+			UITopo.setGnssConnected(true);
 			updateAllButtons();
 			Logger.logInfo('GNSS connected at ' + gnssBaud);
 			setStatus('GNSS подключен (' + gnssBaud + ')');
@@ -569,6 +553,7 @@ const App = (() => {
 			gnssBridge = null;
 		}
 		isGnssConnected = false;
+		UITopo.setGnssConnected(false);
 		updateAllButtons();
 	}
 
@@ -588,9 +573,8 @@ const App = (() => {
 			TrackManager.addStationPoint(data.latitude, data.longitude, st.antennaHeadingDeg);
 			updateAntennaInfoUI();
 			
-			if (topoVisible) {
-				document.getElementById('topo-lat').value = data.latitude.toFixed(6);
-				document.getElementById('topo-lon').value = data.longitude.toFixed(6);
+			if (UITopo.isOpen()) {
+				UITopo.updateFieldsFromGNSS(data.latitude, data.longitude, data.heading);
 				document.getElementById('topo-gnss-status').textContent = '✓ Внешний GNSS';
 				document.getElementById('topo-gnss-status').className = 'locked';
 			}
@@ -599,7 +583,7 @@ const App = (() => {
 			if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
 				AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, data.heading);
 				updateAntennaInfoUI();
-				if (topoVisible) {
+				if (UITopo.isOpen()) {
 					document.getElementById('topo-hdg').value = data.heading.toFixed(1);
 				}
 			}
@@ -608,7 +592,7 @@ const App = (() => {
 				if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
 					AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, data.heading);
 					updateAntennaInfoUI();
-					if (topoVisible) {
+					if (UITopo.isOpen()) {
 						document.getElementById('topo-hdg').value = data.heading.toFixed(1);
 					}
 				}
@@ -618,198 +602,11 @@ const App = (() => {
 	
 	
 	// ========== КАЛИБРОВКА ==========
-	function toggleCalibration() {
-		if (calibrationPanel.style.display === 'none' || !calibrationPanel.style.display) {
-			calibrationPanel.style.display = 'block';
-			document.getElementById('cal-status').textContent = 'Собрано: ' + AngularCalibration.getCount();
-		} else {
-			calibrationPanel.style.display = 'none';
-			if (isCalibrating) stopCalibration();  // ОСТАВИТЬ — закрытие панели = стоп
-		}
-	}
-
-	function startCalibration() {
-		AngularCalibration.reset();
-		AngularCalibration.setOffsets(
-			AZMManager.getState().offsetXM,
-			AZMManager.getState().offsetYM
-		);
-		isCalibrating = true;
-		document.getElementById('cal-status').textContent = 'Собрано: 0';
-		setStatus('Калибровка начата');
-		
-		document.getElementById('btn-cal-start').disabled = true;
-		document.getElementById('btn-cal-stop').disabled = false;
-		document.getElementById('cfg-cal-from').disabled = true;
-		document.getElementById('cfg-cal-to').disabled = true;
-		document.getElementById('cfg-cal-step').disabled = true;
-		document.getElementById('cfg-cal-points').disabled = true;
-	}
-
-	function stopCalibration() {
-		if (!isCalibrating) return;
-		isCalibrating = false;
-		
-		document.getElementById('btn-cal-start').disabled = false;
-		document.getElementById('btn-cal-stop').disabled = true;
-		document.getElementById('cfg-cal-from').disabled = false;
-		document.getElementById('cfg-cal-to').disabled = false;
-		document.getElementById('cfg-cal-step').disabled = false;
-		document.getElementById('cfg-cal-points').disabled = false;
-		
-		const fromAngle = parseFloat(document.getElementById('cfg-cal-from').value) || 0;
-		const toAngle = parseFloat(document.getElementById('cfg-cal-to').value) || 360;
-		const step = parseFloat(document.getElementById('cfg-cal-step').value) || 1;
-		
-		const phi = AngularCalibration.calibratePhi(fromAngle, toAngle, step);
-		
-		if (!isNaN(phi)) {
-			const choice = confirm(
-				`Калибровка завершена.\n\n` +
-				`φ = ${phi.toFixed(1)}°\n` +
-				`Собрано точек: ${AngularCalibration.getCount()}\n\n` +
-				`Применить это значение?`
-			);
-			
-			if (choice) {
-				const phiEl = document.getElementById('cfg-phi');
-				if (phiEl) phiEl.value = phi.toFixed(1);
-				
-				AZMManager.setAntennaOffsets(
-					AZMManager.getState().offsetXM,
-					AZMManager.getState().offsetYM,
-					phi
-				);
-				saveSettings();
-				setStatus(`Калибровка завершена. φ = ${phi.toFixed(1)}°`);
-				document.getElementById('cal-status').textContent = `✓ φ = ${phi.toFixed(1)}°`;
-				
-				if (isConnected && AZMManager.getState().isInterrogationActive) {
-					const cmd = AZMManager.getStartCommand();
-					Logger.logOutgoing('AZM', cmd.trim());
-					serialBridge.send(cmd);
-				}
-			} else {
-				document.getElementById('cal-status').textContent = 'Отклонено';
-				setStatus('Калибровка отклонена');
-			}
-		} else {
-			setStatus('Недостаточно точек для калибровки');
-			document.getElementById('cal-status').textContent = 'Недостаточно точек';
-		}
-	}
-
-    // ========== КАЛИБРОВОЧНАЯ ТАБЛИЦА ==========
-	async function loadCalibrationFile() {
-		try {
-			// Если File System Access API доступен (Chrome/Vivaldi)
-			if (window.showOpenFilePicker) {
-				const [fileHandle] = await window.showOpenFilePicker({
-					types: [{
-						description: 'CSV Files',
-						accept: { 'text/csv': ['.csv', '.txt'] }
-					}]
-				});
-				const file = await fileHandle.getFile();
-				const text = await file.text();
-				applyCalibrationData(text, file.name);
-			} else {
-				// Fallback — старый способ
-				const input = document.createElement('input');
-				input.type = 'file';
-				input.accept = '.csv,.txt';
-				input.onchange = (e) => {
-					const file = e.target.files[0];
-					if (!file) return;
-					const reader = new FileReader();
-					reader.onload = (ev) => {
-						applyCalibrationData(ev.target.result, file.name);
-					};
-					reader.readAsText(file);
-				};
-				input.click();
-			}
-		} catch (e) {
-			if (e.name !== 'AbortError') {
-				console.error('[App] Ошибка загрузки калибровки:', e);
-				alert('Ошибка загрузки: ' + e.message);
-			}
-		}
-	}
-
-	function applyCalibrationData(text, filename) {
-		try {
-			const { angles, errors } = AntennaCorrector.parseFromText(text);
-			AZMManager.loadAntennaCalibration(angles, errors);
-			
-			// Сохраняем в localStorage
-			saveCalibrationToStorage(angles, errors);
-			
-			// Обновляем UI
-			updateCalibrationUI(angles.length);
-			
-			// Пересчитываем маяки
-			AZMManager.recalcAllBeacons();
-			
-			setStatus(`Калибровка загружена: ${angles.length} точек`);
-		} catch (e) {
-			alert('Ошибка формата файла: ' + e.message);
-		}
-	}
-
-	function resetCalibration() {
-		if (confirm('Сбросить калибровочную таблицу антенны?')) {
-			AZMManager.resetAntennaCalibration();
-			localStorage.removeItem('antenna_calibration');
-			updateCalibrationUI(0);
-			AZMManager.recalcAllBeacons();
-			setStatus('Калибровка сброшена');
-		}
-	}
-
-	function updateCalibrationUI(pointCount) {
-		const infoRow = document.getElementById('calibration-info');
-		const statusEl = document.getElementById('calibration-status');
-		const resetBtn = document.getElementById('btn-reset-calibration');
-		
-		if (pointCount > 0) {
-			if (infoRow) infoRow.style.display = 'flex';
-			if (statusEl) statusEl.textContent = `✓ Загружено ${pointCount} точек`;
-			if (resetBtn) resetBtn.style.display = 'inline-block';
-		} else {
-			if (infoRow) infoRow.style.display = 'none';
-			if (statusEl) statusEl.textContent = '';
-			if (resetBtn) resetBtn.style.display = 'none';
-		}
-	}
-
-	function saveCalibrationToStorage(angles, errors) {
-		try {
-			localStorage.setItem('antenna_calibration', JSON.stringify({ angles, errors }));
-		} catch (e) {
-			console.warn('Не удалось сохранить калибровку:', e);
-		}
-	}
-
-	function loadCalibrationFromStorage() {
-		try {
-			const saved = localStorage.getItem('antenna_calibration');
-			if (saved) {
-				const data = JSON.parse(saved);
-				if (data.angles && data.errors && data.angles.length >= 2) {
-					AZMManager.loadAntennaCalibration(data.angles, data.errors);
-					updateCalibrationUI(data.angles.length);
-					return true;
-				}
-			}
-		} catch (e) {
-			console.warn('Ошибка загрузки калибровки из storage:', e);
-		}
-		updateCalibrationUI(0);
-		return false;
-	}
-
-
+	function toggleCalibration() { UICalibration.toggle(); }
+	function startCalibration() { UICalibration.start(); }
+	function stopCalibration() { UICalibration.stop(); }
+	function loadCalibrationFile() { UICalibration.loadCalibrationFile(); }
+	function resetCalibration() { UICalibration.resetCalibration(); }
 
     // ========== УПРАВЛЕНИЕ ОПРОСОМ ==========
     async function startInterrogation() {
@@ -835,113 +632,11 @@ const App = (() => {
     }
 
     // ========== ТОПОПРИВЯЗКА ==========
-	function toggleTopoPanel() {
-		topoVisible = !topoVisible;
-		if (topoVisible) {
-			topoPanel.classList.add('visible');
-			// Обновить статус GNSS
-			const statusEl = document.getElementById('topo-gnss-status');
-			if (isGnssConnected) {
-				statusEl.textContent = '✓ Внешний GNSS подключен';
-				statusEl.className = 'locked';
-			} else {
-				statusEl.textContent = 'Внешний GNSS не подключен';
-				statusEl.className = '';
-			}
-		} else {
-			topoPanel.classList.remove('visible');
-		}
-	}
+	function toggleTopoPanel() { UITopo.toggle(); }
+	function applyTopoBinding() { UITopo.applyBinding(); }
+	function clearTopoBinding() { UITopo.clearBinding(); }
 
-	function applyTopoBinding() {
-		const lat = parseFloat(document.getElementById('topo-lat').value);
-		const lon = parseFloat(document.getElementById('topo-lon').value);
-		const hdg = parseFloat(document.getElementById('topo-hdg').value);
-
-		// Получаем текущие сохранённые значения (если есть)
-		const savedBinding = loadTopoBindingFromStorage();
-		
-		// Используем новые значения, если они валидны, иначе старые
-		const finalLat = !isNaN(lat) ? lat : (savedBinding?.lat ?? NaN);
-		const finalLon = !isNaN(lon) ? lon : (savedBinding?.lon ?? NaN);
-		const finalHdg = !isNaN(hdg) ? hdg : (savedBinding?.hdg ?? NaN);
-
-		if (isNaN(finalLat) || isNaN(finalLon)) {
-			alert('Введите координаты (или подключите внешний GNSS)');
-			return;
-		}
-		if (isNaN(finalHdg)) {
-			alert('Введите курс (направление антенны, 0-360°)');
-			return;
-		}
-		if (finalLat < -90 || finalLat > 90) { alert('Широта: -90…90'); return; }
-		if (finalLon < -180 || finalLon > 180) { alert('Долгота: -180…180'); return; }
-		if (finalHdg < 0 || finalHdg > 360) { alert('Курс: 0…360°'); return; }
-
-		AZMManager.setAntennaPosition(finalLat, finalLon, finalHdg);
-		AZMManager.recalcAllBeacons();
-		updateAntennaInfoUI();
-		saveTopoBinding(finalLat, finalLon, finalHdg);
-
-		topoVisible = false;
-		topoPanel.classList.remove('visible');
-
-		setStatus(`Топопривязка: ${finalLat.toFixed(5)}, ${finalLon.toFixed(5)}, ${finalHdg.toFixed(1)}°`);
-		updateAllButtons();
-	}
-
-    function clearTopoBinding() {
-        AZMManager.setAntennaPosition(NaN, NaN, NaN);
-        updateAntennaInfoUI();
-        try { localStorage.removeItem('topo_binding'); } catch (e) {}
-        setStatus('Топопривязка сброшена');
-
-        if (topoVisible) toggleTopoPanel();
-        updateAllButtons();
-    }
-
-    function saveTopoBinding(lat, lon, hdg) {
-        try {
-            localStorage.setItem('topo_binding', JSON.stringify({ lat, lon, hdg, time: Date.now() }));
-        } catch (e) {}
-    }
-
-	function loadTopoBinding() {
-		try {
-			const saved = localStorage.getItem('topo_binding');
-			if (saved) {
-				const data = JSON.parse(saved);
-				if (data.lat !== undefined && data.lon !== undefined && data.hdg !== undefined) {
-					AZMManager.setAntennaPosition(data.lat, data.lon, data.hdg);
-					updateAntennaInfoUI();
-					setStatus(`Загружена привязка: ${data.lat.toFixed(5)}, ${data.lon.toFixed(5)}, ${data.hdg.toFixed(1)}°`);
-					
-					// Заполняем поля при открытии панели
-					const latEl = document.getElementById('topo-lat');
-					const lonEl = document.getElementById('topo-lon');
-					const hdgEl = document.getElementById('topo-hdg');
-					if (latEl && !latEl.value) latEl.value = data.lat.toFixed(6);
-					if (lonEl && !lonEl.value) lonEl.value = data.lon.toFixed(6);
-					if (hdgEl && !hdgEl.value) hdgEl.value = data.hdg.toFixed(1);
-				}
-			}
-		} catch (e) {}
-	}
-	
-	function loadTopoBindingFromStorage() {
-		try {
-			const saved = localStorage.getItem('topo_binding');
-			if (saved) {
-				const data = JSON.parse(saved);
-				if (data.lat !== undefined && data.lon !== undefined && data.hdg !== undefined) {
-					return { lat: data.lat, lon: data.lon, hdg: data.hdg };
-				}
-			}
-		} catch (e) {}
-		return null;
-	}
-	
-	
+	function getPhoneGPS() { UITopo.getPhoneGPS(); }
 
 	function updateAntennaInfoUI() {
 		const st = AZMManager.getState();
@@ -1207,388 +902,12 @@ const App = (() => {
         }
     }
 
-    function exportTracksKML() {
-        const trackCount = TrackManager.getTrackedAddresses().length;
-        if (trackCount === 0) {
-            alert('Нет данных треков для экспорта');
-            return;
-        }
-        TrackManager.downloadKML();
-        setStatus(`KML экспортирован (${trackCount} треков)`);
-    }
-
     // ========== ОТРИСОВКА ==========
-    function resizeCanvas() {
-        const w = mapContainer.clientWidth;
-        const h = mapContainer.clientHeight;
-        if (canvas.width !== w || canvas.height !== h) {
-            canvas.width = w;
-            canvas.height = h;
-            if (offsetX === 0 && offsetY === 0) {
-                offsetX = w / 2;
-                offsetY = h / 2;
-            }
-        }
-    }
-
     function renderLoop() {
-        drawAll();
+        UICanvas.drawAll();
         requestAnimationFrame(renderLoop);
     }
 
-	function drawAll() {
-		if (!ctx || canvas.width === 0) return;
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-		drawGrid();
-		TrackManager.drawStationTrack(ctx, offsetX, offsetY, scale);
-		TrackManager.drawTracks(ctx, offsetX, offsetY, scale);
-		drawRejectedPoints();
-		drawBeacons();
-		drawAntenna();
-		drawScaleBar();
-		drawRuler();
-
-		const beacons = AZMManager.getBeaconsArray();
-		const hash = beacons.map(b => `${b.address}:${b.dataAge}:${b.isTimeout}:${b.absoluteDistanceM?.toFixed(0)}:${b.absoluteAzimuthDeg?.toFixed(0)}`).join('|');
-
-		if (hash !== lastBeaconsHash) {
-			updateBeaconsBar();
-			lastBeaconsHash = hash;
-		}
-	}
-	
-	function drawRejectedPoints() {
-		const beacons = AZMManager.getBeaconsArray();
-		if (!beacons || beacons.length === 0) return;
-		
-		const anchor = TrackManager.getAnchor();
-		
-		beacons.forEach(b => {
-			if (isNaN(b.rejectedDistanceM) || isNaN(b.rejectedAzimuthDeg)) return;
-			if (b.rejectedDistanceM <= 0) return;
-			
-			let x, y;
-			
-			// Пробуем через географические координаты
-			if (!isNaN(b.rejectedLatitudeDeg) && !isNaN(b.rejectedLongitudeDeg) && !isNaN(anchor.lat)) {
-				const mlat = (b.rejectedLatitudeDeg + anchor.lat) / 2 * Math.PI / 180;
-				const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * mlat) + 1.175 * Math.cos(4 * mlat);
-				const mPerDegLon = 111412.84 * Math.cos(mlat) - 93.5 * Math.cos(3 * mlat);
-				x = offsetX + (b.rejectedLongitudeDeg - anchor.lon) * mPerDegLon * scale;
-				y = offsetY - (b.rejectedLatitudeDeg - anchor.lat) * mPerDegLat * scale;
-			} else {
-				// Через полярные
-				const ang = b.rejectedAzimuthDeg * Math.PI / 180;
-				x = offsetX + b.rejectedDistanceM * Math.sin(ang) * scale;
-				y = offsetY - b.rejectedDistanceM * Math.cos(ang) * scale;
-			}
-			
-			if (isNaN(x) || isNaN(y)) return;
-			
-			// Серый крестик
-			const size = 8;
-			ctx.strokeStyle = 'rgba(128, 128, 128, 0.45)';
-			ctx.lineWidth = 2;
-			ctx.beginPath();
-			ctx.moveTo(x - size, y - size);
-			ctx.lineTo(x + size, y + size);
-			ctx.moveTo(x + size, y - size);
-			ctx.lineTo(x - size, y + size);
-			ctx.stroke();
-			
-			ctx.beginPath();
-			ctx.arc(x, y, 5, 0, 2 * Math.PI);
-			ctx.strokeStyle = 'rgba(128, 128, 128, 0.35)';
-			ctx.lineWidth = 1;
-			ctx.stroke();
-			
-			ctx.font = '9px Arial';
-			ctx.fillStyle = 'rgba(128, 128, 128, 0.6)';
-			ctx.textAlign = 'center';
-			ctx.fillText(`${b.rejectedDistanceM.toFixed(0)}м`, x, y - 12);
-		});
-	}
-	
-	
-	function getCanvasColors() {
-		return Themes.getCanvasColors();
-	}
-
-	function drawGrid() {
-		const gridSize = 50;
-		const rootStyles = getComputedStyle(document.documentElement);
-		
-		// Берём цвета из CSS, с fallback на стандартные
-		let gridColor = rootStyles.getPropertyValue('--map-grid').trim();
-		let axisColor = rootStyles.getPropertyValue('--map-axis').trim();
-		
-		if (!gridColor) gridColor = 'rgba(255, 255, 255, 0.06)';
-		if (!axisColor) axisColor = 'rgba(255, 255, 255, 0.2)';
-		
-		// Центр сетки = позиция антенны
-		const st = AZMManager.getState();
-		let cx = offsetX, cy = offsetY;
-		if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
-			const anchor = TrackManager.getAnchor();
-			if (!isNaN(anchor.lat)) {
-				const mlat = (st.antennaLatDeg + anchor.lat) / 2 * Math.PI / 180;
-				const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * mlat) + 1.175 * Math.cos(4 * mlat);
-				const mPerDegLon = 111412.84 * Math.cos(mlat) - 93.5 * Math.cos(3 * mlat);
-				cx = offsetX + (st.antennaLonDeg - anchor.lon) * mPerDegLon * scale;
-				cy = offsetY - (st.antennaLatDeg - anchor.lat) * mPerDegLat * scale;
-			}
-		}
-
-		ctx.strokeStyle = gridColor;
-		ctx.lineWidth = 1;
-
-		const startX = ((cx % gridSize) + gridSize) % gridSize;
-		for (let x = startX; x < canvas.width; x += gridSize) {
-			ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-		}
-		const startY = ((cy % gridSize) + gridSize) % gridSize;
-		for (let y = startY; y < canvas.height; y += gridSize) {
-			ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-		}
-
-		ctx.strokeStyle = axisColor;
-		ctx.lineWidth = 2;
-		ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, canvas.height); ctx.stroke();
-		ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(canvas.width, cy); ctx.stroke();
-	}
-
-	function drawAntenna() {
-		const st = AZMManager.getState();
-		const cc = getCanvasColors();
-		
-		// Позиция антенны: (0,0) если нет GNSS, иначе метры от якоря
-		let ax = offsetX, ay = offsetY;
-		if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
-			const anchor = TrackManager.getAnchor();
-			if (!isNaN(anchor.lat)) {
-				const mlat = (st.antennaLatDeg + anchor.lat) / 2 * Math.PI / 180;
-				const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * mlat) + 1.175 * Math.cos(4 * mlat);
-				const mPerDegLon = 111412.84 * Math.cos(mlat) - 93.5 * Math.cos(3 * mlat);
-				const dx = (st.antennaLonDeg - anchor.lon) * mPerDegLon;
-				const dy = (st.antennaLatDeg - anchor.lat) * mPerDegLat;
-				ax = offsetX + dx * scale;
-				ay = offsetY - dy * scale;
-			}
-		}
-
-		// Ромб
-		ctx.beginPath();
-		ctx.moveTo(ax, ay - 18);
-		ctx.lineTo(ax + 18, ay);
-		ctx.lineTo(ax, ay + 18);
-		ctx.lineTo(ax - 18, ay);
-		ctx.closePath();
-	    const antennaFill = Themes.getAntennaFill();
-		ctx.fillStyle = antennaFill;
-		ctx.fill();
-		ctx.strokeStyle = cc.stroke;
-		ctx.lineWidth = 2;
-		ctx.stroke();
-
-		// Курс
-		const hdg = st.antennaHeadingDeg;
-		if (!isNaN(hdg)) {
-			const ang = hdg * Math.PI / 180;
-			const hx = ax + 35 * Math.sin(ang);
-			const hy = ay - 35 * Math.cos(ang);
-			ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(hx, hy);
-			ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 3; ctx.stroke();
-			ctx.beginPath(); ctx.arc(hx, hy, 5, 0, 2 * Math.PI);
-			ctx.fillStyle = '#ff4444'; ctx.fill();
-		}
-
-		ctx.fillStyle = cc.text;
-		ctx.font = 'bold 11px Arial';
-		ctx.textAlign = 'center';
-		ctx.fillText('АНТ', ax, ay - 26);
-	}
-
-	function drawBeacons() {
-		const beacons = AZMManager.getBeaconsArray();
-		if (!beacons || beacons.length === 0) return;
-
-		if (autoScaleEnabled && beacons.some(b => !isNaN(b.absoluteDistanceM) || !isNaN(b.slantRangeM))) {
-			autoScale();
-		}
-
-		const cc = getCanvasColors();
-		const anchor = TrackManager.getAnchor();
-
-		beacons.forEach(b => {
-			let x, y, dist, azm;
-
-			// Приоритет: абсолютные координаты через якорь → полярные от антенны
-			if (!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg) && !isNaN(anchor.lat)) {
-				const mlat = (b.latitudeDeg + anchor.lat) / 2 * Math.PI / 180;
-				const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * mlat) + 1.175 * Math.cos(4 * mlat);
-				const mPerDegLon = 111412.84 * Math.cos(mlat) - 93.5 * Math.cos(3 * mlat);
-				x = offsetX + (b.longitudeDeg - anchor.lon) * mPerDegLon * scale;
-				y = offsetY - (b.latitudeDeg - anchor.lat) * mPerDegLat * scale;
-				dist = NaN;
-				azm = NaN;
-			} else if (!isNaN(b.absoluteDistanceM) && !isNaN(b.absoluteAzimuthDeg) && b.absoluteDistanceM > 0) {
-				dist = b.absoluteDistanceM;
-				azm = b.absoluteAzimuthDeg;
-			} else if (!isNaN(b.slantRangeProjectionM) && !isNaN(b.azimuthDeg) && b.slantRangeProjectionM > 0) {
-				dist = b.slantRangeProjectionM;
-				azm = b.azimuthDeg + (AZMManager.getState().antennaHeadingDeg || 0);
-			} else if (!isNaN(b.slantRangeM) && !isNaN(b.azimuthDeg) && b.slantRangeM > 0) {
-				dist = b.slantRangeM;
-				azm = b.azimuthDeg + (AZMManager.getState().antennaHeadingDeg || 0);
-			} else {
-				return;
-			}
-
-			if (isNaN(x) || isNaN(y)) {
-				const ang = azm * Math.PI / 180;
-				x = offsetX + dist * Math.sin(ang) * scale;
-				y = offsetY - dist * Math.cos(ang) * scale;
-			}
-
-			if (isNaN(x) || isNaN(y)) return;
-
-			const age = b.dataAge || 0;
-			let alpha = age > 10 ? 0.25 : age > 5 ? 0.55 : 1.0;
-			if (b.isTimeout) alpha = 0.2;
-			const hue = (b.address * 60) % 360;
-
-			ctx.beginPath();
-			ctx.arc(x, y, 15, 0, 2 * Math.PI);
-			ctx.fillStyle = `hsla(${hue}, 80%, 55%, ${alpha})`;
-			ctx.fill();
-			ctx.strokeStyle = cc.stroke;
-			ctx.lineWidth = 2;
-			ctx.stroke();
-
-			ctx.fillStyle = cc.text;
-			ctx.font = 'bold 12px Arial';
-			ctx.textAlign = 'center';
-			ctx.textBaseline = 'middle';
-			ctx.fillText((b.userAddress || b.address + 1).toString(), x, y);
-
-			const displayDist = !isNaN(b.absoluteDistanceM) && b.absoluteDistanceM > 0 ? b.absoluteDistanceM
-				: !isNaN(b.slantRangeProjectionM) && b.slantRangeProjectionM > 0 ? b.slantRangeProjectionM
-				: !isNaN(b.slantRangeM) && b.slantRangeM > 0 ? b.slantRangeM
-				: 0;
-
-			ctx.font = '9px Arial';
-			ctx.fillStyle = cc.textSecondary;
-			ctx.fillText(`${displayDist.toFixed(0)}м`, x, y + 26);
-
-			if (!isNaN(b.msrDB)) {
-				ctx.font = '8px Arial';
-				ctx.fillStyle = cc.textSecondary;
-				ctx.fillText(`${b.msrDB.toFixed(0)}dB`, x, y + 36);
-			}
-
-			if (b.isTimeout) {
-				ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#dc3545';
-				ctx.fillText('✕', x + 15, y - 17);
-			} else if (age > 8) {
-				ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#ffc107';
-				ctx.fillText('!', x + 15, y - 17);
-			}
-		});
-	}
-
-	function autoScale() {
-		const beacons = AZMManager.getBeaconsArray();
-		const anchor = TrackManager.getAnchor();
-		let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-		let found = false;
-
-		// Трек станции
-		const st = AZMManager.getState();
-		if (!isNaN(st.antennaLatDeg) && !isNaN(anchor.lat)) {
-			const mlat = (st.antennaLatDeg + anchor.lat) / 2 * Math.PI / 180;
-			const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * mlat) + 1.175 * Math.cos(4 * mlat);
-			const mPerDegLon = 111412.84 * Math.cos(mlat) - 93.5 * Math.cos(3 * mlat);
-			const sx = (st.antennaLonDeg - anchor.lon) * mPerDegLon;
-			const sy = (st.antennaLatDeg - anchor.lat) * mPerDegLat;
-			minX = Math.min(minX, sx); maxX = Math.max(maxX, sx);
-			minY = Math.min(minY, sy); maxY = Math.max(maxY, sy);
-			found = true;
-		}
-
-		// Маяки
-		beacons.forEach(b => {
-			let wx, wy;
-
-			if (!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg) && !isNaN(anchor.lat)) {
-				const mlat = (b.latitudeDeg + anchor.lat) / 2 * Math.PI / 180;
-				const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * mlat) + 1.175 * Math.cos(4 * mlat);
-				const mPerDegLon = 111412.84 * Math.cos(mlat) - 93.5 * Math.cos(3 * mlat);
-				wx = (b.longitudeDeg - anchor.lon) * mPerDegLon;
-				wy = (b.latitudeDeg - anchor.lat) * mPerDegLat;
-			} else if (!isNaN(b.absoluteDistanceM) && !isNaN(b.absoluteAzimuthDeg) && b.absoluteDistanceM > 0) {
-				const a = b.absoluteAzimuthDeg * Math.PI / 180;
-				wx = b.absoluteDistanceM * Math.sin(a);
-				wy = b.absoluteDistanceM * Math.cos(a);
-			} else if (!isNaN(b.slantRangeProjectionM) && !isNaN(b.azimuthDeg) && b.slantRangeProjectionM > 0) {
-				const a = (b.azimuthDeg + (st.antennaHeadingDeg || 0)) * Math.PI / 180;
-				wx = b.slantRangeProjectionM * Math.sin(a);
-				wy = b.slantRangeProjectionM * Math.cos(a);
-			} else if (!isNaN(b.slantRangeM) && !isNaN(b.azimuthDeg) && b.slantRangeM > 0) {
-				const a = (b.azimuthDeg + (st.antennaHeadingDeg || 0)) * Math.PI / 180;
-				wx = b.slantRangeM * Math.sin(a);
-				wy = b.slantRangeM * Math.cos(a);
-			} else {
-				return;
-			}
-
-			if (!isNaN(wx) && !isNaN(wy)) {
-				minX = Math.min(minX, wx); maxX = Math.max(maxX, wx);
-				minY = Math.min(minY, wy); maxY = Math.max(maxY, wy);
-				found = true;
-			}
-		});
-
-		if (!found) return;
-
-		const pad = 0.35;
-		const rx = (maxX - minX) || 100;
-		const ry = (maxY - minY) || 100;
-		minX -= rx * pad; maxX += rx * pad;
-		minY -= ry * pad; maxY += ry * pad;
-
-		const sx = canvas.width / (maxX - minX);
-		const sy = canvas.height / (maxY - minY);
-		scale = Math.min(sx, sy);
-		scale = Math.min(Math.max(scale, 0.1), 5000);
-		offsetX = canvas.width / 2 - ((minX + maxX) / 2) * scale;
-		offsetY = canvas.height / 2 + ((minY + maxY) / 2) * scale;
-	}
-
-    function drawScaleBar() {
-		const rawM = 100 / scale;
-		const nice = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500];
-		let dm = nice.find(n => n >= rawM) || Math.round(rawM / 1000) * 1000;
-		let dp = dm * scale;
-		const maxW = canvas.width - 60;
-		if (dp > maxW) { dp = maxW; dm = Math.round(dp / scale); }
-
-		const bx = canvas.width - dp - 30;
-		const by = canvas.height - 25;
-		
-		const cc = getCanvasColors();
-		
-		ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + dp, by);
-		ctx.strokeStyle = cc.stroke; ctx.lineWidth = 3; ctx.stroke();
-		ctx.beginPath(); ctx.moveTo(bx, by - 6); ctx.lineTo(bx, by + 6); ctx.stroke();
-		ctx.beginPath(); ctx.moveTo(bx + dp, by - 6); ctx.lineTo(bx + dp, by + 6); ctx.stroke();
-		
-		ctx.font = 'bold 11px Arial'; ctx.fillStyle = cc.text; ctx.textAlign = 'center';
-		ctx.shadowColor = document.documentElement.classList.contains('theme-light') ? 'rgba(255,255,255,0.8)' : '#000';
-		ctx.shadowBlur = 4;
-		ctx.fillText(dm >= 1000 ? `${(dm / 1000).toFixed(1)} км` : `${Math.round(dm)} м`, bx + dp / 2, by - 12);
-		ctx.shadowBlur = 0;
-	}
 
     function updateBeaconsBar() {
 		
@@ -1647,103 +966,96 @@ const App = (() => {
 	}
 
     // ========== МЫШЬ И ТАЧ ==========
-    function initMouseHandlers() {
-        canvas.addEventListener('wheel', (e) => {
+	function initMouseHandlers() {
+		canvas.addEventListener('wheel', (e) => {
 			e.preventDefault();
-			
 			const rect = canvas.getBoundingClientRect();
-			const mx = e.clientX - rect.left;
-			const my = e.clientY - rect.top;
-			
-			const worldX = (mx - offsetX) / scale;
-			const worldY = (offsetY - my) / scale;
-			
-			scale *= e.deltaY > 0 ? 0.85 : 1.18;
-			scale = Math.min(Math.max(scale, 0.1), 5000);
-			
-			offsetX = mx - worldX * scale;
-			offsetY = my + worldY * scale;
-			
-			autoScaleEnabled = false;
+			UICanvas.zoom(e.deltaY, e.clientX, e.clientY, rect);
 		});
 
-        canvas.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            isDragging = true;
-            lastMouseX = e.clientX; lastMouseY = e.clientY;
-            canvas.style.cursor = 'grabbing';
-        });
+		canvas.addEventListener('mousedown', (e) => {
+			e.preventDefault();
+			UICanvas.setDraggingEnabled(true);
+			lastMouseX = e.clientX; lastMouseY = e.clientY;
+			canvas.style.cursor = 'grabbing';
+		});
 
-        canvas.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-            offsetX += e.clientX - lastMouseX;
-            offsetY += e.clientY - lastMouseY;
-            lastMouseX = e.clientX; lastMouseY = e.clientY;
-            autoScaleEnabled = false;
-        });
+		canvas.addEventListener('mousemove', (e) => {
+			if (UICanvas.isDraggingEnabled()) {
+				const dx = e.clientX - lastMouseX;
+				const dy = e.clientY - lastMouseY;
+				UICanvas.updateFromInteraction(dx, dy);
+				lastMouseX = e.clientX; lastMouseY = e.clientY;
+			}
+			
+			if (!UICanvas.isDraggingEnabled() && UIRuler.isActive() && UIRuler.getPointsCount() === 1) {
+				UIRuler.handleMouseMove(e);
+			}
+		});
 
-        canvas.addEventListener('mouseup', () => { isDragging = false; canvas.style.cursor = 'grab'; });
-        canvas.addEventListener('mouseleave', () => { isDragging = false; canvas.style.cursor = 'grab'; });
+		canvas.addEventListener('mouseup', () => { 
+			UICanvas.setDraggingEnabled(false); 
+			canvas.style.cursor = 'grab'; 
+		});
+		
+		canvas.addEventListener('mouseleave', () => { 
+			UICanvas.setDraggingEnabled(false); 
+			canvas.style.cursor = 'grab'; 
+		});
 
-        canvas.addEventListener('dblclick', () => {
-            scale = 100;
-            offsetX = canvas.width / 2;
-            offsetY = canvas.height / 2;
-            autoScaleEnabled = true;
-        });
+		canvas.addEventListener('dblclick', () => {
+			UICanvas.resetView();
+		});
 		
 		canvas.addEventListener('click', (e) => {
 			if (UIRuler.isActive()) {
 				UIRuler.handleClick(e);
 			}
 		});
-		
-		canvas.addEventListener('mousemove', (e) => {
-			if (!isDragging && UIRuler.isActive() && UIRuler.getPointsCount() === 1) {
-				UIRuler.handleMouseMove(e);
+	}
+
+	function initTouchHandlers() {
+		let initDist = 0, initScale = 1;
+
+		canvas.addEventListener('touchstart', (e) => {
+			e.preventDefault();
+			if (e.touches.length === 1) {
+				UICanvas.setDraggingEnabled(true);
+				lastMouseX = e.touches[0].clientX;
+				lastMouseY = e.touches[0].clientY;
+			} else if (e.touches.length === 2) {
+				UICanvas.setDraggingEnabled(false);
+				const dx = e.touches[0].clientX - e.touches[1].clientX;
+				const dy = e.touches[0].clientY - e.touches[1].clientY;
+				initDist = Math.sqrt(dx * dx + dy * dy);
+				initScale = UICanvas.getScale();
 			}
 		});
-    }
 
-    function initTouchHandlers() {
-        let initDist = 0, initScale = scale;
+		canvas.addEventListener('touchmove', (e) => {
+			e.preventDefault();
+			if (e.touches.length === 1 && UICanvas.isDraggingEnabled()) {
+				const dx = e.touches[0].clientX - lastMouseX;
+				const dy = e.touches[0].clientY - lastMouseY;
+				UICanvas.updateFromInteraction(dx, dy);
+				lastMouseX = e.touches[0].clientX;
+				lastMouseY = e.touches[0].clientY;
+			} else if (e.touches.length === 2) {
+				const dx = e.touches[0].clientX - e.touches[1].clientX;
+				const dy = e.touches[0].clientY - e.touches[1].clientY;
+				const dist = Math.sqrt(dx * dx + dy * dy);
+				if (initDist > 0) {
+					const newScale = initScale * (dist / initDist);
+					UICanvas.setScale(newScale);
+					UICanvas.setAutoScaleEnabled(false);
+				}
+			}
+		});
 
-        canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            if (e.touches.length === 1) {
-                isDragging = true;
-                lastMouseX = e.touches[0].clientX;
-                lastMouseY = e.touches[0].clientY;
-            } else if (e.touches.length === 2) {
-                isDragging = false;
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                initDist = Math.sqrt(dx * dx + dy * dy);
-                initScale = scale;
-            }
-        });
-
-        canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            if (e.touches.length === 1 && isDragging) {
-                offsetX += e.touches[0].clientX - lastMouseX;
-                offsetY += e.touches[0].clientY - lastMouseY;
-                lastMouseX = e.touches[0].clientX;
-                lastMouseY = e.touches[0].clientY;
-                autoScaleEnabled = false;
-            } else if (e.touches.length === 2) {
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (initDist > 0) {
-                    scale = Math.min(Math.max(initScale * (dist / initDist), 0.1), 5000);
-                    autoScaleEnabled = false;
-                }
-            }
-        });
-
-        canvas.addEventListener('touchend', () => { isDragging = false; });
-    }
+		canvas.addEventListener('touchend', () => { 
+			UICanvas.setDraggingEnabled(false); 
+		});
+	}
 
     // ========== ЗАКРЫТИЕ СТРАНИЦЫ ==========
     window.addEventListener('beforeunload', async () => {
@@ -1767,197 +1079,19 @@ const App = (() => {
     });
 
 	// ========== ЭКСПОРТ ==========
-	function exportCSV() {
-		const allTracks = TrackManager.getAll();
-		const stTrack = TrackManager.stationTrack;
-		
-		if (Object.keys(allTracks).length === 0 && stTrack.length === 0) {
-			alert('Нет данных треков');
-			return;
-		}
-
-		const lines = ['time,type,address,latitude,longitude,depth_m,distance_m,azimuth_deg,msr_db,vcc_v,speed_mps,course_deg'];
-		
-		// Трек станции
-		for (const point of stTrack) {
-			const ts = new Date(point.ts).toISOString();
-			const lat = (point.lat != null && !isNaN(point.lat)) ? point.lat.toFixed(6) : '';
-			const lon = (point.lon != null && !isNaN(point.lon)) ? point.lon.toFixed(6) : '';
-			lines.push(`${ts},STATION,,${lat},${lon},,,,,,`);
-		}
-		
-		// Треки маяков
-		for (const addr of Object.keys(allTracks)) {
-			for (const point of allTracks[addr]) {
-				if (point.isTimeout) continue;
-				const ts = new Date(point.ts).toISOString();
-				const lat = (point.lat != null && !isNaN(point.lat)) ? point.lat.toFixed(6) : '';
-				const lon = (point.lon != null && !isNaN(point.lon)) ? point.lon.toFixed(6) : '';
-				const dpt = !isNaN(point.dpt) ? point.dpt.toFixed(1) : '';
-				const dist = !isNaN(point.dist) ? point.dist.toFixed(1) : '';
-				const azm = !isNaN(point.azm) ? point.azm.toFixed(1) : '';
-				lines.push(`${ts},BEACON,${parseInt(addr)+1},${lat},${lon},${dpt},${dist},${azm},,,,`);
-			}
-		}
-
-		const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url; a.download = `zima2_tracks_${new Date().toISOString().slice(0,19).replace(/[:.]/g,'-')}.csv`;
-		document.body.appendChild(a); a.click();
-		document.body.removeChild(a); URL.revokeObjectURL(url);
-	}
-
-	function exportGGA() {
-		const allTracks = TrackManager.getAll();
-		const trackAddresses = Object.keys(allTracks);
-		if (trackAddresses.length === 0) { alert('Нет данных треков'); return; }
-
-		const lines = [];
-		for (const addr of trackAddresses) {
-			const hexAddr = parseInt(addr).toString(16).toUpperCase(); // 0-F
-			for (const point of allTracks[addr]) {
-				if (point.isTimeout || point.lat == null || point.lon == null || isNaN(point.lat) || isNaN(point.lon)) continue;
-				const ts = new Date(point.ts);
-				const hh = String(ts.getUTCHours()).padStart(2, '0');
-				const mm = String(ts.getUTCMinutes()).padStart(2, '0');
-				const ss = String(ts.getUTCSeconds()).padStart(2, '0');
-				const ss2 = String(ts.getUTCMilliseconds() / 10).padStart(2, '0'); // сотые доли
-				const timeStr = `${hh}${mm}${ss}.${ss2}`;
-				const lat = Math.abs(point.lat);
-				const latDeg = Math.floor(lat);
-				const latMin = (lat - latDeg) * 60;
-				const latHemi = point.lat >= 0 ? 'N' : 'S';
-				const lon = Math.abs(point.lon);
-				const lonDeg = Math.floor(lon);
-				const lonMin = (lon - lonDeg) * 60;
-				const lonHemi = point.lon >= 0 ? 'E' : 'W';
-				const depth = !isNaN(point.dpt) ? point.dpt : 0;
-				const sentence = `B${hexAddr}GGA,${timeStr},${String(latDeg).padStart(2,'0')}${latMin.toFixed(4)},${latHemi},${String(lonDeg).padStart(3,'0')}${lonMin.toFixed(4)},${lonHemi},1,04,,${depth.toFixed(1)},M,,M,,`;
-				const nmeaLine = '$' + sentence;
-				let cs = 0;
-				for (let i = 1; i < nmeaLine.length; i++) cs ^= nmeaLine.charCodeAt(i);
-				lines.push(nmeaLine + '*' + cs.toString(16).toUpperCase().padStart(2, '0'));
-			}
-		}
-
-		if (lines.length === 0) { alert('Нет точек с координатами'); return; }
-		const blob = new Blob([lines.join('\r\n')], { type: 'text/plain' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = `gga_tracks_${new Date().toISOString().slice(0,19).replace(/[:.]/g,'-')}.nmea`;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		URL.revokeObjectURL(url);
-	}
-
-	function exportPSIMSSB() {
-		const allTracks = TrackManager.getAll();
-		const trackAddresses = Object.keys(allTracks);
-		if (trackAddresses.length === 0) { alert('Нет данных треков'); return; }
-
-		const lines = [];
-		for (const addr of trackAddresses) {
-			for (const point of allTracks[addr]) {
-				if (point.isTimeout) continue;
-				if (point.xM == null || point.yM == null || isNaN(point.xM) || isNaN(point.yM)) continue;
-
-				const ts = new Date(point.ts);
-				// Только время: hhmmss (по спецификации PSIMSSB)
-				const hh = String(ts.getUTCHours()).padStart(2, '0');
-				const mm = String(ts.getUTCMinutes()).padStart(2, '0');
-				const ss = String(ts.getUTCSeconds()).padStart(2, '0');
-				const timeStr = `${hh}${mm}${ss}`;
-				const btpId = 'B' + String(parseInt(addr) + 1).padStart(2, '0');
-				const zM = (point.zM != null && !isNaN(point.zM)) ? point.zM : (!isNaN(point.dpt) ? point.dpt : 0);
-
-				const sentence = `PSIMSSB,${timeStr},${btpId},A,,C,H,M,${point.xM.toFixed(2)},${point.yM.toFixed(2)},${zM.toFixed(2)},0.0,N,,`;
-				const nmeaLine = '$' + sentence;
-				let cs = 0;
-				for (let i = 1; i < nmeaLine.length; i++) cs ^= nmeaLine.charCodeAt(i);
-				lines.push(nmeaLine + '*' + cs.toString(16).toUpperCase().padStart(2, '0'));
-			}
-		}
-
-		if (lines.length === 0) { alert('Нет точек с относительными координатами. Нужна топопривязка.'); return; }
-		const blob = new Blob([lines.join('\r\n')], { type: 'text/plain' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = `psimssb_tracks_${new Date().toISOString().slice(0,19).replace(/[:.]/g,'-')}.nmea`;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		URL.revokeObjectURL(url);
-	}
-
-	function exportPSIMSSB_NE() {
-		const allTracks = TrackManager.getAll();
-		const trackAddresses = Object.keys(allTracks);
-		if (trackAddresses.length === 0) { alert('Нет данных треков'); return; }
-
-		const lines = [];
-		for (const addr of trackAddresses) {
-			for (const point of allTracks[addr]) {
-				if (point.isTimeout) continue;
-				if (point.lat == null || point.lon == null || isNaN(point.lat) || isNaN(point.lon)) continue;
-
-				const ts = new Date(point.ts);
-				const hh = String(ts.getUTCHours()).padStart(2, '0');
-				const mm = String(ts.getUTCMinutes()).padStart(2, '0');
-				const ss = String(ts.getUTCSeconds()).padStart(2, '0');
-				const timeStr = `${hh}${mm}${ss}`;
-				
-				const btpId = 'B' + String(parseInt(addr) + 1).padStart(2, '0');
-				
-				// Конвертируем lat/lon в UTM
-				const utm = UTM.fromLatLon(point.lat, point.lon);
-				const easting = utm.easting;
-				const northing = utm.northing;
-				const zM = !isNaN(point.dpt) ? point.dpt : 0;
-
-				// C,E — East-referenced: X=Easting, Y=Northing
-				const sentence = `PSIMSSB,${timeStr},${btpId},A,,C,E,M,${easting.toFixed(2)},${northing.toFixed(2)},${zM.toFixed(2)},0.0,N,,`;
-				const nmeaLine = '$' + sentence;
-				let cs = 0;
-				for (let i = 1; i < nmeaLine.length; i++) cs ^= nmeaLine.charCodeAt(i);
-				lines.push(nmeaLine + '*' + cs.toString(16).toUpperCase().padStart(2, '0'));
-			}
-		}
-
-		if (lines.length === 0) { alert('Нет точек с координатами'); return; }
-		const blob = new Blob([lines.join('\r\n')], { type: 'text/plain' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = `psimssb_utm_tracks_${new Date().toISOString().slice(0,19).replace(/[:.]/g,'-')}.nmea`;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		URL.revokeObjectURL(url);
-	}
+	function exportCSV() { ExportManager.exportCSV(); }
+	function exportGGA() { ExportManager.exportGGA(); }
+	function exportPSIMSSB() { ExportManager.exportPSIMSSB(); }
+	function exportPSIMSSB_NE() { ExportManager.exportPSIMSSB_NE(); }
+	function exportTracksKML() { ExportManager.exportTracksKML(); }
 
 	// ========== ЛИНЕЙКА (обёртки для вызова из HTML) ==========
-	function toggleRuler() {
-		UIRuler.toggle();
-	}
-
-	function drawRuler() {
-		UIRuler.draw();
-	}	
-	
+	function toggleRuler() { UIRuler.toggle(); }
+	function drawRuler() { UIRuler.draw(); }	
 	
 	// ========== Настройки ==========
-	
-	function openSettings() {
-		UISettings.open();
-	}
-
-	function closeSettings() {
-		UISettings.close();
-	}
+	function openSettings() { UISettings.open(); }
+	function closeSettings() { UISettings.close(); }
 
 	function applySettings() {
 		// Получаем значения из UI
@@ -2007,6 +1141,7 @@ const App = (() => {
 		}
 		
 		setStatus('Настройки применены');
+		UISettings.close();
 	}
 
 	function updateSettingsUI() {
@@ -2126,6 +1261,8 @@ const App = (() => {
 		loadCalibrationFile,
 		resetCalibration,
 		toggleRuler,
+		resetView: () => UICanvas.resetView(),
+		autoScale: () => UICanvas.autoScale(),
 	};
 
 })();
