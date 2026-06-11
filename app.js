@@ -206,7 +206,8 @@ const App = (() => {
 			getTrackManager: () => TrackManager,
 			getUIRuler: () => UIRuler,
 			getThemes: () => Themes,
-			setStatus: (msg) => setStatus(msg)
+			setStatus: (msg) => setStatus(msg),
+			onBeaconsChanged: () => updateBeaconsBar(),
 		});
 
 		// ИНИЦИАЛИЗАЦИЯ ЛИНЕЙКИ
@@ -215,7 +216,7 @@ const App = (() => {
 			getOffsetY: () => UICanvas.getOffset().y,
 			getScale: () => UICanvas.getScale(),
 			drawCallback: () => UICanvas.drawAll(),
-			setStatus: (msg) => setStatus(msg)
+			setStatus: (msg) => setStatus(msg),			
 		});
 		
 		// ИНИЦИАЛИЗАЦИЯ НАСТРОЕК	
@@ -960,9 +961,8 @@ const App = (() => {
 		const b = AZMManager.getBeacons()[address];
 		if (!b) return;
 
-		// Включаем автоскейл — маяк гарантированно станет виден
-		autoScaleEnabled = true;
-		autoScale();
+		UICanvas.setAutoScaleEnabled(true);
+		UICanvas.autoScale();
 	}
 
     // ========== МЫШЬ И ТАЧ ==========

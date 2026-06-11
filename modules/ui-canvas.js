@@ -17,6 +17,9 @@ const UICanvas = (() => {
     let getUIRuler = null;
     let getThemes = null;
     let setStatus = null;
+	
+	let onBeaconsChanged = null;
+	let lastBeaconsHash = '';
     
     function init(canvasEl, containerEl, callbacks) {
         canvas = canvasEl;
@@ -28,6 +31,7 @@ const UICanvas = (() => {
         getUIRuler = callbacks.getUIRuler;
         getThemes = callbacks.getThemes;
         setStatus = callbacks.setStatus;
+		onBeaconsChanged = callbacks.onBeaconsChanged;
         
         resizeCanvas();
         window.addEventListener('resize', () => resizeCanvas());
@@ -440,6 +444,17 @@ const UICanvas = (() => {
         drawAntenna();
         drawScaleBar();
         if (UIRuler) UIRuler.draw();
+		
+		const AZMManager = getAZMManager ? getAZMManager() : null;
+		if (AZMManager && onBeaconsChanged) {
+			const beacons = AZMManager.getBeaconsArray();
+			const hash = beacons.map(b => `${b.address}:${b.dataAge}:${b.isTimeout}:${b.absoluteDistanceM?.toFixed(0)}:${b.absoluteAzimuthDeg?.toFixed(0)}`).join('|');
+			
+			if (hash !== lastBeaconsHash) {
+				lastBeaconsHash = hash;
+				onBeaconsChanged(beacons);
+			}
+		}
     }
     
     function updateFromInteraction(dx, dy) {
