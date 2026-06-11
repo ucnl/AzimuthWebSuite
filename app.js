@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.2.5';
+    const APP_VERSION = '1.2.6';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -15,7 +15,6 @@ const App = (() => {
 	let btnGnss;
     let playbackProgress, playbackProgressFill;
 	let activeDropdown = null;
-	let lastBeaconsHash = '';
     
     let lastMouseX = 0, lastMouseY = 0;    
 
@@ -188,8 +187,13 @@ const App = (() => {
 		const antennaInfo = document.getElementById('antenna-info');
 		if (antennaInfo) {
 			antennaInfo.addEventListener('click', function() {
-				UICanvas.setAutoScaleEnabled(true);
-				UICanvas.autoScale();
+				const st = AZMManager.getState();
+				if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+					UICanvas.followGeoPoint(st.antennaLatDeg, st.antennaLonDeg, 'antenna');
+				} else {
+					UICanvas.centerOnWorldPoint(0, 0);
+				}
+				setStatus('Слежение за антенной');
 			});
 		}
 		
@@ -764,6 +768,15 @@ const App = (() => {
 		// Сбрасываем скорость перед стартом
 		Logger.setPlaybackSpeed(1.0);
 		updateSpeedUI();
+		
+		const st = AZMManager.getState();
+		UICanvas.setScale(100);
+		if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+			UICanvas.followGeoPoint(st.antennaLatDeg, st.antennaLonDeg, 'antenna');
+		} else {
+			UICanvas.centerOnWorldPoint(0, 0);
+		}
+		UICanvas.clearFollowTarget();  // сбрасываем слежение, чтобы не мешало
 
 		Logger.startPlayback(1.0, true, true);
 		playbackProgress.style.display = 'block';
@@ -957,12 +970,15 @@ const App = (() => {
     }
 
 	function onBeaconCardClick(address) {
-		
 		const b = AZMManager.getBeacons()[address];
 		if (!b) return;
-
-		UICanvas.setAutoScaleEnabled(true);
-		UICanvas.autoScale();
+		
+		if (!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg)) {
+			UICanvas.followGeoPoint(b.latitudeDeg, b.longitudeDeg, 'beacon', address);
+			setStatus(`Слежение за маяком #${b.userAddress || b.address + 1}`);
+		} else {
+			setStatus(`Маяк #${b.userAddress || b.address + 1} не имеет координат`);
+		}
 	}
 
     // ========== МЫШЬ И ТАЧ ==========
@@ -1004,21 +1020,51 @@ const App = (() => {
 		});
 
 		canvas.addEventListener('dblclick', () => {
-			UICanvas.resetView();
+			// Сброс вида: центрирование на антенне, масштаб 100
+			UICanvas.setScale(100);
+			const st = AZMManager.getState();
+			if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+				UICanvas.followGeoPoint(st.antennaLatDeg, st.antennaLonDeg, 'antenna');
+			} else {
+				UICanvas.centerOnWorldPoint(0, 0);
+			}
+			setStatus('Вид сброшен на антенну');
 		});
 		
 		canvas.addEventListener('click', (e) => {
 			if (UIRuler.isActive()) {
 				UIRuler.handleClick(e);
+			} else {
+				UICanvas.clearFollowTarget();
+				setStatus('Слежение отключено');  // добавить
 			}
 		});
 	}
 
 	function initTouchHandlers() {
 		let initDist = 0, initScale = 1;
+		let lastTouchTime = 0;
+		let tapTimeout = null;
 
 		canvas.addEventListener('touchstart', (e) => {
 			e.preventDefault();
+			
+			const now = Date.now();
+			if (now - lastTouchTime < 300 && e.touches.length === 1) {
+				// Двойной тап - сброс вида
+				UICanvas.setScale(100);
+				const st = AZMManager.getState();
+				if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+					UICanvas.followGeoPoint(st.antennaLatDeg, st.antennaLonDeg, 'antenna');
+				} else {
+					UICanvas.centerOnWorldPoint(0, 0);
+				}
+				setStatus('Вид сброшен на антенну');
+				lastTouchTime = 0;
+				return;
+			}
+			lastTouchTime = now;
+			
 			if (e.touches.length === 1) {
 				UICanvas.setDraggingEnabled(true);
 				lastMouseX = e.touches[0].clientX;
@@ -1052,8 +1098,38 @@ const App = (() => {
 			}
 		});
 
-		canvas.addEventListener('touchend', () => { 
-			UICanvas.setDraggingEnabled(false); 
+		canvas.addEventListener('touchend', (e) => {
+			e.preventDefault();
+			
+			// Обработка клика по линейке
+			if (UIRuler.isActive() && !UICanvas.isDraggingEnabled() && e.touches.length === 0) {
+				const rect = canvas.getBoundingClientRect();
+				const lastTouch = e.changedTouches[0];
+				if (lastTouch) {
+					const fakeEvent = {
+						clientX: lastTouch.clientX,
+						clientY: lastTouch.clientY,
+						getBoundingClientRect: () => rect
+					};
+					UIRuler.handleClick(fakeEvent);
+				}
+				UICanvas.setDraggingEnabled(false);
+				return;
+			}
+			
+			if (UICanvas.isDraggingEnabled()) {
+				UICanvas.setDraggingEnabled(false);
+			} else if (e.touches.length === 0 && !UIRuler.isActive()) {
+				// Одиночный тап без движения - отключаем слежение
+				if (tapTimeout) clearTimeout(tapTimeout);
+				tapTimeout = setTimeout(() => {
+					UICanvas.clearFollowTarget();
+					setStatus('Слежение отключено');
+					tapTimeout = null;
+				}, 100);
+			}
+			
+			UICanvas.setDraggingEnabled(false);
 		});
 	}
 

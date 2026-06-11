@@ -11,15 +11,19 @@ const UICanvas = (() => {
     let isDragging = false;
     let autoScaleEnabled = true;
     
+    // Слежение за объектом
+    let followTarget = null;
+    let lastUserActionTime = 0;
+    
     // Колбэки для получения внешних данных
     let getAZMManager = null;
     let getTrackManager = null;
     let getUIRuler = null;
     let getThemes = null;
     let setStatus = null;
-	
-	let onBeaconsChanged = null;
-	let lastBeaconsHash = '';
+    
+    let onBeaconsChanged = null;
+    let lastBeaconsHash = '';
     
     function init(canvasEl, containerEl, callbacks) {
         canvas = canvasEl;
@@ -31,7 +35,7 @@ const UICanvas = (() => {
         getUIRuler = callbacks.getUIRuler;
         getThemes = callbacks.getThemes;
         setStatus = callbacks.setStatus;
-		onBeaconsChanged = callbacks.onBeaconsChanged;
+        onBeaconsChanged = callbacks.onBeaconsChanged;
         
         resizeCanvas();
         window.addEventListener('resize', () => resizeCanvas());
@@ -58,12 +62,13 @@ const UICanvas = (() => {
     function setAutoScaleEnabled(enabled) { autoScaleEnabled = enabled; }
     function isDraggingEnabled() { return isDragging; }
     function setDraggingEnabled(enabled) { isDragging = enabled; }
+    function getCanvasWidth() { return canvas.width; }
+    function getCanvasHeight() { return canvas.height; }
     
     function getCanvasColors() {
         const Themes = getThemes ? getThemes() : null;
         if (Themes) return Themes.getCanvasColors();
         
-        // Fallback
         const isLight = document.documentElement.classList.contains('theme-light');
         return {
             text: isLight ? '#1a1a1a' : '#ffffff',
@@ -194,7 +199,6 @@ const UICanvas = (() => {
         beacons.forEach(b => {
             let x, y, dist, azm;
             
-            // Приоритет: абсолютные координаты через якорь → полярные от антенны
             if (!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg) && !isNaN(anchor.lat)) {
                 const screen = GeoUtils.geoToScreen(
                     b.latitudeDeg, b.longitudeDeg,
@@ -364,19 +368,10 @@ const UICanvas = (() => {
         
         const st = AZMManager.getState();
         
-        // Трек станции (антенна)
-        if (!isNaN(st.antennaLatDeg) && !isNaN(anchor.lat)) {
-            const screen = GeoUtils.geoToScreen(
-                st.antennaLatDeg, st.antennaLonDeg,
-                anchor.lat, anchor.lon,
-                0, 0, 1  // смещение 0, масштаб 1 для получения метров
-            );
-            minX = Math.min(minX, screen.x); maxX = Math.max(maxX, screen.x);
-            minY = Math.min(minY, screen.y); maxY = Math.max(maxY, screen.y);
-            found = true;
-        }
+        // Сбрасываем слежение при автоскейле
+        followTarget = null;
         
-        // Маяки
+        // Добавляем маяки
         beacons.forEach(b => {
             let wx, wy;
             
@@ -386,18 +381,19 @@ const UICanvas = (() => {
                     anchor.lat, anchor.lon,
                     0, 0, 1
                 );
-                wx = screen.x;
-                wy = screen.y;
+                wx = screen.x; wy = screen.y;
             } else if (!isNaN(b.absoluteDistanceM) && !isNaN(b.absoluteAzimuthDeg) && b.absoluteDistanceM > 0) {
                 const a = b.absoluteAzimuthDeg * Math.PI / 180;
                 wx = b.absoluteDistanceM * Math.sin(a);
                 wy = b.absoluteDistanceM * Math.cos(a);
             } else if (!isNaN(b.slantRangeProjectionM) && !isNaN(b.azimuthDeg) && b.slantRangeProjectionM > 0) {
-                const a = (b.azimuthDeg + (st.antennaHeadingDeg || 0)) * Math.PI / 180;
+                const heading = st.antennaHeadingDeg || 0;
+                const a = (b.azimuthDeg + heading) * Math.PI / 180;
                 wx = b.slantRangeProjectionM * Math.sin(a);
                 wy = b.slantRangeProjectionM * Math.cos(a);
             } else if (!isNaN(b.slantRangeM) && !isNaN(b.azimuthDeg) && b.slantRangeM > 0) {
-                const a = (b.azimuthDeg + (st.antennaHeadingDeg || 0)) * Math.PI / 180;
+                const heading = st.antennaHeadingDeg || 0;
+                const a = (b.azimuthDeg + heading) * Math.PI / 180;
                 wx = b.slantRangeM * Math.sin(a);
                 wy = b.slantRangeM * Math.cos(a);
             } else {
@@ -427,8 +423,80 @@ const UICanvas = (() => {
         offsetY = canvas.height / 2 + ((minY + maxY) / 2) * scale;
     }
     
+    function centerOnGeoPoint(latDeg, lonDeg) {
+        const AZMManager = getAZMManager ? getAZMManager() : null;
+        const TrackManager = getTrackManager ? getTrackManager() : null;
+        
+        if (!AZMManager || !TrackManager) return false;
+        
+        const anchor = TrackManager.getAnchor();
+        if (isNaN(anchor.lat) || isNaN(anchor.lon)) return false;
+        
+        const screen = GeoUtils.geoToScreen(
+            latDeg, lonDeg,
+            anchor.lat, anchor.lon,
+            offsetX, offsetY, scale
+        );
+        
+        offsetX = offsetX + (canvas.width / 2 - screen.x);
+        offsetY = offsetY + (canvas.height / 2 - screen.y);
+        autoScaleEnabled = false;
+        return true;
+    }
+    
+    function centerOnWorldPoint(worldX, worldY) {
+        offsetX = canvas.width / 2 - worldX * scale;
+        offsetY = canvas.height / 2 + worldY * scale;
+        autoScaleEnabled = false;
+    }
+    
+    function followGeoPoint(latDeg, lonDeg, type, address) {
+        followTarget = { type: type, lat: latDeg, lon: lonDeg, address: address };
+        centerOnGeoPoint(latDeg, lonDeg);
+    }
+    
+    function clearFollowTarget() {
+        followTarget = null;
+    }
+    
+    function updateFollowTarget() {
+        if (!followTarget) return false;
+        
+        const AZMManager = getAZMManager ? getAZMManager() : null;
+        if (!AZMManager) return false;
+        
+        let currentLat, currentLon;
+        
+        if (followTarget.type === 'antenna') {
+            const st = AZMManager.getState();
+            currentLat = st.antennaLatDeg;
+            currentLon = st.antennaLonDeg;
+        } else if (followTarget.type === 'beacon') {
+            const beacon = AZMManager.getBeacons()[followTarget.address];
+            if (beacon) {
+                currentLat = beacon.latitudeDeg;
+                currentLon = beacon.longitudeDeg;
+            }
+        }
+        
+        if (!isNaN(currentLat) && !isNaN(currentLon)) {
+            if (currentLat !== followTarget.lat || currentLon !== followTarget.lon) {
+                followTarget.lat = currentLat;
+                followTarget.lon = currentLon;
+                centerOnGeoPoint(currentLat, currentLon);
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
     function drawAll() {
         if (!ctx || canvas.width === 0) return;
+        
+        // Обновляем слежение
+        updateFollowTarget();
+        
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
         const TrackManager = getTrackManager ? getTrackManager() : null;
@@ -444,23 +512,24 @@ const UICanvas = (() => {
         drawAntenna();
         drawScaleBar();
         if (UIRuler) UIRuler.draw();
-		
-		const AZMManager = getAZMManager ? getAZMManager() : null;
-		if (AZMManager && onBeaconsChanged) {
-			const beacons = AZMManager.getBeaconsArray();
-			const hash = beacons.map(b => `${b.address}:${b.dataAge}:${b.isTimeout}:${b.absoluteDistanceM?.toFixed(0)}:${b.absoluteAzimuthDeg?.toFixed(0)}`).join('|');
-			
-			if (hash !== lastBeaconsHash) {
-				lastBeaconsHash = hash;
-				onBeaconsChanged(beacons);
-			}
-		}
+        
+        const AZMManager = getAZMManager ? getAZMManager() : null;
+        if (AZMManager && onBeaconsChanged) {
+            const beacons = AZMManager.getBeaconsArray();
+            const hash = beacons.map(b => `${b.address}:${b.dataAge}:${b.isTimeout}:${b.absoluteDistanceM?.toFixed(0)}:${b.absoluteAzimuthDeg?.toFixed(0)}`).join('|');
+            if (hash !== lastBeaconsHash) {
+                lastBeaconsHash = hash;
+                onBeaconsChanged(beacons);
+            }
+        }
     }
     
     function updateFromInteraction(dx, dy) {
         offsetX += dx;
         offsetY += dy;
         autoScaleEnabled = false;
+        followTarget = null;
+        lastUserActionTime = Date.now();
     }
     
     function zoom(wheelDelta, mouseX, mouseY, rect) {
@@ -477,6 +546,8 @@ const UICanvas = (() => {
         offsetY = my + worldY * scale;
         
         autoScaleEnabled = false;
+        followTarget = null;
+        lastUserActionTime = Date.now();
     }
     
     function resetView() {
@@ -484,30 +555,28 @@ const UICanvas = (() => {
         offsetX = canvas.width / 2;
         offsetY = canvas.height / 2;
         autoScaleEnabled = true;
+        followTarget = null;
     }
     
     return {
         init,
         drawAll,
-        drawGrid,
-        drawAntenna,
-        drawBeacons,
-        drawRejectedPoints,
-        drawScaleBar,
         autoScale,
-        getScale,
-        setScale,
-        getOffset,
-        setOffset,
-        isAutoScaleEnabled,
-        setAutoScaleEnabled,
-        isDraggingEnabled,
-        setDraggingEnabled,
+        centerOnGeoPoint,
+        centerOnWorldPoint,
+        followGeoPoint,
+        clearFollowTarget,
+        getScale, setScale,
+        getOffset, setOffset,
+        isAutoScaleEnabled, setAutoScaleEnabled,
+        isDraggingEnabled, setDraggingEnabled,
         updateFromInteraction,
         zoom,
         resetView,
         getCanvasColors,
-        resizeCanvas
+        resizeCanvas,
+        getCanvasWidth,
+        getCanvasHeight
     };
 })();
 
