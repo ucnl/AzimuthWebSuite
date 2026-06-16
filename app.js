@@ -1134,25 +1134,41 @@ const App = (() => {
 	}
 
     // ========== ЗАКРЫТИЕ СТРАНИЦЫ ==========
-    window.addEventListener('beforeunload', async () => {
-        console.log('[App] Закрытие страницы, освобождаю порт...');
+	window.addEventListener('beforeunload', async (e) => {
+		console.log('[App] Закрытие страницы, освобождаю порт...');
 		
+		// Проверяем наличие данных
+		const tracks = TrackManager.getAll();
+		const trackCount = Object.keys(tracks).length;
+		const hasStationTrack = TrackManager.stationTrack.length > 0;
+		const hasLog = Logger.getEntryCount() > 0;
+		
+		const hasData = (trackCount > 0 || hasStationTrack || hasLog);
+		
+		// Если есть данные — показываем предупреждение
+		if (hasData) {
+			e.preventDefault();
+			e.returnValue = 'Есть несохранённые данные (треки, лог). Вы уверены, что хотите закрыть страницу?';
+			return e.returnValue;
+		}
+		
+		// Если данных нет — просто закрываем порты
 		if (gnssBridge) {
 			try { await gnssBridge.close(); } catch (err) {}
 			gnssBridge = null;
 		}
 		
-        if (serialBridge) {
-            try {
-                if (AZMManager.getState().isInterrogationActive) {
-                    await serialBridge.send(AZMManager.getStopCommand());
-                }
-                await serialBridge.close();
-            } catch (err) {}
-            serialBridge = null;
-        }
-        if (ageTimer) clearInterval(ageTimer);
-    });
+		if (serialBridge) {
+			try {
+				if (AZMManager.getState().isInterrogationActive) {
+					await serialBridge.send(AZMManager.getStopCommand());
+				}
+				await serialBridge.close();
+			} catch (err) {}
+			serialBridge = null;
+		}
+		if (ageTimer) clearInterval(ageTimer);
+	});
 
 
 
