@@ -75,8 +75,8 @@ const ExportManager = (() => {
                 const hh = String(ts.getUTCHours()).padStart(2, '0');
                 const mm = String(ts.getUTCMinutes()).padStart(2, '0');
                 const ss = String(ts.getUTCSeconds()).padStart(2, '0');
-                const ss2 = String(ts.getUTCMilliseconds() / 10).padStart(2, '0');
-                const timeStr = `${hh}${mm}${ss}.${ss2}`;
+				const ms = String(Math.floor(ts.getUTCMilliseconds() / 10)).padStart(2, '0');
+				const timeStr = `${hh}${mm}${ss}.${ms}`;
                 
                 const lat = Math.abs(point.lat);
                 const latDeg = Math.floor(lat);
@@ -105,6 +105,66 @@ const ExportManager = (() => {
         
         downloadBlob(lines.join('\r\n'), 'text/plain', `gga_tracks_${getTimestamp()}.nmea`);
     }
+
+	// ========== NMEA GGA для антенны ==========
+	function exportAntennaGGA() {
+		const stationTrack = TrackManager.stationTrack;
+		if (stationTrack.length === 0) {
+			alert('Нет данных трека антенны');
+			return;
+		}
+
+		const lines = [];
+		let prevLat = NaN, prevLon = NaN;
+		let pointIndex = 0;
+		
+		for (const point of stationTrack) {
+			if (point.lat == null || point.lon == null || isNaN(point.lat) || isNaN(point.lon)) continue;
+			
+			// Пропускаем дубликаты (слишком близкие точки)
+			if (!isNaN(prevLat) && !isNaN(prevLon)) {
+				const dist = GeoUtils.haversineDistance(prevLat, prevLon, point.lat, point.lon);
+				if (dist < 0.1) continue; // меньше 10 см
+			}
+			
+			const ts = new Date(point.ts);
+			const hh = String(ts.getUTCHours()).padStart(2, '0');
+			const mm = String(ts.getUTCMinutes()).padStart(2, '0');
+			const ss = String(ts.getUTCSeconds()).padStart(2, '0');
+			const ms = String(Math.floor(ts.getUTCMilliseconds() / 10)).padStart(2, '0');
+			const timeStr = `${hh}${mm}${ss}.${ms}`;
+			
+			const lat = Math.abs(point.lat);
+			const latDeg = Math.floor(lat);
+			const latMin = (lat - latDeg) * 60;
+			const latHemi = point.lat >= 0 ? 'N' : 'S';
+			
+			const lon = Math.abs(point.lon);
+			const lonDeg = Math.floor(lon);
+			const lonMin = (lon - lonDeg) * 60;
+			const lonHemi = point.lon >= 0 ? 'E' : 'W';
+			
+			// Используем идентификатор STATION вместо Bxx
+			const sentence = `GNGGA,${timeStr},${String(latDeg).padStart(2, '0')}${latMin.toFixed(4)},${latHemi},${String(lonDeg).padStart(3, '0')}${lonMin.toFixed(4)},${lonHemi},1,04,,,M,,M,,`;
+			const nmeaLine = '$' + sentence;
+			let cs = 0;
+			for (let i = 1; i < nmeaLine.length; i++) cs ^= nmeaLine.charCodeAt(i);
+			lines.push(nmeaLine + '*' + cs.toString(16).toUpperCase().padStart(2, '0'));
+			
+			prevLat = point.lat;
+			prevLon = point.lon;
+			pointIndex++;
+		}
+
+		if (lines.length === 0) {
+			alert('Нет точек с координатами');
+			return;
+		}
+		
+		downloadBlob(lines.join('\r\n'), 'text/plain', `antenna_gga_${getTimestamp()}.nmea`);
+		console.log(`[Export] Экспортировано ${lines.length} точек антенны в GGA`);
+	}
+
 
     // ========== NMEA PSIMSSB (Head-Up) ==========
     function exportPSIMSSB() {
@@ -277,6 +337,7 @@ const ExportManager = (() => {
     return {
         exportCSV,
         exportGGA,
+		exportAntennaGGA,
         exportPSIMSSB,
         exportPSIMSSB_NE,
         exportTracksKML

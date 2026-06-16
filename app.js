@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.2.6';
+    const APP_VERSION = '1.2.7';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -1159,6 +1159,7 @@ const App = (() => {
 	// ========== ЭКСПОРТ ==========
 	function exportCSV() { ExportManager.exportCSV(); }
 	function exportGGA() { ExportManager.exportGGA(); }
+	function exportAntennaGGA() { ExportManager.exportAntennaGGA(); }
 	function exportPSIMSSB() { ExportManager.exportPSIMSSB(); }
 	function exportPSIMSSB_NE() { ExportManager.exportPSIMSSB_NE(); }
 	function exportTracksKML() { ExportManager.exportTracksKML(); }
@@ -1334,7 +1335,7 @@ const App = (() => {
 		saveLog, loadLog, togglePlayback,
 		increasePlaybackSpeed,
 		decreasePlaybackSpeed,
-		exportCSV, exportGGA, exportPSIMSSB, exportPSIMSSB_NE,
+		exportCSV, exportGGA, exportAntennaGGA, exportPSIMSSB, exportPSIMSSB_NE,
 		getPhoneGPS,
 		loadCalibrationFile,
 		resetCalibration,

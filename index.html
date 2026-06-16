@@ -39,10 +39,11 @@
 			<div class="dropdown" style="display:inline-block; position:relative;">
 				<button class="top-btn" onclick="App.toggleDropdown('export-dropdown')" style="background:#20c997; color:#fff;">📤 Экспорт ▾</button>
 				<div id="export-dropdown" class="dropdown-menu" style="display:none; position:absolute; top:100%; right:0; z-index:300; min-width:170px;">
-					<div class="dropdown-item" onclick="App.exportCSV(); App.closeAllDropdowns();">📊 CSV</div>
-					<div class="dropdown-item" onclick="App.exportGGA(); App.closeAllDropdowns();">📡 NMEA (GGA)</div>
-					<div class="dropdown-item" onclick="App.exportPSIMSSB(); App.closeAllDropdowns();">📡 NMEA (PSIMSSB)</div>
-					<div class="dropdown-item" onclick="App.exportPSIMSSB_NE(); App.closeAllDropdowns();">📡 NMEA (PSIMSSB UTM)</div>
+					<div class="dropdown-item" onclick="App.exportCSV(); App.closeAllDropdowns();">📊 CSV (Антенна + маяк)</div>
+					<div class="dropdown-item" onclick="App.exportGGA(); App.closeAllDropdowns();">📡 NMEA GGA (Маяк)</div>
+					<div class="dropdown-item" onclick="App.exportAntennaGGA(); App.closeAllDropdowns();">📡 NMEA GGA (Антенна)</div>
+					<div class="dropdown-item" onclick="App.exportPSIMSSB(); App.closeAllDropdowns();">📡 NMEA PSIMSSB (Маяк)</div>
+					<div class="dropdown-item" onclick="App.exportPSIMSSB_NE(); App.closeAllDropdowns();">📡 NMEA PSIMSSB UTM (Маяк)</div>
 					<div class="dropdown-item" onclick="App.exportTracksKML(); App.closeAllDropdowns();">🗺 KML</div>
 				</div>
 			</div>
