@@ -1,5 +1,5 @@
 // modules/ui-calibration.js
-// Управление калибровкой φ (угловая калибровка антенны)
+// Управление калибровкой φ (угловая калибровка антенны) и загрузкой калибровочной таблицы
 
 const UICalibration = (() => {
     let calibrationPanel = null;
@@ -15,6 +15,9 @@ const UICalibration = (() => {
     let getStartCommand = null;
     let logOutgoingCallback = null;
     let recalcAllBeacons = null;
+    let parseCalibrationFile = null;
+    let loadAntennaCalibrationCallback = null;  // ← добавить
+    let resetAntennaCalibrationCallback = null; // ← добавить
     
     function init(panelId, callbacks) {
         calibrationPanel = document.getElementById(panelId);
@@ -29,6 +32,9 @@ const UICalibration = (() => {
         getStartCommand = callbacks.getStartCommand;
         logOutgoingCallback = callbacks.logOutgoing;
         recalcAllBeacons = callbacks.recalcAllBeacons;
+        parseCalibrationFile = callbacks.parseCalibrationFile;
+        loadAntennaCalibrationCallback = callbacks.loadAntennaCalibration;    // ← сохраняем
+        resetAntennaCalibrationCallback = callbacks.resetAntennaCalibration;  // ← сохраняем
     }
     
     function toggle() {
@@ -134,8 +140,6 @@ const UICalibration = (() => {
         if (!isCalibrating) return;
         if (!window.AngularCalibration) return;
         
-        // Эта функция вызывается из handleBeaconUpdate
-        // Данные уже добавляются в AngularCalibration там
         const count = AngularCalibration.getCount();
         const maxPoints = parseInt(document.getElementById('cfg-cal-points')?.value) || 100;
         const statusEl = document.getElementById('cal-status');
@@ -182,10 +186,16 @@ const UICalibration = (() => {
     
     function applyCalibrationData(text, filename) {
         try {
-            const { angles, errors } = window.AntennaCorrector.parseFromText(text);
-            if (window.AZMManager) {
-                AZMManager.loadAntennaCalibration(angles, errors);
+            if (!parseCalibrationFile) {
+                throw new Error('Колбек parseCalibrationFile не задан');
             }
+            const { angles, errors } = parseCalibrationFile(text);
+            
+            // Используем колбек вместо window.AZMManager
+            if (loadAntennaCalibrationCallback) {
+                loadAntennaCalibrationCallback(angles, errors);
+            }
+            
             saveCalibrationToStorage(angles, errors);
             updateCalibrationUI(angles.length);
             if (recalcAllBeacons) recalcAllBeacons();
@@ -197,8 +207,9 @@ const UICalibration = (() => {
     
     function resetCalibration() {
         if (confirm('Сбросить калибровочную таблицу антенны?')) {
-            if (window.AZMManager) {
-                AZMManager.resetAntennaCalibration();
+            // Используем колбек вместо window.AZMManager
+            if (resetAntennaCalibrationCallback) {
+                resetAntennaCalibrationCallback();
             }
             localStorage.removeItem('antenna_calibration');
             updateCalibrationUI(0);
@@ -237,8 +248,9 @@ const UICalibration = (() => {
             if (saved) {
                 const data = JSON.parse(saved);
                 if (data.angles && data.errors && data.angles.length >= 2) {
-                    if (window.AZMManager) {
-                        AZMManager.loadAntennaCalibration(data.angles, data.errors);
+                    // Используем колбек вместо window.AZMManager
+                    if (loadAntennaCalibrationCallback) {
+                        loadAntennaCalibrationCallback(data.angles, data.errors);
                     }
                     updateCalibrationUI(data.angles.length);
                     return true;
