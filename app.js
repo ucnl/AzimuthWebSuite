@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.2.7';
+    const APP_VERSION = '1.2.8';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -233,6 +233,11 @@ const App = (() => {
 		// Вызов построения чекбоксов маски (через модуль)
 		UISettings.buildAddressCheckboxes();
 		
+		// ИНИЦИАЛИЗАЦИЯ КАЛИБРОВКИ ТАБЛИЦЫ АНТЕННЫ
+		UIAntennaCalibration.init({
+			setStatus: (msg) => setStatus(msg)
+		});
+		
 		// ИНИЦИАЛИЗАЦИЯ ТОПОПРИВЯЗКИ
 		UITopo.init('topo-panel', {
 			setStatus: (msg) => setStatus(msg),
@@ -256,7 +261,10 @@ const App = (() => {
 			getSerialBridge: () => serialBridge,
 			getStartCommand: () => AZMManager.getStartCommand(),
 			logOutgoing: (port, data) => Logger.logOutgoing(port, data),
-			recalcAllBeacons: () => AZMManager.recalcAllBeacons()
+			recalcAllBeacons: () => AZMManager.recalcAllBeacons(),
+			parseCalibrationFile: (text) => AntennaCorrector.parseFromText(text),
+			loadAntennaCalibration: (angles, errors) => AZMManager.loadAntennaCalibration(angles, errors),
+			resetAntennaCalibration: () => AZMManager.resetAntennaCalibration()
 		});
 		
 		// Загружаем сохранённую калибровку
@@ -492,6 +500,44 @@ const App = (() => {
 			);
 			UICalibration.addPoint();
 		}
+		
+		if (UIAntennaCalibration.isActive() && isFilterAccepted && 
+			!isNaN(beacon.latitudeDeg) && !isNaN(beacon.longitudeDeg) &&  // ← используем координаты маяка
+			!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg) && !isNaN(st.antennaHeadingDeg)) {
+			
+			// Вычисляем азимут из координат (уже отфильтрованных)
+			const deltas = GeoUtils.deltasByDegrees(
+				st.antennaLatDeg, st.antennaLonDeg,
+				beacon.latitudeDeg, beacon.longitudeDeg
+			);
+			
+			// Абсолютный пеленг от антенны на маяк (из отфильтрованных координат)
+			let absAzimuth = Math.atan2(deltas.deltaLonM, deltas.deltaLatM) * 180 / Math.PI;
+			if (absAzimuth < 0) absAzimuth += 360;
+			
+			// Переводим в относительный
+			let relativeAzimuth = absAzimuth - st.antennaHeadingDeg;
+			relativeAzimuth = ((relativeAzimuth % 360) + 360) % 360;
+			
+			// Дистанция
+			const dist = GeoUtils.haversineDistance(
+				st.antennaLatDeg, st.antennaLonDeg,
+				beacon.latitudeDeg, beacon.longitudeDeg
+			);
+			
+			AntennaTableCalibration.addPoint(
+				st.antennaHeadingDeg,
+				relativeAzimuth,
+				dist,
+				st.antennaLatDeg,
+				st.antennaLonDeg,
+				st.antennaDepthM || 0,
+				beacon.depthM || 0
+			);
+			UIAntennaCalibration.addPoint();
+		}
+		
+		
 	}
 
 	function onSerialError(error) {
@@ -612,6 +658,7 @@ const App = (() => {
 	function stopCalibration() { UICalibration.stop(); }
 	function loadCalibrationFile() { UICalibration.loadCalibrationFile(); }
 	function resetCalibration() { UICalibration.resetCalibration(); }
+	
 
     // ========== УПРАВЛЕНИЕ ОПРОСОМ ==========
     async function startInterrogation() {
@@ -1358,6 +1405,12 @@ const App = (() => {
 		toggleRuler,
 		resetView: () => UICanvas.resetView(),
 		autoScale: () => UICanvas.autoScale(),
+		toggleAntennaCalibration: () => UIAntennaCalibration.toggle(),
+		startAntennaCalibration: () => UIAntennaCalibration.startCalibration(),
+		stopAntennaCalibration: () => UIAntennaCalibration.stopCalibration(),
+		buildAntennaTable: () => UIAntennaCalibration.buildTable(),
+		applyAntennaTable: () => UIAntennaCalibration.applyTable(),
+		downloadAntennaTable: () => UIAntennaCalibration.downloadTable(),		
 	};
 
 })();
