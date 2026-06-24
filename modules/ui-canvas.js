@@ -355,6 +355,100 @@ const UICanvas = (() => {
         ctx.shadowBlur = 0;
     }
     
+	function drawPOI() {
+		const points = POIManager.getAll();
+		if (points.length === 0) return;
+		
+		const AZMManager = getAZMManager ? getAZMManager() : null;
+		const TrackManager = getTrackManager ? getTrackManager() : null;
+		const cc = getCanvasColors();
+		const anchor = TrackManager ? TrackManager.getAnchor() : { lat: NaN, lon: NaN };
+		const st = AZMManager ? AZMManager.getState() : null;
+		
+		points.forEach(poi => {
+			let x, y;
+			
+			if (!isNaN(anchor.lat) && !isNaN(anchor.lon)) {
+				const screen = GeoUtils.geoToScreen(
+					poi.lat, poi.lon,
+					anchor.lat, anchor.lon,
+					offsetX, offsetY, scale
+				);
+				x = screen.x;
+				y = screen.y;
+			} else {
+				// Без топопривязки — в центре
+				x = offsetX;
+				y = offsetY;
+			}
+			
+			if (isNaN(x) || isNaN(y)) return;
+			
+			// Маркер
+			const size = 10;
+			ctx.fillStyle = poi.type === 'marked' ? '#ffcc00' : '#ff6600';
+			ctx.strokeStyle = cc.stroke;
+			ctx.lineWidth = 1.5;
+			
+			// Звезда или пин
+			if (poi.type === 'marked') {
+				drawStar(x, y, size);
+			} else {
+				drawPin(x, y, size);
+			}
+			
+			// Название
+			ctx.font = 'bold 10px Arial';
+			ctx.fillStyle = cc.text;
+			ctx.textAlign = 'left';
+			ctx.textBaseline = 'bottom';
+			ctx.fillText(poi.name, x + 14, y + 4);
+			
+			// Глубина если есть
+			if (poi.depth != null && !isNaN(poi.depth)) {
+				ctx.font = '8px Arial';
+				ctx.fillStyle = cc.textSecondary;
+				ctx.fillText(`${poi.depth.toFixed(1)} м`, x + 14, y + 16);
+			}
+		});
+	}
+
+	function drawStar(cx, cy, size) {
+		const spikes = 5;
+		const outerRadius = size;
+		const innerRadius = size / 2;
+		
+		ctx.beginPath();
+		for (let i = 0; i < spikes * 2; i++) {
+			const radius = i % 2 === 0 ? outerRadius : innerRadius;
+			const angle = (i * Math.PI) / spikes - Math.PI / 2;
+			const x = cx + Math.cos(angle) * radius;
+			const y = cy + Math.sin(angle) * radius;
+			if (i === 0) ctx.moveTo(x, y);
+			else ctx.lineTo(x, y);
+		}
+		ctx.closePath();
+		ctx.fill();
+		ctx.stroke();
+	}
+
+	function drawPin(cx, cy, size) {
+		ctx.beginPath();
+		ctx.arc(cx, cy - size/2, size * 0.6, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.stroke();
+		
+		ctx.beginPath();
+		ctx.moveTo(cx - size * 0.4, cy);
+		ctx.lineTo(cx, cy + size);
+		ctx.lineTo(cx + size * 0.4, cy);
+		ctx.closePath();
+		ctx.fill();
+		ctx.stroke();
+	}	
+	
+	
+	
     function autoScale() {
         const AZMManager = getAZMManager ? getAZMManager() : null;
         const TrackManager = getTrackManager ? getTrackManager() : null;
@@ -509,6 +603,7 @@ const UICanvas = (() => {
         }
         drawRejectedPoints();
         drawBeacons();
+		drawPOI();
         drawAntenna();
         drawScaleBar();
         if (UIRuler) UIRuler.draw();

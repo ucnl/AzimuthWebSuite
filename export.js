@@ -250,21 +250,38 @@ const ExportManager = (() => {
         downloadBlob(lines.join('\r\n'), 'text/plain', `psimssb_utm_tracks_${getTimestamp()}.nmea`);
     }
 
-    // ========== KML ==========	
+    // ========== KML ==========
+	
+	function escapeXml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+	
 	function generateKML() {
 		const allTracks = TrackManager.getAll();
 		const stationTrack = TrackManager.stationTrack;
 		
 		let kml = `<?xml version="1.0" encoding="UTF-8"?>
-	<kml xmlns="http://www.opengis.net/kml/2.2">
-	<Document>
-		<name>Zima2 Tracks</name>
-		<Style id="stationStyle">
-			<LineStyle><color>ff00ffff</color><width>3</width></LineStyle>
-		</Style>
-		<Style id="beaconStyle">
-			<LineStyle><color>ff00ff00</color><width>2</width></LineStyle>
-		</Style>`;
+		<kml xmlns="http://www.opengis.net/kml/2.2">
+		<Document>
+			<name>Zima2 Tracks</name>
+			<Style id="stationStyle">
+				<LineStyle><color>ff00ffff</color><width>3</width></LineStyle>
+			</Style>
+			<Style id="beaconStyle">
+				<LineStyle><color>ff00ff00</color><width>2</width></LineStyle>
+			</Style>
+			<Style id="poiLoadedStyle">
+			<IconStyle>
+				<color>ff0080ff</color>
+				<scale>1.0</scale>
+				<Icon><href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href></Icon>
+			</IconStyle>
+			</Style>
+			<Style id="poiMarkedStyle">
+				<IconStyle>
+					<color>ff00ffff</color>
+					<scale>1.0</scale>
+					<Icon><href>http://maps.google.com/mapfiles/kml/shapes/star.png</href></Icon>
+				</IconStyle>
+			</Style>`;
 		
 		// Трек станции
 		if (stationTrack && stationTrack.length > 0) {
@@ -275,15 +292,15 @@ const ExportManager = (() => {
 					coords += `${point.lon.toFixed(8)},${point.lat.toFixed(8)},0 `;
 				}
 				kml += `
-		<Placemark>
-			<name>Station Track</name>
-			<styleUrl>#stationStyle</styleUrl>
-			<LineString>
-				<extrude>0</extrude>
-				<tessellate>1</tessellate>
-				<coordinates>${coords.trim()}</coordinates>
-			</LineString>
-		</Placemark>`;
+				<Placemark>
+					<name>Station Track</name>
+					<styleUrl>#stationStyle</styleUrl>
+					<LineString>
+						<extrude>0</extrude>
+						<tessellate>1</tessellate>
+						<coordinates>${coords.trim()}</coordinates>
+					</LineString>
+				</Placemark>`;
 			}
 		}
 		
@@ -302,20 +319,42 @@ const ExportManager = (() => {
 			}
 			
 			kml += `
-		<Placemark>
-			<name>Beacon #${userAddr}</name>
-			<styleUrl>#beaconStyle</styleUrl>
-			<LineString>
-				<extrude>0</extrude>
-				<tessellate>1</tessellate>
-				<coordinates>${coords.trim()}</coordinates>
-			</LineString>
-		</Placemark>`;
+			<Placemark>
+				<name>Beacon #${userAddr}</name>
+				<styleUrl>#beaconStyle</styleUrl>
+				<LineString>
+					<extrude>0</extrude>
+					<tessellate>1</tessellate>
+					<coordinates>${coords.trim()}</coordinates>
+				</LineString>
+			</Placemark>`;
+		}
+		
+		// POI точки
+		if (typeof POIManager !== 'undefined') {
+			const poiPoints = POIManager.getAll();
+			for (const poi of poiPoints) {
+				const alt = (poi.depth != null && !isNaN(poi.depth)) ? -poi.depth : 0;
+				const style = poi.type === 'marked' ? '#poiMarkedStyle' : '#poiLoadedStyle';
+				const ts = new Date(poi.timestamp).toISOString();
+				
+				kml += `
+				<Placemark>
+					<name>${escapeXml(poi.name)}</name>
+					<description>Тип: ${poi.type === 'marked' ? 'Отмечена оператором' : 'Загружена из CSV'}
+					Время: ${ts}
+					Глубина: ${poi.depth != null ? poi.depth.toFixed(1) + ' м' : '--'}</description>
+							<styleUrl>${style}</styleUrl>
+					<Point>
+						<coordinates>${poi.lon.toFixed(8)},${poi.lat.toFixed(8)},${alt}</coordinates>
+					</Point>
+				</Placemark>`;
+			}
 		}
 		
 		kml += `
-	</Document>
-	</kml>`;
+		</Document>
+		</kml>`;
 		
 		return kml;
 	}

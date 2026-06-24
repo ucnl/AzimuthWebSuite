@@ -137,23 +137,19 @@ const UIAntennaCalibration = (() => {
         deps.setStatus?.('Накопление остановлено. ' + AntennaTableCalibration.getCount() + ' точек собрано');
     }
 
-    function buildTable() {
-        const stepDeg = parseFloat(document.getElementById('ac-angle-step')?.value) || 1.0;
-        const smoothWin = parseInt(document.getElementById('ac-smooth-window')?.value) || 5;
-        
-        AntennaTableCalibration.setAngleStep(stepDeg);
-        AntennaTableCalibration.setSmoothWindow(smoothWin);
-        
-        const result = AntennaTableCalibration.buildTable(stepDeg, smoothWin);
-        
-        if (result.encoderAngles.length === 0) {
-            alert('Не удалось построить таблицу. Недостаточно данных.');
-            return;
-        }
-        
-        updateUI();
-        deps.setStatus?.(`✅ Таблица построена: ${result.usedSectors} секторов, покрытие ${(result.coverage * 100).toFixed(1)}%`);
-    }
+	function buildTable() {
+		const stepDeg = parseFloat(document.getElementById('ac-angle-step')?.value) || 1.0;
+		AntennaTableCalibration.setAngleStep(stepDeg);
+		const result = AntennaTableCalibration.buildTable(stepDeg);  // ← убрать smoothWin
+		
+		if (result.encoderAngles.length === 0) {
+			alert('Не удалось построить таблицу. Недостаточно данных.');
+			return;
+		}
+		
+		updateUI();
+		deps.setStatus?.(`✅ Таблица построена: ${result.usedSectors} секторов, покрытие ${(result.coverage * 100).toFixed(1)}%`);
+	}
 
     function applyTable() {
         const success = AntennaTableCalibration.applyToManager();

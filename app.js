@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.2.8';
+    const APP_VERSION = '1.2.9';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -250,6 +250,9 @@ const App = (() => {
 		
 		// Загружаем сохранённую привязку
 		UITopo.loadTopoBinding();
+		
+		// Загружаем POI
+		POIManager.load();
 		
 		// ИНИЦИАЛИЗАЦИЯ КАЛИБРОВКИ
 		UICalibration.init('calibration-panel', {
@@ -963,12 +966,105 @@ const App = (() => {
         }
     }
 
+
+    // ========== POI ===========
+	function loadPOI() {
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.accept = '.csv,.txt';
+		input.onchange = (e) => {
+			const file = e.target.files[0];
+			if (!file) return;
+			const reader = new FileReader();
+			reader.onload = (ev) => {
+				const count = POIManager.loadFromCSV(ev.target.result);
+				if (count > 0) {
+					setStatus(`Загружено ${count} POI`);
+				} else {
+					alert('Не удалось загрузить POI. Проверьте формат файла.');
+				}
+			};
+			reader.readAsText(file);
+		};
+		input.click();
+	}
+
+	function clearPOI() {
+		if (POIManager.getCount() === 0) {
+			alert('Нет POI для очистки');
+			return;
+		}
+		if (confirm(`Очистить все POI (${POIManager.getCount()} шт.)?`)) {
+			POIManager.clear();
+			setStatus('POI очищены');
+		}
+	}
+
+	function markBeaconPoint(address) {
+		const beacon = AZMManager.getBeacons()[address];
+		if (!beacon) return;
+		
+		// Берём последние валидные координаты (даже если текущая точка отвергнута)
+		const lat = beacon.latitudeDeg;
+		const lon = beacon.longitudeDeg;
+		const depth = beacon.depthM;
+		
+		if (isNaN(lat) || isNaN(lon)) {
+			alert('У маяка ещё нет координат');
+			return;
+		}
+		
+		const now = new Date();
+		const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+		const name = `Маяк #${beacon.userAddress || address + 1} — ${timeStr}`;
+		
+		POIManager.addMarkedPoint(name, lat, lon, !isNaN(depth) ? depth : null);
+		setStatus(`Отмечено: ${name}`);
+	}
+
+	function exportPOI_CSV() {
+		const points = POIManager.getAll();
+		if (points.length === 0) {
+			alert('Нет POI для экспорта');
+			return;
+		}
+		
+		const lines = ['# POI Export', '# Name,Latitude,Longitude,Depth,Type,Timestamp'];
+		lines.push('Name,Latitude,Longitude,Depth,Type,Timestamp');
+		
+		for (const poi of points) {
+			lines.push([
+				poi.name,
+				poi.lat.toFixed(8),
+				poi.lon.toFixed(8),
+				poi.depth != null ? poi.depth.toFixed(1) : '',
+				poi.type,
+				new Date(poi.timestamp).toISOString()
+			].join(','));
+		}
+		
+		const text = lines.join('\n');
+		const blob = new Blob([text], { type: 'text/csv' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `poi_export_${new Date().toISOString().slice(0, 10)}.csv`;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+		
+		setStatus(`Экспортировано ${points.length} POI`);
+	}
+
+
+
+
     // ========== ОТРИСОВКА ==========
     function renderLoop() {
         UICanvas.drawAll();
         requestAnimationFrame(renderLoop);
     }
-
 
     function updateBeaconsBar() {
 		
@@ -1009,8 +1105,13 @@ const App = (() => {
 				<div class="bc-azimuth">🧭 ${azm}</div>
 				<div class="bc-msr">📶 ${!isNaN(b.msrDB) ? b.msrDB.toFixed(1) + ' dB' : '--'}</div>
 				<div class="bc-vcc">🔋 ${!isNaN(b.vccV) ? b.vccV.toFixed(1) + ' V' : '--'}  🌡 ${!isNaN(b.waterTempC) ? b.waterTempC.toFixed(1) + ' °C' : '--'}</div>
-				<div class="bc-coords">${!isNaN(b.latitudeDeg) ? b.latitudeDeg.toFixed(6) : '--'}, ${!isNaN(b.longitudeDeg) ? b.longitudeDeg.toFixed(6) : '--'}</div>
-				<div class="bc-age ${ageClass}">⏱ ${age.toFixed(0)}с${b.isTimeout ? ' ⌛' : ''}</div>
+				<div class="bc-coords">
+					${!isNaN(b.latitudeDeg) ? b.latitudeDeg.toFixed(6) : '--'}, ${!isNaN(b.longitudeDeg) ? b.longitudeDeg.toFixed(6) : '--'}
+					${!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg) ? 
+						`<span class="bc-mark" onclick="event.stopPropagation(); App.markBeaconPoint(${b.address})" title="Отметить точку"> 📌</span>` 
+						: ''}
+				</div>
+				<div class="bc-age ${ageClass}">⏱ ${age.toFixed(0)}с${b.isTimeout ? ' ⌛' : ''}</div>				
 			</div>`;
 		});
         beaconsBar.innerHTML = html;
@@ -1410,7 +1511,11 @@ const App = (() => {
 		stopAntennaCalibration: () => UIAntennaCalibration.stopCalibration(),
 		buildAntennaTable: () => UIAntennaCalibration.buildTable(),
 		applyAntennaTable: () => UIAntennaCalibration.applyTable(),
-		downloadAntennaTable: () => UIAntennaCalibration.downloadTable(),		
+		downloadAntennaTable: () => UIAntennaCalibration.downloadTable(),
+		loadPOI,
+		clearPOI,
+		markBeaconPoint,
+		exportPOI_CSV
 	};
 
 })();
