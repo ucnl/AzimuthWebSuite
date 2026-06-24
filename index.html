@@ -30,7 +30,9 @@
 			<div class="dropdown" style="display:inline-block; position:relative;">
 				<button class="top-btn" onclick="App.toggleDropdown('tools-dropdown')" style="background:#fd7e14; color:#fff;">🔧 Инструменты ▾</button>
 				<div id="tools-dropdown" class="dropdown-menu" style="display:none; position:absolute; top:100%; right:0; z-index:300; min-width:200px;">
-					<div class="dropdown-item" onclick="App.toggleTopoPanel(); App.closeAllDropdowns();">📍 Ручная топопривязка</div>
+					<div class="dropdown-item" onclick="App.toggleTopoPanel(); App.closeAllDropdowns();">🌐 Ручная топопривязка</div>
+					
+					<div class="dropdown-item" onclick="App.exportDRMS(); App.closeAllDropdowns();">📊 Отчёт DRMS</div>
 					
 					<!-- Подменю POI -->
 					<div class="dropdown-item">📍 POI ▸<div class="submenu">
@@ -59,8 +61,7 @@
 					<div class="dropdown-item" onclick="App.exportAntennaGGA(); App.closeAllDropdowns();">📡 NMEA GGA (Антенна)</div>
 					<div class="dropdown-item" onclick="App.exportPSIMSSB(); App.closeAllDropdowns();">📡 NMEA PSIMSSB (Маяк)</div>
 					<div class="dropdown-item" onclick="App.exportPSIMSSB_NE(); App.closeAllDropdowns();">📡 NMEA PSIMSSB UTM (Маяк)</div>
-					<div class="dropdown-item" onclick="App.exportTracksKML(); App.closeAllDropdowns();">🗺 KML</div>
-					<div class="dropdown-item" onclick="App.exportDRMS(); App.closeAllDropdowns();">📊 Отчёт DRMS</div>
+					<div class="dropdown-item" onclick="App.exportTracksKML(); App.closeAllDropdowns();">🗺 KML</div>					
 				</div>
 			</div>
 
@@ -115,7 +116,7 @@
 
             <!-- Панель топопривязки -->
             <div id="topo-panel">
-                <h3>📍 Топопривязка</h3>
+                <h3>🌐 Топопривязка</h3>
                 <div id="topo-gnss-status">Внешний GNSS не подключен</div>
                 <div class="topo-row">
                     <label>Широта:</label>
@@ -164,6 +165,7 @@
 				</div>
 			</div>
 			
+			<!-- Панель для разных отчетов -->
 			<div id="analysis-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-overlay); border:2px solid #20c997; border-radius:12px; padding:20px; z-index:100; max-width:500px; max-height:70vh; overflow-y:auto; backdrop-filter:blur(10px);">
 				<h3 id="analysis-title" style="color:#20c997; text-align:center; margin-bottom:12px;">🔍 Анализ лога</h3>
 				<div id="analysis-content" style="font-size:12px; line-height:1.6;"></div>
@@ -198,8 +200,6 @@
 					<button class="top-btn btn-cancel-topo" onclick="UIAntennaCalibration.close()" style="flex:1;">✕ Закрыть</button>
 				</div>
 			</div>			
-			
-			
 			
         </div>
 
