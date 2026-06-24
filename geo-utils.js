@@ -145,6 +145,51 @@ const GeoUtils = (() => {
         return WGS84_A / Math.sqrt(1 - E2 * sinLat * sinLat);
     }
 
+	/**
+	 * Вычисляет DRMS и связанные статистики для массива точек в локальной системе координат
+	 * @param {Array<{x: number, y: number}>} points — массив точек {x, y} в метрах
+	 * @returns {{ drms: number, drms2: number, drms3: number, sigmaX: number, sigmaY: number, centroid: {x: number, y: number}, count: number } | null}
+	 */
+	function calcDRMS(points) {
+		if (!points || points.length < 3) return null;
+		
+		const n = points.length;
+		
+		// Центроид (среднее арифметическое)
+		let cx = 0, cy = 0;
+		for (const p of points) {
+			cx += p.x;
+			cy += p.y;
+		}
+		cx /= n;
+		cy /= n;
+		
+		// Стандартные отклонения
+		let sx2 = 0, sy2 = 0;
+		for (const p of points) {
+			sx2 += (p.x - cx) ** 2;
+			sy2 += (p.y - cy) ** 2;
+		}
+		
+		const sigmaX = Math.sqrt(sx2 / n);
+		const sigmaY = Math.sqrt(sy2 / n);
+		
+		// DRMS = sqrt(σx² + σy²)
+		const drms = Math.sqrt(sigmaX * sigmaX + sigmaY * sigmaY);
+		
+		return {
+			drms: drms,
+			drms2: 2 * drms,
+			drms3: 3 * drms,
+			sigmaX: sigmaX,
+			sigmaY: sigmaY,
+			centroid: { x: cx, y: cy },
+			count: n
+		};
+	}
+
+
+
     return {
         WGS84_A,
         getDeltasByGeopoints_WGS84,
@@ -155,7 +200,8 @@ const GeoUtils = (() => {
         geoToScreen,
         screenToGeo,
         meridianRadius,
-        primeVerticalRadius
+        primeVerticalRadius,
+		calcDRMS
     };
 
 })();

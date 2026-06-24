@@ -60,6 +60,7 @@
 					<div class="dropdown-item" onclick="App.exportPSIMSSB(); App.closeAllDropdowns();">📡 NMEA PSIMSSB (Маяк)</div>
 					<div class="dropdown-item" onclick="App.exportPSIMSSB_NE(); App.closeAllDropdowns();">📡 NMEA PSIMSSB UTM (Маяк)</div>
 					<div class="dropdown-item" onclick="App.exportTracksKML(); App.closeAllDropdowns();">🗺 KML</div>
+					<div class="dropdown-item" onclick="App.exportDRMS(); App.closeAllDropdowns();">📊 Отчёт DRMS</div>
 				</div>
 			</div>
 
@@ -163,15 +164,15 @@
 				</div>
 			</div>
 			
-			<!-- Панель анализа лога -->
 			<div id="analysis-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-overlay); border:2px solid #20c997; border-radius:12px; padding:20px; z-index:100; max-width:500px; max-height:70vh; overflow-y:auto; backdrop-filter:blur(10px);">
-				<h3 style="color:#20c997; text-align:center; margin-bottom:12px;">🔍 Анализ лога</h3>
+				<h3 id="analysis-title" style="color:#20c997; text-align:center; margin-bottom:12px;">🔍 Анализ лога</h3>
 				<div id="analysis-content" style="font-size:12px; line-height:1.6;"></div>
 				<div style="display:flex; gap:8px; margin-top:12px;">
 					<button onclick="App.copyAnalysis()" style="flex:1; padding:8px; background:var(--btn-start); color:#fff; border:none; border-radius:4px; cursor:pointer;">📋 Копировать</button>
+					<button id="analysis-download-btn" onclick="App.downloadDRMS()" style="flex:1; padding:8px; background:#20c997; color:#fff; border:none; border-radius:4px; cursor:pointer; display:none;">💾 Скачать CSV</button>
 					<button onclick="App.closeAnalysis()" style="flex:1; padding:8px; background:#6c757d; color:#fff; border:none; border-radius:4px; cursor:pointer;">✕ Закрыть</button>
 				</div>
-	        </div>
+			</div>
 			
 			<!-- Панель калибровки таблицы антенны -->
 			<div id="antenna-calibration-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(22,33,62,0.95); border:2px solid #ff9800; border-radius:12px; padding:20px; z-index:100; min-width:320px; backdrop-filter:blur(10px);">
