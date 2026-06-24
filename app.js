@@ -91,7 +91,9 @@ const App = (() => {
 	}
 
 	function showLogAnalysis() {
+
 		const entries = Logger.getEntries();
+	
 		if (entries.length === 0) {
 			alert('Нет данных для анализа. Загрузите лог.');
 			return;
@@ -100,11 +102,22 @@ const App = (() => {
 		const report = LogAnalyzer.analyze(entries);
 		lastAnalysisText = LogAnalyzer.formatReport(report);
 		analysisContent.innerHTML = lastAnalysisText;
+		
+		// Заголовок
+		const title = document.getElementById('analysis-title');
+		if (title) title.textContent = '🔍 Анализ лога';
+		
+		// Кнопка скачивания DRMS не нужна
+		const downloadBtn = document.getElementById('analysis-download-btn');
+		if (downloadBtn) downloadBtn.style.display = 'none';
+		
 		analysisPanel.style.display = 'block';
 	}
 
 	function closeAnalysis() {
 		analysisPanel.style.display = 'none';
+		// Очищаем глобальные данные DRMS при закрытии
+		window._drmsCSV = null;
 	}
 
 	function copyAnalysis() {
@@ -1099,19 +1112,20 @@ const App = (() => {
 						: '--';
 
 			html += `
-			<div class="beacon-card ${cardClass}" onclick="App.onBeaconCardClick(${b.address})">
-				<div class="bc-addr">#${userAddr}</div>
-				<div class="bc-range">📏 ${range}  🌊 ${!isNaN(b.depthM) ? b.depthM.toFixed(1) + 'м' : '--'}</div>
-				<div class="bc-azimuth">🧭 ${azm}</div>
-				<div class="bc-msr">📶 ${!isNaN(b.msrDB) ? b.msrDB.toFixed(1) + ' dB' : '--'}</div>
-				<div class="bc-vcc">🔋 ${!isNaN(b.vccV) ? b.vccV.toFixed(1) + ' V' : '--'}  🌡 ${!isNaN(b.waterTempC) ? b.waterTempC.toFixed(1) + ' °C' : '--'}</div>
-				<div class="bc-coords">
+			<div class="beacon-card ${cardClass}">
+				<div class="bc-addr" onclick="App.onBeaconCardClick(${b.address})">#${userAddr}</div>
+				<div class="bc-range" onclick="App.onBeaconCardClick(${b.address})">📏 ${range}  🌊 ${!isNaN(b.depthM) ? b.depthM.toFixed(1) + 'м' : '--'}</div>
+				<div class="bc-azimuth" onclick="App.onBeaconCardClick(${b.address})">🧭 ${azm}</div>
+				<div class="bc-msr" onclick="App.onBeaconCardClick(${b.address})">📶 ${!isNaN(b.msrDB) ? b.msrDB.toFixed(1) + ' dB' : '--'}</div>
+				<div class="bc-vcc" onclick="App.onBeaconCardClick(${b.address})">🔋 ${!isNaN(b.vccV) ? b.vccV.toFixed(1) + ' V' : '--'}  🌡 ${!isNaN(b.waterTempC) ? b.waterTempC.toFixed(1) + ' °C' : '--'}</div>
+				<div class="bc-coords" onclick="App.onBeaconCardClick(${b.address})">
 					${!isNaN(b.latitudeDeg) ? b.latitudeDeg.toFixed(6) : '--'}, ${!isNaN(b.longitudeDeg) ? b.longitudeDeg.toFixed(6) : '--'}
-					${!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg) ? 
-						`<span class="bc-mark" onclick="event.stopPropagation(); App.markBeaconPoint(${b.address})" title="Отметить точку"> 📌</span>` 
+				</div>
+				<div class="bc-actions">${!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg) ? 
+						`<span class="bc-mark" onclick="event.stopPropagation(); App.markBeaconPoint(${b.address})" title="Отметить точку">📌</span>` 
 						: ''}
 				</div>
-				<div class="bc-age ${ageClass}">⏱ ${age.toFixed(0)}с${b.isTimeout ? ' ⌛' : ''}</div>				
+				<div class="bc-age ${ageClass}" onclick="App.onBeaconCardClick(${b.address})">⏱ ${age.toFixed(0)}с${b.isTimeout ? ' ⌛' : ''}</div>
 			</div>`;
 		});
         beaconsBar.innerHTML = html;
@@ -1128,6 +1142,89 @@ const App = (() => {
 			setStatus(`Маяк #${b.userAddress || b.address + 1} не имеет координат`);
 		}
 	}
+
+	function exportDRMS() {
+		const allTracks = TrackManager.getAll();
+		const trackAddresses = Object.keys(allTracks);
+		
+		if (trackAddresses.length === 0) {
+			alert('Нет треков для расчёта');
+			return;
+		}
+		
+		let report = '';
+		const csvLines = ['Beacon,Points,DRMS_m,2DRMS_m,3DRMS_m,SigmaX_m,SigmaY_m,CentroidLat,CentroidLon'];
+		let beaconsWithStats = 0;
+		
+		for (const addr of trackAddresses) {
+			const track = allTracks[addr];
+			const validPoints = track.filter(p => !p.isTimeout && !isNaN(p.lat) && !isNaN(p.lon));
+			
+			if (validPoints.length < 3) continue;
+			
+			let cLat = 0, cLon = 0;
+			for (const p of validPoints) { cLat += p.lat; cLon += p.lon; }
+			cLat /= validPoints.length;
+			cLon /= validPoints.length;
+			
+			const points = validPoints.map(p => {
+				const d = GeoUtils.deltasByDegrees(cLat, cLon, p.lat, p.lon);
+				return { x: d.deltaLonM, y: d.deltaLatM };
+			});
+			
+			const stats = GeoUtils.calcDRMS(points);
+			if (!stats) continue;
+			
+			beaconsWithStats++;
+			
+			const userAddr = parseInt(addr) + 1;
+			report += `Маяк #${userAddr}: DRMS=${stats.drms.toFixed(2)}м, 2DRMS=${stats.drms2.toFixed(2)}м, 3DRMS=${stats.drms3.toFixed(2)}м, σX=${stats.sigmaX.toFixed(2)}м, σY=${stats.sigmaY.toFixed(2)}м, точек=${stats.count}\n`;
+			
+			csvLines.push(`${userAddr},${stats.count},${stats.drms.toFixed(3)},${stats.drms2.toFixed(3)},${stats.drms3.toFixed(3)},${stats.sigmaX.toFixed(3)},${stats.sigmaY.toFixed(3)},${cLat.toFixed(8)},${cLon.toFixed(8)}`);
+		}
+		
+		if (!report) {
+			alert('Недостаточно данных для расчёта DRMS');
+			return;
+		}
+		
+		// Показываем в панели анализа
+		if (analysisPanel && analysisContent) {
+			// Меняем заголовок
+			const title = document.getElementById('analysis-title');
+			if (title) title.textContent = '📊 Отчёт DRMS';
+			
+			analysisContent.innerHTML = '<pre style="font-size:12px; line-height:1.6;">' + report + '</pre>';
+			
+			// Показываем кнопку скачивания CSV
+			const downloadBtn = document.getElementById('analysis-download-btn');
+			if (downloadBtn) downloadBtn.style.display = '';
+			
+			analysisPanel.style.display = 'block';
+		} else {
+			alert(report);
+		}
+		
+		// Сохраняем CSV для скачивания
+		window._drmsCSV = csvLines.join('\n');
+		
+		setStatus(`DRMS рассчитан для ${beaconsWithStats} маяков`);
+	}
+
+	function downloadDRMS() {
+		if (!window._drmsCSV) {
+			alert('Нет данных DRMS для скачивания');
+			return;
+		}
+		const blob = new Blob([window._drmsCSV], { type: 'text/csv' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `drms_report_${new Date().toISOString().slice(0, 10)}.csv`;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
 
     // ========== МЫШЬ И ТАЧ ==========
 	function initMouseHandlers() {
@@ -1500,6 +1597,7 @@ const App = (() => {
 		increasePlaybackSpeed,
 		decreasePlaybackSpeed,
 		exportCSV, exportGGA, exportAntennaGGA, exportPSIMSSB, exportPSIMSSB_NE,
+		exportDRMS, downloadDRMS,
 		getPhoneGPS,
 		loadCalibrationFile,
 		resetCalibration,
@@ -1512,10 +1610,7 @@ const App = (() => {
 		buildAntennaTable: () => UIAntennaCalibration.buildTable(),
 		applyAntennaTable: () => UIAntennaCalibration.applyTable(),
 		downloadAntennaTable: () => UIAntennaCalibration.downloadTable(),
-		loadPOI,
-		clearPOI,
-		markBeaconPoint,
-		exportPOI_CSV
+		loadPOI, clearPOI, markBeaconPoint,	exportPOI_CSV,		
 	};
 
 })();

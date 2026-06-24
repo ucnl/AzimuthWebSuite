@@ -518,11 +518,11 @@ body {
     border: 2px solid var(--border-primary);
     font-size: 11px;
     line-height: 1.4;     
-    transition: border-color 0.3s, background 0.3s;
+    transition: background 0.3s;
     cursor: pointer;
 	pointer-events: auto;
 }
-.beacon-card:hover { border-color: var(--text-accent); }
+.beacon-card:hover { border-color: var(--text-accent); transition: none; }
 .beacon-card.timeout { border-color: var(--border-danger); background: var(--bg-timeout); }
 .beacon-card.warning { border-color: var(--border-warning); }
 
@@ -919,17 +919,27 @@ body {
     background: rgba(255,255,255,0.05);
 }
 
-/*
+.bc-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border-primary);
+}
+
 .bc-mark {
     cursor: pointer;
     opacity: 0.5;
     transition: opacity 0.15s;
-    margin-left: 2px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 14px;
+    pointer-events: auto;
 }
 .bc-mark:hover {
     opacity: 1;
+    background: rgba(255, 255, 255, 0.15);
 }
-*/
 
 
 /* ========== АДАПТИВНОСТЬ ========== */
