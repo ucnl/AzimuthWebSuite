@@ -29,10 +29,24 @@
 			<!-- Выпадающая кнопка Инструменты -->
 			<div class="dropdown" style="display:inline-block; position:relative;">
 				<button class="top-btn" onclick="App.toggleDropdown('tools-dropdown')" style="background:#fd7e14; color:#fff;">🔧 Инструменты ▾</button>
-				<div id="tools-dropdown" class="dropdown-menu" style="display:none; position:absolute; top:100%; right:0; z-index:300; min-width:190px;">
+				<div id="tools-dropdown" class="dropdown-menu" style="display:none; position:absolute; top:100%; right:0; z-index:300; min-width:200px;">
 					<div class="dropdown-item" onclick="App.toggleTopoPanel(); App.closeAllDropdowns();">📍 Ручная топопривязка</div>
-					<div class="dropdown-item" onclick="App.toggleCalibration(); App.closeAllDropdowns();">🔧 Калибровка φ</div>
-					<div class="dropdown-item" onclick="App.toggleAntennaCalibration(); App.closeAllDropdowns();">⚠ 📡 Калибровка антенны</div>					
+					
+					<!-- Подменю POI -->
+					<div class="dropdown-item">📍 POI ▸<div class="submenu">
+						<div class="dropdown-item" onclick="App.loadPOI(); App.closeAllDropdowns();">📂 Загрузить из CSV</div>
+						<div class="dropdown-item" onclick="App.exportPOI_CSV(); App.closeAllDropdowns();">💾 Сохранить в CSV</div>
+						<div class="dropdown-item" onclick="App.clearPOI(); App.closeAllDropdowns();">🗑 Очистить все</div>
+						</div>
+					</div>
+					
+					<!-- Подменю Калибровки -->
+					<div class="dropdown-item">🔧 Калибровки ▸<div class="submenu">
+						<div class="dropdown-item" onclick="App.toggleCalibration(); App.closeAllDropdowns();">🔧 Калибровка φ</div>
+						<div class="dropdown-item" onclick="App.toggleAntennaCalibration(); App.closeAllDropdowns();">⚠📡 Калибровка антенны</div>
+						</div>
+					</div>
+										
 				</div>
 			</div>
 						
@@ -207,7 +221,7 @@
 				</div>
 				<div class="footer-info">
 					<span class="footer-copy">&copy; 2026 <span data-i18n="org_name">(C) UC&NL</span></span>
-					<span class="footer-desc" data-i18n="footer_desc">Open Source Configuration Tool</span>
+					<span class="footer-desc" data-i18n="footer_desc">Pure Open Source</span>
                     <a href="https://github.com/ucnl/AzimuthWebSuite/blob/main/CHANGELOG.md" 
 					   target="_blank" rel="noopener" 
 					   style="font-size:9px; color:inherit; text-decoration:none;" 
@@ -359,10 +373,11 @@
 	<script src="serial-bridge.js"></script>
 	<script src="antenna-corrector.js"></script>
 	<script src="antenna-table-calibration.js"></script>
-	<script src="sound-speed.js"></script>
+	<script src="sound-speed.js"></script>	
 	<script src="azm-manager.js"></script>
 	<script src="utm.js"></script>
 	<script src="tracks.js"></script>
+	<script src="poi-manager.js"></script>
 	<script src="export.js"></script>
 	<script src="modules/ui-themes.js"></script>
 	<script src="modules/ui-settings.js"></script>
