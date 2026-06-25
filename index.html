@@ -165,6 +165,27 @@
 				</div>
 			</div>
 			
+			<!-- Панель настройки маяка -->
+			<div id="remote-config-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-overlay); border:2px solid #6f42c1; border-radius:12px; padding:20px; z-index:100; min-width:280px; backdrop-filter:blur(10px);">
+				<h3 style="color:#6f42c1; text-align:center; margin-bottom:16px;">⚙ Настройка маяка</h3>
+				<div style="text-align:center; font-size:12px; color:var(--text-secondary); margin-bottom:12px;">
+					Текущий адрес: <span id="remote-current-addr" style="color:var(--text-accent); font-weight:700;">--</span>
+				</div>
+				<div class="topo-row">
+					<label>Новый адрес:</label>
+					<input type="number" id="cfg-remote-addr" value="1" min="1" max="16" step="1">
+				</div>
+				<div class="topo-row">
+					<label>Солёность (PSU):</label>
+					<input type="number" id="cfg-remote-salinity" value="0" min="0" max="40" step="0.1">
+				</div>
+				<div id="remote-config-status" style="text-align:center; font-size:12px; color:#aaa; margin:10px 0; min-height:18px;"></div>
+				<div class="topo-buttons">
+					<button class="btn-apply-topo" onclick="App.sendRemoteConfig()">📤 Отправить</button>
+					<button class="btn-cancel-topo" onclick="App.toggleRemoteConfig()">✕ Закрыть</button>
+				</div>
+			</div>
+			
 			<!-- Панель для разных отчетов -->
 			<div id="analysis-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-overlay); border:2px solid #20c997; border-radius:12px; padding:20px; z-index:100; max-width:500px; max-height:70vh; overflow-y:auto; backdrop-filter:blur(10px);">
 				<h3 id="analysis-title" style="color:#20c997; text-align:center; margin-bottom:12px;">🔍 Анализ лога</h3>

@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.2.9';
+    const APP_VERSION = '1.3.0';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -14,11 +14,12 @@ const App = (() => {
 	let btnConnection, btnInterrogation, btnSettings;
 	let btnGnss;
     let playbackProgress, playbackProgressFill;
-	let activeDropdown = null;
+	let activeDropdown = null;	
+	let remoteConfigPanel;
     
     let lastMouseX = 0, lastMouseY = 0;    
 
-    // ========== СОСТОЯНИЕ ПРИЛОЖЕНИЯ ==========
+    // ========== СОСТОЯНИЕ ПРИЛОЖЕНИЯ ==========ы
     let serialBridge = null;
     let isConnected = false;
     let ageTimer = null;
@@ -27,6 +28,10 @@ const App = (() => {
 	let hasTrueHeading = false;
 	
 	const PLAYBACK_SPEEDS = [1, 2, 4, 8];
+	
+	let isRemoteDevice = false;
+	let remoteCurrentAddr = null;
+	const RemoteAddr = AZMParser.RemoteAddr;
 
 	function getCurrentSpeedIndex() {
 		const current = Logger.getCurrentPlaybackSpeed();
@@ -174,6 +179,8 @@ const App = (() => {
 		
 		analysisPanel = document.getElementById('analysis-panel');
 		analysisContent = document.getElementById('analysis-content');
+		
+		remoteConfigPanel = document.getElementById('remote-config-panel');
 
 		if (!canvas || !ctx) {
 			console.error('[App] Canvas не найден!');
@@ -417,25 +424,43 @@ const App = (() => {
                 updateAntennaInfoUI();
                 if (result.beacon) handleBeaconUpdate(result.beacon);
                 break;
+			case 'rsts':
+				handleRSTS(result.data);
+				break;
+			case 'ack':
+				handleACK(result.data);
+				break;
         }
     }
 
-    function handleDINFO(info) {
-        const typeNames = { 0: 'USBL', 1: 'Ответчик', 2: 'LBL' };
-        let label = `Zima2 ${typeNames[info.deviceType] || ''}`.trim();
-        if (info.serialNumber) label += ` [${info.serialNumber}]`;
-        deviceLabel.textContent = label;
-        setStatus('Устройство обнаружено. Запуск опроса...');
+	function handleDINFO(info) {
+		const typeNames = { 0: 'USBL', 1: 'Маяк-ответчик', 2: 'LBL' };
+		let label = `Zima2 ${typeNames[info.deviceType] || ''}`.trim();
+		if (info.serialNumber) label += ` [${info.serialNumber}]`;
+		
+		// Для маяка запоминаем адрес и добавляем кнопку настройки
+		if (info.deviceType === 1) {
+			isRemoteDevice = true;
+			remoteCurrentAddr = info.remoteAddress; // 0-based
+			const userAddr = remoteCurrentAddr !== RemoteAddr.REM_ADDR_INVALID ? remoteCurrentAddr + 1 : '?';
+			deviceLabel.innerHTML = `${label} (адрес ${userAddr}) <span onclick="App.toggleRemoteConfig()" style="cursor:pointer; margin-left:4px; font-size:14px;" title="Настроить адрес">⚙</span>`;
+			setStatus('Маяк подключен');
+			return; // не запускаем опрос для маяка
+		}
+		
+		isRemoteDevice = false;
+		deviceLabel.textContent = label;
+		
+		setStatus('Устройство обнаружено. Запуск опроса...');
+		loadSettings();
 
-        loadSettings();
-
-        if (serialBridge && isConnected) {
-            const cmd = AZMManager.getStartCommand();
-            Logger.logOutgoing('AZM', cmd.trim());
-            serialBridge.send(cmd);
-            console.log('[Serial] → автостарт опроса');
-        }
-    }
+		if (serialBridge && isConnected) {
+			const cmd = AZMManager.getStartCommand();
+			Logger.logOutgoing('AZM', cmd.trim());
+			serialBridge.send(cmd);
+			console.log('[Serial] → автостарт опроса');
+		}
+	}
 
     function handleSTRSTP(data) {
         const isActive = data.addrMask !== 0;
@@ -449,6 +474,34 @@ const App = (() => {
 		
 		updateAllButtons();
     }
+
+	function handleRSTS(data) {		
+		
+		const statusEl = document.getElementById('remote-config-status');
+		if (!isNaN(data.remoteAddr)) {
+			remoteCurrentAddr = data.remoteAddr;
+			const el = document.getElementById('remote-current-addr');
+			if (el) el.textContent = remoteCurrentAddr + 1; // 1-based для отображения
+		}
+		if (statusEl) {
+			statusEl.textContent = `✓ Адрес изменён на ${data.remoteAddr + 1}`;
+			statusEl.style.color = '#4caf50';
+		}
+		setStatus(`Маяк: адрес изменён на ${data.remoteAddr + 1}`);
+	}
+
+	function handleACK(data) {
+		const statusEl = document.getElementById('remote-config-status');
+		if (statusEl) {
+			if (data.result === 0) {
+				statusEl.textContent = '✓ Команда принята';
+				statusEl.style.color = '#4caf50';
+			} else {
+				statusEl.textContent = `✗ Ошибка: код ${data.result}`;
+				statusEl.style.color = '#dc3545';
+			}
+		}
+	}
 
 	function handleBeaconUpdate(beacon) {
 		if (!beacon) return;
@@ -569,7 +622,9 @@ const App = (() => {
 
         connectionIndicator.className = '';
         setStatus('Не подключено');
-        deviceLabel.textContent = 'Zima2 USBL'; 
+        isRemoteDevice = false;
+		remoteCurrentAddr = null;
+		deviceLabel.textContent = 'Zima2 USBL';
 
         AZMManager.reset();
 		updateAllButtons();
@@ -778,6 +833,64 @@ const App = (() => {
 			stopInterrogation();
 		} else {
 			startInterrogation();
+		}
+	}
+
+
+    // ========== НАСТРОЙКИ МАЯКА ==========
+	
+	function toggleRemoteConfig() {
+		if (!remoteConfigPanel) return;
+		if (remoteConfigPanel.style.display === 'none' || !remoteConfigPanel.style.display) {
+			const el = document.getElementById('remote-current-addr');
+			if (el) {
+				const userAddr = remoteCurrentAddr !== null && remoteCurrentAddr !== AZMParser.RemoteAddr.REM_ADDR_INVALID 
+					? remoteCurrentAddr + 1 
+					: '--';
+				el.textContent = userAddr;
+			}
+			const statusEl = document.getElementById('remote-config-status');
+			if (statusEl) { statusEl.textContent = ''; }
+			remoteConfigPanel.style.display = 'block';
+		} else {
+			remoteConfigPanel.style.display = 'none';
+		}
+	}
+
+	async function sendRemoteConfig() {
+		if (!serialBridge || !isConnected) {
+			alert('Нет подключения');
+			return;
+		}
+		
+		const userAddr = parseInt(document.getElementById('cfg-remote-addr').value);
+		const salinity = parseFloat(document.getElementById('cfg-remote-salinity').value);
+		
+		if (isNaN(userAddr) || userAddr < 1 || userAddr > 16) {
+			alert('Адрес должен быть от 1 до 16');
+			return;
+		}
+		
+		// Отправляем 0-based адрес
+		const addr = userAddr - 1;
+		const cmd = AZMParser.buildRSTS(addr, isNaN(salinity) ? null : salinity);
+		
+		try {
+			const statusEl = document.getElementById('remote-config-status');
+			if (statusEl) {
+				statusEl.textContent = '⏳ Отправка...';
+				statusEl.style.color = '#ffc107';
+			}
+			Logger.logOutgoing('AZM', cmd.trim());
+			await serialBridge.send(cmd);
+			setStatus(`Отправлена команда смены адреса на ${addr}`);
+		} catch (e) {
+			const statusEl = document.getElementById('remote-config-status');
+			if (statusEl) {
+				statusEl.textContent = '✗ Ошибка отправки';
+				statusEl.style.color = '#dc3545';
+			}
+			alert('Ошибка отправки: ' + e.message);
 		}
 	}
 
@@ -1610,7 +1723,9 @@ const App = (() => {
 		buildAntennaTable: () => UIAntennaCalibration.buildTable(),
 		applyAntennaTable: () => UIAntennaCalibration.applyTable(),
 		downloadAntennaTable: () => UIAntennaCalibration.downloadTable(),
-		loadPOI, clearPOI, markBeaconPoint,	exportPOI_CSV,		
+		loadPOI, clearPOI, markBeaconPoint,	exportPOI_CSV,
+		toggleRemoteConfig,
+		sendRemoteConfig,
 	};
 
 })();
