@@ -321,6 +321,10 @@ const AZMManager = (() => {
             case 'strstp':
                 state.isInterrogationActive = (parsed.addrMask !== 0);
                 return { type: 'strstp', data: parsed };
+			case 'rsts':
+				return { type: 'rsts', data: parsed };
+			case 'ack':
+				return { type: 'ack', data: parsed };
             default: return null;
         }
     }

@@ -188,29 +188,31 @@ const AZMParser = (() => {
         };
     }
 
-    function parseDINFO(fields) {
-        const deviceType = safeInt(fields[0]) || 0;
-        let addrMask = 0;
-        let remoteAddr = RemoteAddr.REM_ADDR_INVALID;
+	function parseDINFO(fields) {
+		const deviceType = safeInt(fields[0]) || 0;
+		let addrMask = 0;
+		let remoteAddr = RemoteAddr.REM_ADDR_INVALID;
 
-        if (deviceType === DeviceType.DT_USBL_TSV || deviceType === DeviceType.DT_LBL_TSV) {
-            addrMask = safeInt(fields[1]) || 0;
-        } else if (deviceType === DeviceType.DT_REMOTE) {
-            remoteAddr = safeInt(fields[1]) || RemoteAddr.REM_ADDR_INVALID;
-        }
+		if (deviceType === DeviceType.DT_USBL_TSV || deviceType === DeviceType.DT_LBL_TSV) {
+			addrMask = safeInt(fields[1]);
+			if (isNaN(addrMask)) addrMask = 0;
+		} else if (deviceType === DeviceType.DT_REMOTE) {
+			remoteAddr = safeInt(fields[1]);
+			if (isNaN(remoteAddr)) remoteAddr = RemoteAddr.REM_ADDR_INVALID;
+		}
 
-        return {
-            type: 'dinfo',
-            deviceType: deviceType,
-            addressMask: addrMask,
-            remoteAddress: remoteAddr,
-            serialNumber: fields[2] || '',
-            systemInfo: fields[3] || '',
-            systemVersion: fields[4] || '',
-            ptsType: safeInt(fields[5]) || 0,
-            channelId: safeInt(fields[6]) || 0,
-        };
-    }
+		return {
+			type: 'dinfo',
+			deviceType: deviceType,
+			addressMask: addrMask,
+			remoteAddress: remoteAddr,
+			serialNumber: fields[2] || '',
+			systemInfo: fields[3] || '',
+			systemVersion: fields[4] || '',
+			ptsType: safeInt(fields[5]) || 0,
+			channelId: safeInt(fields[6]) || 0,
+		};
+	}
 
     // ========== ГЛАВНАЯ ФУНКЦИЯ ПАРСИНГА ==========
 
@@ -265,6 +267,13 @@ const AZMParser = (() => {
         return buildSTRSTP(0, NaN, NaN, NaN);
     }
 
+	function buildRSTS(addr, salinityPSU) {
+		return buildSentence(SentenceType.RSTS, [
+			(addr !== null && addr !== undefined) ? addr : '',
+			(!isNaN(salinityPSU) && salinityPSU !== null) ? salinityPSU : ''
+		]);
+	}
+
     // ========== ПУБЛИЧНЫЙ API ==========
 
     return {
@@ -277,6 +286,7 @@ const AZMParser = (() => {
         buildDINFO_GET,
         buildSTRSTP,
         buildBaseStop,
+		buildRSTS,
         safeFloat,
         safeInt,
         nmeaChecksum,
