@@ -16,8 +16,8 @@ const UICalibration = (() => {
     let logOutgoingCallback = null;
     let recalcAllBeacons = null;
     let parseCalibrationFile = null;
-    let loadAntennaCalibrationCallback = null;  // ← добавить
-    let resetAntennaCalibrationCallback = null; // ← добавить
+    let loadAntennaCalibrationCallback = null;
+    let resetAntennaCalibrationCallback = null;
     
     function init(panelId, callbacks) {
         calibrationPanel = document.getElementById(panelId);
@@ -33,8 +33,8 @@ const UICalibration = (() => {
         logOutgoingCallback = callbacks.logOutgoing;
         recalcAllBeacons = callbacks.recalcAllBeacons;
         parseCalibrationFile = callbacks.parseCalibrationFile;
-        loadAntennaCalibrationCallback = callbacks.loadAntennaCalibration;    // ← сохраняем
-        resetAntennaCalibrationCallback = callbacks.resetAntennaCalibration;  // ← сохраняем
+        loadAntennaCalibrationCallback = callbacks.loadAntennaCalibration;
+        resetAntennaCalibrationCallback = callbacks.resetAntennaCalibration;
     }
     
     function toggle() {

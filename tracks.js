@@ -75,6 +75,10 @@ const TrackManager = (() => {
 	function drawStationTrack(ctx, offsetX, offsetY, scale) {
 		if (stationTrack.length < 2) return;
 
+		const rootStyles = getComputedStyle(document.documentElement);
+		const stationGlow = rootStyles.getPropertyValue('--track-station-glow').trim() || 'rgba(0, 255, 255, 0.2)';
+		const stationLine = rootStyles.getPropertyValue('--track-station-line').trim() || 'rgba(0, 255, 255, 0.7)';
+
 		const drawCount = settings.maxPointsPerTrack;
 		const startIdx = Math.max(0, stationTrack.length - drawCount);
 
@@ -89,7 +93,7 @@ const TrackManager = (() => {
 			else { ctx.lineTo(x, y); }
 		}
 		if (!first) {
-			ctx.strokeStyle = 'rgba(0, 255, 255, 0.2)';
+			ctx.strokeStyle = stationGlow;
 			ctx.lineWidth = 6;
 			ctx.stroke();
 		}
@@ -105,7 +109,7 @@ const TrackManager = (() => {
 			else { ctx.lineTo(x, y); }
 		}
 		if (!first) {
-			ctx.strokeStyle = 'rgba(0, 255, 255, 0.7)';
+			ctx.strokeStyle = stationLine;
 			ctx.lineWidth = 2.5;
 			ctx.stroke();
 		}
@@ -205,6 +209,10 @@ const TrackManager = (() => {
 	function drawTracks(ctx, offsetX, offsetY, scale) {
 		if (!settings.showTracks) return;
 
+		const rootStyles = getComputedStyle(document.documentElement);
+		const trackGlowAlpha = parseFloat(rootStyles.getPropertyValue('--track-beacon-glow-alpha').trim()) || 0.2;
+		const trackLineAlpha = parseFloat(rootStyles.getPropertyValue('--track-beacon-line-alpha').trim()) || 0.8;
+
 		for (const addr in tracks) {
 			const track = tracks[addr];
 			if (track.length < 2) continue;
@@ -234,7 +242,7 @@ const TrackManager = (() => {
 				else { ctx.lineTo(x, y); }
 			}
 			if (!first) {
-				ctx.strokeStyle = `hsla(${hue}, 80%, 65%, 0.2)`;
+				ctx.strokeStyle = `hsla(${hue}, 80%, 65%, ${trackGlowAlpha})`;
 				ctx.lineWidth = 7;
 				ctx.stroke();
 			}
@@ -260,7 +268,7 @@ const TrackManager = (() => {
 				else { ctx.lineTo(x, y); }
 			}
 			if (!first) {
-				ctx.strokeStyle = `hsla(${hue}, 70%, 60%, 0.8)`;
+				ctx.strokeStyle = `hsla(${hue}, 70%, 60%, ${trackLineAlpha})`;
 				ctx.lineWidth = 3;
 				ctx.stroke();
 			}

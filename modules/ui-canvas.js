@@ -65,17 +65,17 @@ const UICanvas = (() => {
     function getCanvasWidth() { return canvas.width; }
     function getCanvasHeight() { return canvas.height; }
     
-    function getCanvasColors() {
-        const Themes = getThemes ? getThemes() : null;
-        if (Themes) return Themes.getCanvasColors();
-        
-        const isLight = document.documentElement.classList.contains('theme-light');
-        return {
-            text: isLight ? '#1a1a1a' : '#ffffff',
-            textSecondary: isLight ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)',
-            stroke: isLight ? '#1a1a1a' : '#ffffff'
-        };
-    }
+	function getCanvasColors() {
+		const Themes = getThemes ? getThemes() : null;
+		if (Themes) return Themes.getCanvasColors();
+		
+		const rootStyles = getComputedStyle(document.documentElement);
+		return {
+			text: rootStyles.getPropertyValue('--map-text').trim() || '#ffffff',
+			textSecondary: rootStyles.getPropertyValue('--map-text-secondary').trim() || 'rgba(255,255,255,0.8)',
+			stroke: rootStyles.getPropertyValue('--map-stroke').trim() || '#ffffff'
+		};
+	}
     
     function drawGrid() {
         const gridSize = 50;
@@ -134,6 +134,9 @@ const UICanvas = (() => {
         
         const st = AZMManager.getState();
         const cc = getCanvasColors();
+		
+		const rootStyles = getComputedStyle(document.documentElement);
+		const antennaHeadingColor = rootStyles.getPropertyValue('--antenna-heading-color').trim() || '#ff4444';
         
         let ax = offsetX, ay = offsetY;
         if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg) && TrackManager) {
@@ -169,9 +172,9 @@ const UICanvas = (() => {
             const hx = ax + 35 * Math.sin(ang);
             const hy = ay - 35 * Math.cos(ang);
             ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(hx, hy);
-            ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 3; ctx.stroke();
-            ctx.beginPath(); ctx.arc(hx, hy, 5, 0, 2 * Math.PI);
-            ctx.fillStyle = '#ff4444'; ctx.fill();
+            ctx.strokeStyle = antennaHeadingColor; ctx.lineWidth = 3; ctx.stroke();
+			ctx.beginPath(); ctx.arc(hx, hy, 5, 0, 2 * Math.PI);
+			ctx.fillStyle = antennaHeadingColor; ctx.fill();
         }
         
         ctx.fillStyle = cc.text;
@@ -194,7 +197,10 @@ const UICanvas = (() => {
         }
         
         const cc = getCanvasColors();
-        const anchor = TrackManager ? TrackManager.getAnchor() : { lat: NaN, lon: NaN };
+		const rootStyles = getComputedStyle(document.documentElement);
+		const timeoutColor = rootStyles.getPropertyValue('--beacon-timeout-color').trim() || '#dc3545';
+		const warningColor = rootStyles.getPropertyValue('--beacon-warning-color').trim() || '#ffc107';
+        const anchor = TrackManager ? TrackManager.getAnchor() : { lat: NaN, lon: NaN };		
         
         beacons.forEach(b => {
             let x, y, dist, azm;
@@ -265,12 +271,12 @@ const UICanvas = (() => {
             }
             
             if (b.isTimeout) {
-                ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#dc3545';
-                ctx.fillText('✕', x + 15, y - 17);
-            } else if (age > 8) {
-                ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#ffc107';
-                ctx.fillText('!', x + 15, y - 17);
-            }
+				ctx.font = 'bold 14px Arial'; ctx.fillStyle = timeoutColor;
+				ctx.fillText('✕', x + 15, y - 17);
+			} else if (age > 8) {
+				ctx.font = 'bold 14px Arial'; ctx.fillStyle = warningColor;
+				ctx.fillText('!', x + 15, y - 17);
+			}
         });
     }
     
@@ -284,6 +290,9 @@ const UICanvas = (() => {
         if (!beacons || beacons.length === 0) return;
         
         const anchor = TrackManager ? TrackManager.getAnchor() : { lat: NaN, lon: NaN };
+		
+		const rootStyles = getComputedStyle(document.documentElement);
+		const rejectedColor = rootStyles.getPropertyValue('--beacon-rejected-color').trim() || 'rgba(128,128,128,0.45)';
         
         beacons.forEach(b => {
             if (isNaN(b.rejectedDistanceM) || isNaN(b.rejectedAzimuthDeg)) return;
@@ -308,7 +317,7 @@ const UICanvas = (() => {
             if (isNaN(x) || isNaN(y)) return;
             
             const size = 8;
-            ctx.strokeStyle = 'rgba(128, 128, 128, 0.45)';
+            ctx.strokeStyle = rejectedColor;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(x - size, y - size);
@@ -319,12 +328,12 @@ const UICanvas = (() => {
             
             ctx.beginPath();
             ctx.arc(x, y, 5, 0, 2 * Math.PI);
-            ctx.strokeStyle = 'rgba(128, 128, 128, 0.35)';
+            ctx.strokeStyle = rejectedColor;
             ctx.lineWidth = 1;
             ctx.stroke();
             
             ctx.font = '9px Arial';
-            ctx.fillStyle = 'rgba(128, 128, 128, 0.6)';
+            ctx.fillStyle = rejectedColor;
             ctx.textAlign = 'center';
             ctx.fillText(`${b.rejectedDistanceM.toFixed(0)}м`, x, y - 12);
         });
@@ -342,6 +351,7 @@ const UICanvas = (() => {
         const by = canvas.height - 25;
         
         const cc = getCanvasColors();
+		const rootStyles = getComputedStyle(document.documentElement);
         
         ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + dp, by);
         ctx.strokeStyle = cc.stroke; ctx.lineWidth = 3; ctx.stroke();
@@ -349,7 +359,8 @@ const UICanvas = (() => {
         ctx.beginPath(); ctx.moveTo(bx + dp, by - 6); ctx.lineTo(bx + dp, by + 6); ctx.stroke();
         
         ctx.font = 'bold 11px Arial'; ctx.fillStyle = cc.text; ctx.textAlign = 'center';
-        ctx.shadowColor = document.documentElement.classList.contains('theme-light') ? 'rgba(255,255,255,0.8)' : '#000';
+        const shadowColor = rootStyles.getPropertyValue('--scale-shadow').trim() || '#000';
+		ctx.shadowColor = shadowColor;
         ctx.shadowBlur = 4;
         ctx.fillText(dm >= 1000 ? `${(dm / 1000).toFixed(1)} км` : `${Math.round(dm)} м`, bx + dp / 2, by - 12);
         ctx.shadowBlur = 0;
@@ -362,6 +373,11 @@ const UICanvas = (() => {
 		const AZMManager = getAZMManager ? getAZMManager() : null;
 		const TrackManager = getTrackManager ? getTrackManager() : null;
 		const cc = getCanvasColors();
+		
+		const rootStyles = getComputedStyle(document.documentElement);
+		const poiMarkedColor = rootStyles.getPropertyValue('--poi-marked-color').trim() || '#ffcc00';
+		const poiLoadedColor = rootStyles.getPropertyValue('--poi-loaded-color').trim() || '#ff6600';
+		
 		const anchor = TrackManager ? TrackManager.getAnchor() : { lat: NaN, lon: NaN };
 		const st = AZMManager ? AZMManager.getState() : null;
 		
@@ -386,7 +402,7 @@ const UICanvas = (() => {
 			
 			// Маркер
 			const size = 10;
-			ctx.fillStyle = poi.type === 'marked' ? '#ffcc00' : '#ff6600';
+			ctx.fillStyle = poi.type === 'marked' ? poiMarkedColor : poiLoadedColor;
 			ctx.strokeStyle = cc.stroke;
 			ctx.lineWidth = 1.5;
 			
