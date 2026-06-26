@@ -81,6 +81,32 @@ class SerialBridge {
 	/**
 	 * Сбрасывает старые данные из буфера сразу после открытия порта
 	 */
+	 
+async _drainStaleData() {
+    if (!this.port || !this.port.readable) return;
+
+    const reader = this.port.readable.getReader();
+    try {
+        let keepReading = 10;
+        while (keepReading > 0) {
+            try {
+                const readPromise = reader.read();
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('drain_timeout')), 100)
+                );
+                const { done } = await Promise.race([readPromise, timeoutPromise]);
+                if (done) { keepReading = 0; }
+                else { keepReading--; }
+            } catch (err) {
+                keepReading = 0; // таймаут — выходим
+            }
+        }
+    } finally {
+        try { reader.releaseLock(); } catch (e) {}
+    }
+}	 
+	 
+/*	 
 	async _drainStaleData() {
 		if (!this.port || !this.port.readable) {
 			return;
@@ -115,6 +141,7 @@ class SerialBridge {
 			}
 		}
 	}
+*/
 
     /**
      * Send raw string to port

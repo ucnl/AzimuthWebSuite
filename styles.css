@@ -53,6 +53,23 @@
     --map-axis: rgba(255, 255, 255, 0.25);
     --map-text: #ffffff;
     --antenna-fill: rgba(0, 255, 255, 0.5);
+	
+	--btn-theme: #555;
+	--btn-gnss: #8e44ad;
+	--btn-export: #20c997;
+	--btn-tools: #fd7e14;
+	--btn-log: #555;
+	--btn-log-hover: #777;
+
+	--ruler-line: #ff4444;
+	--ruler-line-rubber: #ff8888;
+	--ruler-point-fill: #ff4444;
+	--ruler-point-stroke: #ffffff;
+	--ruler-text: #ff4444;
+	--ruler-text-rubber: #ff8888;
+	
+	--btn-close: #6c757d;
+	--btn-close-hover: #5a6268;
 }
 
 /* ========== ТЕМА: LIGHT (солнце) ========== */
@@ -100,6 +117,23 @@
     --map-axis: rgba(0, 0, 0, 0.2);
     --map-text: #1a1a1a;
     --antenna-fill: rgba(0, 100, 200, 0.4);
+	
+	--btn-theme: #555;
+	--btn-gnss: #8e44ad;
+	--btn-export: #20c997;
+	--btn-tools: #fd7e14;
+	--btn-log: #555;
+	--btn-log-hover: #777;
+	
+	--ruler-line: #ff4444;
+	--ruler-line-rubber: #ff8888;
+	--ruler-point-fill: #ff4444;
+	--ruler-point-stroke: #ffffff;
+	--ruler-text: #ff4444;
+	--ruler-text-rubber: #ff8888;
+	
+	--btn-close: #6c757d;
+	--btn-close-hover: #5a6268;
 }
 
 /* ========== ТЕМА: DARK CONTRAST (солнце + очки) ========== */
@@ -147,6 +181,23 @@
     --map-axis: rgba(255, 255, 255, 0.6);
     --map-text: #ffffff;
     --antenna-fill: rgba(0, 255, 255, 0.5);
+	
+	--btn-theme: #555;
+	--btn-gnss: #b388ff;
+	--btn-export: #64ffda;
+	--btn-tools: #ffd740;
+	--btn-log: #555;
+	--btn-log-hover: #777;
+	
+	--ruler-line: #ff4444;
+	--ruler-line-rubber: #ff8888;
+	--ruler-point-fill: #ff4444;
+	--ruler-point-stroke: #ffffff;
+	--ruler-text: #ff4444;
+	--ruler-text-rubber: #ff8888;
+	
+	--btn-close: #6c757d;
+	--btn-close-hover: #5a6268;
 }
 
 /* ========== ТЕМА: JACK BLACK (Черный фон, белый текст, серые акценты) ========== */
@@ -157,46 +208,63 @@
     --bg-card: #0f0f0f;
     --bg-input: #000000;
     --bg-overlay: rgba(10, 10, 10, 0.95);
-    --bg-timeout: #2a0a0a;
+    --bg-timeout: #1a0a0a;
     
     --border-primary: #444444;
-    --border-accent: #e0e0e0;
-    --border-success: #666666;
-    --border-warning: #888888;
-    --border-danger: #ff4444;
+    --border-accent: #ffffff;
+    --border-success: #888888;
+    --border-warning: #aaaaaa;
+    --border-danger: #666666;
     
     --text-primary: #ffffff;
     --text-secondary: #aaaaaa;
     --text-muted: #666666;
     --text-accent: #cccccc;
     --text-warning: #ffaa00;
-    --text-info: #88aacc;
+    --text-info: #aaaacc;
     
     --btn-connect: #333333;
-    --btn-connect-hover: #4d4d4d;
-    --btn-disconnect: #ff4444;
-    --btn-disconnect-hover: #cc0000;
-    --btn-start: #555555;
-    --btn-start-hover: #707070;
-    --btn-stop: #888888;
-    --btn-stop-hover: #aaaaaa;
-    --btn-topo: #666666;
-    --btn-topo-hover: #808080;
-    --btn-topo-active: #cccccc;
-    --btn-settings: #444444;
-    --btn-settings-hover: #666666;
+    --btn-connect-hover: #555555;
+    --btn-disconnect: #444444;
+    --btn-disconnect-hover: #666666;
+    --btn-start: #333333;
+    --btn-start-hover: #555555;
+    --btn-stop: #555555;
+    --btn-stop-hover: #777777;
+    --btn-topo: #444444;
+    --btn-topo-hover: #666666;
+    --btn-topo-active: #888888;
+    --btn-settings: #333333;
+    --btn-settings-hover: #555555;
     
     --shadow: 0 4px 20px rgba(255, 255, 255, 0.05);
     --scale-color: #ffffff;
-    --btn-text: #000000;  /* На кнопках темный текст для контраста */
-	
-	--map-grid: rgba(255, 255, 255, 0.3);
+    --btn-text: #cccccc;
+    
+    --map-grid: rgba(255, 255, 255, 0.3);
     --map-axis: rgba(255, 255, 255, 0.6);
     --map-text: #ffffff;
-    --antenna-fill: rgba(0, 255, 255, 0.5);
+    --antenna-fill: rgba(255, 255, 255, 0.3);
+	
+	--btn-theme: #444;
+	--btn-gnss: #666;
+	--btn-export: #555;
+	--btn-tools: #555;
+	--btn-log: #444;
+	--btn-log-hover: #777;
+	
+	--ruler-line: #ffffff;
+	--ruler-line-rubber: #aaaaaa;
+	--ruler-point-fill: #ffffff;
+	--ruler-point-stroke: #000000;
+	--ruler-text: #ffffff;
+	--ruler-text-rubber: #aaaaaa;
+	
+	--btn-close: #6c757d;
+	--btn-close-hover: #5a6268;
 }
 
-/* ========== ТЕМА: JACK WHITE (Белый фон, черный текст, серые акценты) ========== */
+/* ========== ТЕМА: JACK WHITE (Белый фон, черный текст, серые акценты, редкий красный) ========== */
 :root.theme-jack-white {
     --bg-primary: #ffffff;
     --bg-secondary: #f0f0f0;
@@ -208,7 +276,7 @@
     
     --border-primary: #cccccc;
     --border-accent: #000000;
-    --border-success: #444444;
+    --border-success: #666666;
     --border-warning: #888888;
     --border-danger: #cc0000;
     
@@ -216,11 +284,11 @@
     --text-secondary: #444444;
     --text-muted: #888888;
     --text-accent: #000000;
-    --text-warning: #cc5500;
-    --text-info: #0044cc;
+    --text-warning: #cc0000;
+    --text-info: #333366;
     
     --btn-connect: #333333;
-    --btn-connect-hover: #1a1a1a;
+    --btn-connect-hover: #000000;
     --btn-disconnect: #cc0000;
     --btn-disconnect-hover: #990000;
     --btn-start: #000000;
@@ -231,16 +299,33 @@
     --btn-topo-hover: #222222;
     --btn-topo-active: #000000;
     --btn-settings: #555555;
-    --btn-settings-hover: #777777;
+    --btn-settings-hover: #333333;
     
     --shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     --scale-color: #000000;
-    --btn-text: #ffffff;  /* На кнопках белый текст */
-	
-	--map-grid: rgba(0, 0, 0, 0.15);
+    --btn-text: #ffffff;
+    
+    --map-grid: rgba(0, 0, 0, 0.15);
     --map-axis: rgba(0, 0, 0, 0.35);
     --map-text: #000000;
-    --antenna-fill: rgba(0, 100, 200, 0.4);
+    --antenna-fill: rgba(200, 0, 0, 0.2);
+	
+	--btn-theme: #888;
+	--btn-gnss: #666;
+	--btn-export: #777;
+	--btn-tools: #777;
+	--btn-log: #888;
+	--btn-log-hover: #777;
+	
+	--ruler-line: #cc0000;
+	--ruler-line-rubber: #ff6666;
+	--ruler-point-fill: #cc0000;
+	--ruler-point-stroke: #ffffff;
+	--ruler-text: #cc0000;
+	--ruler-text-rubber: #ff6666;
+	
+	--btn-close: #6c757d;
+	--btn-close-hover: #5a6268;
 }
 
 /* ========== ТЕМА: VAX (Вырвиглазно-зеленый на черном, в стиле терминалов VAX/VT) ========== */
@@ -251,43 +336,61 @@
     --bg-card: #0a0f0a;
     --bg-input: #000000;
     --bg-overlay: rgba(0, 0, 0, 0.95);
-    --bg-timeout: #1a0a0a;
+    --bg-timeout: #0a1a0a;
     
     --border-primary: #1aff1a;
     --border-accent: #39ff14;
     --border-success: #00ff00;
-    --border-warning: #ccff00;
-    --border-danger: #ff3333;
+    --border-warning: #33ff33;
+    --border-danger: #00cc00;
     
     --text-primary: #33ff33;
     --text-secondary: #00cc00;
     --text-muted: #006600;
     --text-accent: #66ff66;
-    --text-warning: #ccff00;
-    --text-info: #00ffff;
+    --text-warning: #33ff33;
+    --text-info: #00ff00;
     
     --btn-connect: #00aa00;
     --btn-connect-hover: #00ff00;
-    --btn-disconnect: #cc0000;
-    --btn-disconnect-hover: #ff3333;
+    --btn-disconnect: #008800;
+    --btn-disconnect-hover: #00cc00;
     --btn-start: #008800;
     --btn-start-hover: #00cc00;
-    --btn-stop: #aaaa00;
-    --btn-stop-hover: #cccc00;
-    --btn-topo: #33ff33;
-    --btn-topo-hover: #66ff66;
-    --btn-topo-active: #ff00ff;
+    --btn-stop: #00aa00;
+    --btn-stop-hover: #00ff00;
+    --btn-topo: #00aa00;
+    --btn-topo-hover: #00ff00;
+    --btn-topo-active: #00ff00;
     --btn-settings: #00aa00;
     --btn-settings-hover: #00ff00;
     
     --shadow: 0 0 20px rgba(0, 255, 0, 0.2);
     --scale-color: #33ff33;
-    --btn-text: #000000;  /* На зеленых кнопках черный текст читается лучше */
-	
-	--map-grid: rgba(51, 255, 51, 0.25);
+    --btn-text: #000000;
+    
+    --map-grid: rgba(51, 255, 51, 0.25);
     --map-axis: rgba(51, 255, 51, 0.6);
     --map-text: #33ff33;
     --antenna-fill: rgba(51, 255, 51, 0.3);
+	
+	--btn-theme: #008800;
+	--btn-gnss: #00aa00;
+	--btn-export: #00aa00;
+	--btn-tools: #00aa00;
+	--btn-log: #00aa00;
+	--btn-log-hover: #00ff00;
+	
+	
+	--ruler-line: #33ff33;
+	--ruler-line-rubber: #66ff66;
+	--ruler-point-fill: #33ff33;
+	--ruler-point-stroke: #000000;
+	--ruler-text: #33ff33;
+	--ruler-text-rubber: #66ff66;
+	
+	--btn-close: #006600;
+	--btn-close-hover: #009900;
 }
 
 html, body {
@@ -383,6 +486,13 @@ body {
 }
 .top-btn:active:not(:disabled) { transform: scale(0.96); }
 
+.btn-theme { background: var(--btn-theme); color: var(--btn-text); }
+.btn-gnss { background: var(--btn-gnss); color: var(--btn-text); }
+.btn-export { background: var(--btn-export); color: var(--btn-text); }
+.btn-tools { background: var(--btn-tools); color: var(--btn-text); }
+.btn-log { background: var(--btn-log); color: var(--btn-text); }
+
+
 .btn-connect { background: var(--btn-connect); color: var(--btn-text); }
 .btn-connect:hover:not(:disabled) { background: var(--btn-connect-hover); box-shadow: 0 2px 12px rgba(40,167,69,0.3); }
 
@@ -402,8 +512,8 @@ body {
 .btn-settings { background: var(--btn-settings); color: var(--btn-text); }
 .btn-settings:hover:not(:disabled) { background: var(--btn-settings-hover); }
 
-.btn-log { background: #555; color: #fff; font-size: 11px; padding: 5px 10px; }
-.btn-log:hover:not(:disabled) { background: #777; }
+.btn-log { background: var(--btn-log); color: var(--btn-text); font-size: 11px; padding: 5px 10px; }
+.btn-log:hover:not(:disabled) { background: var(--btn-log-hover, #777); }
 .btn-log.recording { background: #dc3545; animation: pulse 1s infinite; }
 .btn-log.playing { background: #28a745; }
 
@@ -648,8 +758,8 @@ body {
 .btn-get-gnss:hover { background: var(--btn-start-hover); }
 .btn-apply-topo { background: var(--btn-connect); color: #fff; }
 .btn-apply-topo:hover { background: var(--btn-connect-hover); }
-.btn-cancel-topo { background: #6c757d; color: #fff; }
-.btn-cancel-topo:hover { background: #5a6268; }
+.btn-cancel-topo { background: var(--btn-close); color: var(--btn-text); }
+.btn-cancel-topo:hover { background: var(--btn-close-hover); }
 
 .btn-reset-topo {
     flex: 1;
@@ -850,8 +960,8 @@ body {
 }
 .btn-apply { background: var(--btn-connect); color: #fff; }
 .btn-apply:hover { background: var(--btn-connect-hover); }
-.btn-close-settings { background: #6c757d; color: #fff; }
-.btn-close-settings:hover { background: #5a6268; }
+.btn-close-settings { background: var(--btn-close); color: var(--btn-text); }
+.btn-close-settings:hover { background: var(--btn-close-hover); }
 
 /* ========== ПАНЕЛЬ ТРЕКОВ (на карте) ========== */
 #tracks-control {
