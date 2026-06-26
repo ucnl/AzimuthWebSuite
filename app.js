@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.3.0';
+    const APP_VERSION = '1.3.1';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -789,10 +789,10 @@ const App = (() => {
 		// Кнопка GNSS
 		if (isGnssConnected) {
 			btnGnss.textContent = '⏏ GNSS';
-			btnGnss.style.background = '#dc3545';
+			btnGnss.className = 'top-btn btn-disconnect';
 		} else {
 			btnGnss.textContent = '📡 GNSS';
-			btnGnss.style.background = '#8e44ad';
+			btnGnss.className = 'top-btn btn-gnss';
 		}
 
 		// Кнопка опроса

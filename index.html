@@ -18,17 +18,15 @@
             <span id="device-label">Zima2 USBL</span>
             <span id="status-text">Не подключено</span>
 						
-			<button id="btn-theme" class="top-btn" onclick="App.cycleTheme()" style="background:#555; color:#fff;" title="Тема">🎨</button>
-            
+			<button id="btn-theme" class="top-btn btn-theme" onclick="App.cycleTheme()" title="Тема">🎨</button>            
             <button id="btn-connection" class="top-btn btn-connect" onclick="App.toggleConnection()">🔌 AZM</button>
-			<button id="btn-gnss" class="top-btn" onclick="App.toggleGNSS()" style="background:#8e44ad; color:#fff;">📡 GNSS</button>
-			<button id="btn-interrogation" class="top-btn btn-start" onclick="App.toggleInterrogation()" disabled>▶ Опрос</button>
-			
+			<button id="btn-gnss" class="top-btn btn-gnss" onclick="App.toggleGNSS()">📡 GNSS</button>
+			<button id="btn-interrogation" class="top-btn btn-start" onclick="App.toggleInterrogation()" disabled>▶ Опрос</button>			
             <button id="btn-settings" class="top-btn btn-settings" onclick="App.openSettings()" >⚙ Настройки</button>
 			
 			<!-- Выпадающая кнопка Инструменты -->
 			<div class="dropdown" style="display:inline-block; position:relative;">
-				<button class="top-btn" onclick="App.toggleDropdown('tools-dropdown')" style="background:#fd7e14; color:#fff;">🔧 Инструменты ▾</button>
+				<button class="top-btn btn-tools" onclick="App.toggleDropdown('tools-dropdown')">🔧 Инструменты ▾</button>
 				<div id="tools-dropdown" class="dropdown-menu" style="display:none; position:absolute; top:100%; right:0; z-index:300; min-width:200px;">
 					<div class="dropdown-item" onclick="App.toggleTopoPanel(); App.closeAllDropdowns();">🌐 Ручная топопривязка</div>
 					
@@ -54,7 +52,7 @@
 						
 			<!-- Выпадающая кнопка Экспорт -->
 			<div class="dropdown" style="display:inline-block; position:relative;">
-				<button class="top-btn" onclick="App.toggleDropdown('export-dropdown')" style="background:#20c997; color:#fff;">📤 Экспорт ▾</button>
+				<button class="top-btn btn-export" onclick="App.toggleDropdown('export-dropdown')">📤 Экспорт ▾</button>
 				<div id="export-dropdown" class="dropdown-menu" style="display:none; position:absolute; top:100%; right:0; z-index:300; min-width:170px;">
 					<div class="dropdown-item" onclick="App.exportCSV(); App.closeAllDropdowns();">📊 CSV (Антенна + маяк)</div>
 					<div class="dropdown-item" onclick="App.exportGGA(); App.closeAllDropdowns();">📡 NMEA GGA (Маяк)</div>
@@ -67,7 +65,7 @@
 
 			<!-- Выпадающая кнопка Лог -->
 			<div class="dropdown" style="display:inline-block; position:relative;">
-				<button class="top-btn" onclick="App.toggleDropdown('log-dropdown')" style="background:#555; color:#fff;">📋 Лог ▾</button>					
+				<button class="top-btn btn-log" onclick="App.toggleDropdown('log-dropdown')">📋 Лог ▾</button>				
 				<div id="log-dropdown" class="dropdown-menu" style="display:none; position:absolute; top:100%; right:0; z-index:300; min-width:170px;">
 					<div class="dropdown-item" onclick="App.saveLog(); App.closeAllDropdowns();">💾 Сохранить</div>
 					<div id="log-load-item" class="dropdown-item" onclick="App.loadLog(); App.closeAllDropdowns();">📂 Открыть</div>
@@ -101,13 +99,13 @@
 				<button class="track-btn active" id="btn-tracks-show" onclick="App.toggleTracks()">📐 Треки</button>
 				<button class="track-btn" id="btn-tracks-clear" onclick="App.clearTracks()">🗑 Очистить</button>
 				<button id="btn-ruler" class="track-btn" onclick="App.toggleRuler()">📏 Линейка</button>
-				<div id="playback-progress" style="display:none; width:150px; height:4px; background:#333; border-radius:2px;">
-					<div id="playback-progress-fill" style="width:0%; height:100%; background:#4a90e2; border-radius:2px;"></div>
+				<div id="playback-progress" style="display:none; width:150px; height:4px; background:var(--bg-tertiary); border-radius:2px;">
+					<div id="playback-progress-fill" style="width:0%; height:100%; background:var(--btn-start); border-radius:2px;"></div>
 				</div>
 				<div id="playback-speed-control" style="display:none; margin-left:10px; align-items:center; gap:5px;">
-					<button id="btn-speed-down" class="track-btn" style="background:#555; width:32px;">−</button>
-					<span id="playback-speed-current" style="background:#4a90e2; padding:4px 10px; border-radius:4px; font-size:12px; font-weight:bold;">1x</span>
-					<button id="btn-speed-up" class="track-btn" style="background:#555; width:32px;">+</button>
+					<button id="btn-speed-down" class="track-btn" style="width:32px;">−</button>
+					<span id="playback-speed-current" style="background:var(--btn-start); padding:4px 10px; border-radius:4px; font-size:12px; font-weight:bold;">1x</span>
+					<button id="btn-speed-up" class="track-btn" style="width:32px;">+</button>
 				</div>
 			</div>
 
@@ -139,8 +137,8 @@
             </div>
 			
 			<!-- Панель калибровки -->
-			<div id="calibration-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(22,33,62,0.95); border:2px solid #fd7e14; border-radius:12px; padding:20px; z-index:100; min-width:280px; backdrop-filter:blur(10px);">
-				<h3 style="color:#fd7e14; text-align:center; margin-bottom:16px;">🔧 Калибровка φ</h3>
+			<div id="calibration-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-overlay); border:2px solid var(--border-accent); border-radius:12px; padding:20px; z-index:100; min-width:280px; backdrop-filter:blur(10px);">
+			<h3 style="color:var(--border-accent); text-align:center; margin-bottom:16px;">🔧 Калибровка φ</h3>
 				<div class="topo-row">
 					<label>От угла (°):</label>
 					<input type="number" id="cfg-cal-from" value="0" min="0" max="360" step="1">
@@ -157,7 +155,7 @@
 					<label>Точек:</label>
 					<input type="number" id="cfg-cal-points" value="100" min="10" max="1000" step="10">
 				</div>
-				<div id="cal-status" style="text-align:center; font-size:12px; color:#aaa; margin:10px 0;">Собрано: 0</div>
+				<div id="cal-status" style="text-align:center; font-size:12px; color:var(--text-secondary); margin:10px 0;">Собрано: 0</div>
 				<div class="topo-buttons">
 					<button id="btn-cal-start" class="top-btn btn-get-gnss" onclick="App.startCalibration()">▶ Старт</button>
 					<button id="btn-cal-stop" class="top-btn btn-reset-topo" onclick="App.stopCalibration()" disabled>⏹ Стоп</button>
@@ -166,8 +164,8 @@
 			</div>
 			
 			<!-- Панель настройки маяка -->
-			<div id="remote-config-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-overlay); border:2px solid #6f42c1; border-radius:12px; padding:20px; z-index:100; min-width:280px; backdrop-filter:blur(10px);">
-				<h3 style="color:#6f42c1; text-align:center; margin-bottom:16px;">⚙ Настройка маяка</h3>
+			<div id="remote-config-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-overlay); border:2px solid var(--btn-topo-active); border-radius:12px; padding:20px; z-index:100; min-width:280px; backdrop-filter:blur(10px);">
+				<h3 style="color:var(--btn-topo-active); text-align:center; margin-bottom:16px;">⚙ Настройка маяка</h3>
 				<div style="text-align:center; font-size:12px; color:var(--text-secondary); margin-bottom:12px;">
 					Текущий адрес: <span id="remote-current-addr" style="color:var(--text-accent); font-weight:700;">--</span>
 				</div>
@@ -179,7 +177,7 @@
 					<label>Солёность (PSU):</label>
 					<input type="number" id="cfg-remote-salinity" value="0" min="0" max="40" step="0.1">
 				</div>
-				<div id="remote-config-status" style="text-align:center; font-size:12px; color:#aaa; margin:10px 0; min-height:18px;"></div>
+				<div id="remote-config-status" style="text-align:center; font-size:12px; color:var(--text-secondary); margin:10px 0; min-height:18px;"></div>
 				<div class="topo-buttons">
 					<button class="btn-apply-topo" onclick="App.sendRemoteConfig()">📤 Отправить</button>
 					<button class="btn-cancel-topo" onclick="App.toggleRemoteConfig()">✕ Закрыть</button>
@@ -187,24 +185,24 @@
 			</div>
 			
 			<!-- Панель для разных отчетов -->
-			<div id="analysis-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-overlay); border:2px solid #20c997; border-radius:12px; padding:20px; z-index:100; max-width:500px; max-height:70vh; overflow-y:auto; backdrop-filter:blur(10px);">
-				<h3 id="analysis-title" style="color:#20c997; text-align:center; margin-bottom:12px;">🔍 Анализ лога</h3>
+			<div id="analysis-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-overlay); border:2px solid var(--btn-export); border-radius:12px; padding:20px; z-index:100; max-width:500px; max-height:70vh; overflow-y:auto; backdrop-filter:blur(10px);">
+				<h3 id="analysis-title" style="color:var(--btn-export); text-align:center; margin-bottom:12px;">🔍 Анализ лога</h3>
 				<div id="analysis-content" style="font-size:12px; line-height:1.6;"></div>
 				<div style="display:flex; gap:8px; margin-top:12px;">
-					<button onclick="App.copyAnalysis()" style="flex:1; padding:8px; background:var(--btn-start); color:#fff; border:none; border-radius:4px; cursor:pointer;">📋 Копировать</button>
-					<button id="analysis-download-btn" onclick="App.downloadDRMS()" style="flex:1; padding:8px; background:#20c997; color:#fff; border:none; border-radius:4px; cursor:pointer; display:none;">💾 Скачать CSV</button>
-					<button onclick="App.closeAnalysis()" style="flex:1; padding:8px; background:#6c757d; color:#fff; border:none; border-radius:4px; cursor:pointer;">✕ Закрыть</button>
+					<button onclick="App.copyAnalysis()" style="flex:1; padding:8px; background:var(--btn-start); color:var(--btn-text); border:none; border-radius:4px; cursor:pointer;">📋 Копировать</button>
+					<button id="analysis-download-btn" onclick="App.downloadDRMS()" style="flex:1; padding:8px; background:var(--btn-export); color:var(--btn-text); border:none; border-radius:4px; cursor:pointer; display:none;">💾 Скачать CSV</button>
+					<button onclick="App.closeAnalysis()" style="flex:1; padding:8px; background:var(--btn-close); color:var(--btn-text); border:none; border-radius:4px; cursor:pointer;">✕ Закрыть</button>
 				</div>
 			</div>
 			
 			<!-- Панель калибровки таблицы антенны -->
-			<div id="antenna-calibration-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(22,33,62,0.95); border:2px solid #ff9800; border-radius:12px; padding:20px; z-index:100; min-width:320px; backdrop-filter:blur(10px);">
-				<h3 style="color:#ff9800; text-align:center; margin-bottom:16px;">📡 Калибровка антенны (таблица)</h3>
+			<div id="antenna-calibration-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-overlay); border:2px solid var(--border-warning); border-radius:12px; padding:20px; z-index:100; min-width:320px; backdrop-filter:blur(10px);">
+				<h3 style="color:var(--border-warning); text-align:center; margin-bottom:16px;">📡 Калибровка антенны (таблица)</h3>
 				
-				<div id="ac-status" style="text-align:center; font-size:14px; color:#fff; margin-bottom:8px;">Собрано точек: 0</div>
-				<div id="ac-progress" style="text-align:center; font-size:12px; color:#aaa; margin-bottom:4px;">Таблица не построена</div>
-				<div id="ac-centroid" style="text-align:center; font-size:11px; color:#ff9800; margin-bottom:4px;">Центроида: недостаточно данных</div>
-				<div id="ac-coverage" style="text-align:center; font-size:11px; color:#aaa; margin-bottom:12px;">Покрытие: --</div>
+				<div id="ac-status" style="text-align:center; font-size:14px; color:var(--text-primary); margin-bottom:8px;">Собрано точек: 0</div>
+				<div id="ac-progress" style="text-align:center; font-size:12px; color:var(--text-secondary); margin-bottom:4px;">Таблица не построена</div>
+				<div id="ac-centroid" style="text-align:center; font-size:11px; color:var(--border-warning); margin-bottom:4px;">Центроида: недостаточно данных</div>
+				<div id="ac-coverage" style="text-align:center; font-size:11px; color:var(--text-secondary); margin-bottom:12px;">Покрытие: --</div>
 				
 				<div class="topo-row">
 					<label>Шаг угла (°):</label>
@@ -214,10 +212,10 @@
 				<div class="topo-buttons" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:12px;">
 					<button id="ac-btn-start" class="top-btn btn-get-gnss" onclick="UIAntennaCalibration.startCalibration()" style="flex:1;">▶ Старт</button>
 					<button id="ac-btn-stop" class="top-btn btn-reset-topo" onclick="UIAntennaCalibration.stopCalibration()" style="flex:1;">⏹ Стоп</button>
-					<button id="ac-btn-build" class="top-btn" onclick="UIAntennaCalibration.buildTable()" style="flex:1; background:#ff9800; color:#fff;">🔨 Построить</button>
-					<button id="ac-btn-apply" class="top-btn" onclick="UIAntennaCalibration.applyTable()" style="flex:1; background:#4caf50; color:#fff;">✓ Применить</button>
-					<button id="ac-btn-download" class="top-btn" onclick="UIAntennaCalibration.downloadTable()" style="flex:1; background:#2196f3; color:#fff;">💾 Скачать</button>
-					<button id="ac-btn-download-full" class="top-btn" onclick="UIAntennaCalibration.downloadFullData()" style="flex:1; background:#6f42c1; color:#fff;">📊 Полный отчёт</button>
+					<button id="ac-btn-build" class="top-btn" onclick="UIAntennaCalibration.buildTable()" style="flex:1; background:var(--border-warning); color:var(--btn-text);">🔨 Построить</button>
+					<button id="ac-btn-apply" class="top-btn" onclick="UIAntennaCalibration.applyTable()" style="flex:1; background:var(--btn-connect); color:var(--btn-text);">✓ Применить</button>
+					<button id="ac-btn-download" class="top-btn" onclick="UIAntennaCalibration.downloadTable()" style="flex:1; background:var(--btn-start); color:var(--btn-text);">💾 Скачать</button>
+					<button id="ac-btn-download-full" class="top-btn" onclick="UIAntennaCalibration.downloadFullData()" style="flex:1; background:var(--btn-topo); color:var(--btn-text);">📊 Полный отчёт</button>
 					<button class="top-btn btn-cancel-topo" onclick="UIAntennaCalibration.close()" style="flex:1;">✕ Закрыть</button>
 				</div>
 			</div>			
@@ -324,11 +322,11 @@
 						<label>Калибровка:</label>
 						<div style="display:flex; gap:4px; flex:1;">
 							<button onclick="App.loadCalibrationFile()" 
-									style="flex:1; padding:6px 8px; font-size:11px; cursor:pointer; background:var(--btn-start); color:#fff; border:none; border-radius:4px;">
+									style="flex:1; padding:6px 8px; font-size:11px; cursor:pointer; background:var(--btn-start); color:var(--btn-text); border:none; border-radius:4px;">
 								📂 Загрузить
 							</button>
 							<button id="btn-reset-calibration" onclick="App.resetCalibration()" 
-									style="flex:1; padding:6px 8px; font-size:11px; cursor:pointer; background:#dc3545; color:#fff; border:none; border-radius:4px; display:none;">
+									style="flex:1; padding:6px 8px; font-size:11px; cursor:pointer; background:var(--btn-disconnect); color:var(--btn-text); border:none; border-radius:4px; display:none;">
 								🗑 Сброс
 							</button>
 						</div>
