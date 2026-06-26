@@ -485,7 +485,9 @@ const App = (() => {
 		}
 		if (statusEl) {
 			statusEl.textContent = `✓ Адрес изменён на ${data.remoteAddr + 1}`;
-			statusEl.style.color = '#4caf50';
+			const rootStyles = getComputedStyle(document.documentElement);
+			const statusSuccess = rootStyles.getPropertyValue('--status-success').trim() || '#4caf50';
+			statusEl.style.color = statusSuccess;
 		}
 		setStatus(`Маяк: адрес изменён на ${data.remoteAddr + 1}`);
 	}
@@ -493,12 +495,15 @@ const App = (() => {
 	function handleACK(data) {
 		const statusEl = document.getElementById('remote-config-status');
 		if (statusEl) {
+			
+			const rootStyles = getComputedStyle(document.documentElement);
+			
 			if (data.result === 0) {
 				statusEl.textContent = '✓ Команда принята';
-				statusEl.style.color = '#4caf50';
+				statusEl.style.color = rootStyles.getPropertyValue('--status-success').trim() || '#4caf50';
 			} else {
 				statusEl.textContent = `✗ Ошибка: код ${data.result}`;
-				statusEl.style.color = '#dc3545';
+				statusEl.style.color = rootStyles.getPropertyValue('--status-error').trim() || '#dc3545';
 			}
 		}
 	}
@@ -875,11 +880,13 @@ const App = (() => {
 		const addr = userAddr - 1;
 		const cmd = AZMParser.buildRSTS(addr, isNaN(salinity) ? null : salinity);
 		
+		const rootStyles = getComputedStyle(document.documentElement);
+		
 		try {
 			const statusEl = document.getElementById('remote-config-status');
 			if (statusEl) {
 				statusEl.textContent = '⏳ Отправка...';
-				statusEl.style.color = '#ffc107';
+				statusEl.style.color = rootStyles.getPropertyValue('--status-warning').trim() || '#ffc107';
 			}
 			Logger.logOutgoing('AZM', cmd.trim());
 			await serialBridge.send(cmd);
@@ -888,7 +895,7 @@ const App = (() => {
 			const statusEl = document.getElementById('remote-config-status');
 			if (statusEl) {
 				statusEl.textContent = '✗ Ошибка отправки';
-				statusEl.style.color = '#dc3545';
+				statusEl.style.color = rootStyles.getPropertyValue('--status-error').trim() || '#dc3545';
 			}
 			alert('Ошибка отправки: ' + e.message);
 		}

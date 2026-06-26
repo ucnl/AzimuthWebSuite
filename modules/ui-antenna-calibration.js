@@ -65,64 +65,59 @@ const UIAntennaCalibration = (() => {
         updateUI();
     }
 
-    function updateUI() {
-        const state = AntennaTableCalibration.getState();
-        
-        if (elStatus) {
-            if (isCollecting) {
-                elStatus.textContent = `⚡ Накопление... Собрано точек: ${state.pointCount}`;
-                elStatus.style.color = '#4caf50';
-            } else {
-                elStatus.textContent = `Собрано точек: ${state.pointCount}`;
-                elStatus.style.color = '#fff';
-            }
-        }
-        
-        if (elProgress) {
-            if (state.hasTable) {
-                elProgress.textContent = `Секторов: ${state.usedSectors}/${state.totalSectors} (${(state.coverage * 100).toFixed(1)}%)`;
-                elProgress.style.color = state.coverage > 0.8 ? '#4caf50' : '#ff9800';
-            } else {
-                elProgress.textContent = 'Таблица не построена';
-                elProgress.style.color = '#aaa';
-            }
-        }
-        
-        if (elCentroid) {
-            if (state.hasCentroid) {
-                elCentroid.textContent = `Центроида: ${state.centroidLat.toFixed(6)}°, ${state.centroidLon.toFixed(6)}°`;
-                elCentroid.style.color = '#4caf50';
-            } else {
-                elCentroid.textContent = 'Центроида: недостаточно данных';
-                elCentroid.style.color = '#ff9800';
-            }
-        }
-        
-        if (elCoverage) {
-            if (state.hasTable) {
-                elCoverage.textContent = `Покрытие: ${(state.coverage * 100).toFixed(1)}%`;
-            } else {
-                elCoverage.textContent = 'Покрытие: --';
-            }
-        }
-        
-        // Кнопки
-        if (elBtnStart) {
-            elBtnStart.disabled = isCollecting;
-        }
-        if (elBtnStop) {
-            elBtnStop.disabled = !isCollecting;
-        }
-        if (elBtnBuild) {
-            elBtnBuild.disabled = state.pointCount < 10;
-        }
-        if (elBtnApply) {
-            elBtnApply.disabled = !state.hasTable;
-        }
-        if (elBtnDownload) {
-            elBtnDownload.disabled = !state.hasTable;
-        }
-    }
+	function updateUI() {
+		const state = AntennaTableCalibration.getState();
+		const rootStyles = getComputedStyle(document.documentElement);
+		const statusSuccess = rootStyles.getPropertyValue('--status-success').trim() || '#4caf50';
+		const statusWarning = rootStyles.getPropertyValue('--status-warning').trim() || '#ff9800';
+		const textPrimary = rootStyles.getPropertyValue('--text-primary').trim() || '#fff';
+		const textSecondary = rootStyles.getPropertyValue('--text-secondary').trim() || '#aaa';
+		
+		if (elStatus) {
+			if (isCollecting) {
+				elStatus.textContent = `⚡ Накопление... Собрано точек: ${state.pointCount}`;
+				elStatus.style.color = statusSuccess;
+			} else {
+				elStatus.textContent = `Собрано точек: ${state.pointCount}`;
+				elStatus.style.color = textPrimary;
+			}
+		}
+		
+		if (elProgress) {
+			if (state.hasTable) {
+				elProgress.textContent = `Секторов: ${state.usedSectors}/${state.totalSectors} (${(state.coverage * 100).toFixed(1)}%)`;
+				elProgress.style.color = state.coverage > 0.8 ? statusSuccess : statusWarning;
+			} else {
+				elProgress.textContent = 'Таблица не построена';
+				elProgress.style.color = textSecondary;
+			}
+		}
+		
+		if (elCentroid) {
+			if (state.hasCentroid) {
+				elCentroid.textContent = `Центроида: ${state.centroidLat.toFixed(6)}°, ${state.centroidLon.toFixed(6)}°`;
+				elCentroid.style.color = statusSuccess;
+			} else {
+				elCentroid.textContent = 'Центроида: недостаточно данных';
+				elCentroid.style.color = statusWarning;
+			}
+		}
+		
+		if (elCoverage) {
+			if (state.hasTable) {
+				elCoverage.textContent = `Покрытие: ${(state.coverage * 100).toFixed(1)}%`;
+			} else {
+				elCoverage.textContent = 'Покрытие: --';
+			}
+		}
+		
+		// Кнопки без изменений
+		if (elBtnStart) elBtnStart.disabled = isCollecting;
+		if (elBtnStop) elBtnStop.disabled = !isCollecting;
+		if (elBtnBuild) elBtnBuild.disabled = state.pointCount < 10;
+		if (elBtnApply) elBtnApply.disabled = !state.hasTable;
+		if (elBtnDownload) elBtnDownload.disabled = !state.hasTable;
+	}
 
     function startCalibration() {
         AntennaTableCalibration.reset();

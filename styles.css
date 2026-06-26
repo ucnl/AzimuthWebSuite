@@ -54,6 +54,16 @@
     --map-text: #ffffff;
     --antenna-fill: rgba(0, 255, 255, 0.5);
 	
+	--map-text-secondary: rgba(255, 255, 255, 0.8);
+	--map-stroke: #ffffff;
+	--antenna-heading-color: #ff4444;
+	--beacon-timeout-color: #dc3545;
+	--beacon-warning-color: #ffc107;
+	--beacon-rejected-color: rgba(128, 128, 128, 0.45);
+	--poi-marked-color: #ffcc00;
+	--poi-loaded-color: #ff6600;
+	--scale-shadow: #000;
+	
 	--btn-theme: #555;
 	--btn-gnss: #8e44ad;
 	--btn-export: #20c997;
@@ -70,6 +80,11 @@
 	
 	--btn-close: #6c757d;
 	--btn-close-hover: #5a6268;
+	
+	--track-station-glow: rgba(0, 255, 255, 0.2);
+	--track-station-line: rgba(0, 255, 255, 0.7);
+	--track-beacon-glow-alpha: 0.2;
+	--track-beacon-line-alpha: 0.8;	
 }
 
 /* ========== ТЕМА: LIGHT (солнце) ========== */
@@ -118,6 +133,16 @@
     --map-text: #1a1a1a;
     --antenna-fill: rgba(0, 100, 200, 0.4);
 	
+	--map-text-secondary: rgba(0, 0, 0, 0.7);
+	--map-stroke: #1a1a1a;
+	--antenna-heading-color: #cc0000;
+	--beacon-timeout-color: #c62828;
+	--beacon-warning-color: #f57c00;
+	--beacon-rejected-color: rgba(128, 128, 128, 0.5);
+	--poi-marked-color: #ff8800;
+	--poi-loaded-color: #cc4400;
+	--scale-shadow: rgba(255, 255, 255, 0.8);
+	
 	--btn-theme: #555;
 	--btn-gnss: #8e44ad;
 	--btn-export: #20c997;
@@ -134,6 +159,11 @@
 	
 	--btn-close: #6c757d;
 	--btn-close-hover: #5a6268;
+	
+	--track-station-glow: rgba(0, 150, 200, 0.2);
+	--track-station-line: rgba(0, 150, 200, 0.7);
+	--track-beacon-glow-alpha: 0.15;
+	--track-beacon-line-alpha: 0.7;	
 }
 
 /* ========== ТЕМА: DARK CONTRAST (солнце + очки) ========== */
@@ -182,6 +212,16 @@
     --map-text: #ffffff;
     --antenna-fill: rgba(0, 255, 255, 0.5);
 	
+	--map-text-secondary: rgba(255, 255, 255, 0.8);
+	--map-stroke: #ffffff;
+	--antenna-heading-color: #ff5252;
+	--beacon-timeout-color: #ff5252;
+	--beacon-warning-color: #ffd740;
+	--beacon-rejected-color: rgba(255, 255, 255, 0.3);
+	--poi-marked-color: #ffd740;
+	--poi-loaded-color: #ff9800;
+	--scale-shadow: #000;	
+	
 	--btn-theme: #555;
 	--btn-gnss: #b388ff;
 	--btn-export: #64ffda;
@@ -198,6 +238,11 @@
 	
 	--btn-close: #6c757d;
 	--btn-close-hover: #5a6268;
+	
+	--track-station-glow: rgba(0, 255, 255, 0.25);
+	--track-station-line: rgba(0, 255, 255, 0.8);
+	--track-beacon-glow-alpha: 0.25;
+	--track-beacon-line-alpha: 0.9;	
 }
 
 /* ========== ТЕМА: JACK BLACK (Черный фон, белый текст, серые акценты) ========== */
@@ -246,6 +291,16 @@
     --map-text: #ffffff;
     --antenna-fill: rgba(255, 255, 255, 0.3);
 	
+	--map-text-secondary: rgba(255, 255, 255, 0.7);
+	--map-stroke: #ffffff;
+	--antenna-heading-color: #ffffff;
+	--beacon-timeout-color: #ff4444;
+	--beacon-warning-color: #ffaa00;
+	--beacon-rejected-color: rgba(255, 255, 255, 0.25);
+	--poi-marked-color: #ffffff;
+	--poi-loaded-color: #aaaaaa;
+	--scale-shadow: #000;	
+	
 	--btn-theme: #444;
 	--btn-gnss: #666;
 	--btn-export: #555;
@@ -262,6 +317,11 @@
 	
 	--btn-close: #6c757d;
 	--btn-close-hover: #5a6268;
+	
+	--track-station-glow: rgba(255, 255, 255, 0.15);
+	--track-station-line: rgba(255, 255, 255, 0.6);
+	--track-beacon-glow-alpha: 0.15;
+	--track-beacon-line-alpha: 0.7;	
 }
 
 /* ========== ТЕМА: JACK WHITE (Белый фон, черный текст, серые акценты, редкий красный) ========== */
@@ -310,6 +370,16 @@
     --map-text: #000000;
     --antenna-fill: rgba(200, 0, 0, 0.2);
 	
+	--map-text-secondary: rgba(0, 0, 0, 0.6);
+	--map-stroke: #000000;
+	--antenna-heading-color: #cc0000;
+	--beacon-timeout-color: #cc0000;
+	--beacon-warning-color: #ff8800;
+	--beacon-rejected-color: rgba(0, 0, 0, 0.25);
+	--poi-marked-color: #000000;
+	--poi-loaded-color: #666666;
+	--scale-shadow: rgba(255, 255, 255, 0.8);	
+	
 	--btn-theme: #888;
 	--btn-gnss: #666;
 	--btn-export: #777;
@@ -326,6 +396,11 @@
 	
 	--btn-close: #6c757d;
 	--btn-close-hover: #5a6268;
+	
+	--track-station-glow: rgba(0, 0, 0, 0.1);
+	--track-station-line: rgba(0, 0, 0, 0.5);
+	--track-beacon-glow-alpha: 0.1;
+	--track-beacon-line-alpha: 0.6;	
 }
 
 /* ========== ТЕМА: VAX (Вырвиглазно-зеленый на черном, в стиле терминалов VAX/VT) ========== */
@@ -374,6 +449,16 @@
     --map-text: #33ff33;
     --antenna-fill: rgba(51, 255, 51, 0.3);
 	
+	--map-text-secondary: rgba(0, 255, 0, 0.7);
+	--map-stroke: #33ff33;
+	--antenna-heading-color: #33ff33;
+	--beacon-timeout-color: #00cc00;
+	--beacon-warning-color: #33ff33;
+	--beacon-rejected-color: rgba(0, 204, 0, 0.35);
+	--poi-marked-color: #66ff66;
+	--poi-loaded-color: #33ff33;
+	--scale-shadow: #000;
+	
 	--btn-theme: #008800;
 	--btn-gnss: #00aa00;
 	--btn-export: #00aa00;
@@ -391,6 +476,11 @@
 	
 	--btn-close: #006600;
 	--btn-close-hover: #009900;
+	
+	--track-station-glow: rgba(51, 255, 51, 0.2);
+	--track-station-line: rgba(51, 255, 51, 0.7);
+	--track-beacon-glow-alpha: 0.25;
+	--track-beacon-line-alpha: 0.9;	
 }
 
 html, body {
