@@ -1,4 +1,4 @@
-# AzimuthWebSuite
+# [AzimuthWebSuite](https://docs.unavlab.com/AzimuthWebSuite/)
 
 [История версий](CHANGELOG.md)
 [Руководство пользователя](docs/guide.md)
