@@ -229,7 +229,10 @@ const TrackManager = (() => {
 				if (point.isTimeout) continue;
 
 				let x, y;
-				if (!isNaN(point.x)) {
+				if (!isNaN(point.xM) && !isNaN(point.yM)) {
+					x = offsetX + point.xM * scale;
+					y = offsetY - point.yM * scale;
+				} else if (!isNaN(point.x)) {
 					x = offsetX + point.x * scale;
 					y = offsetY - point.y * scale;
 				} else {
@@ -255,7 +258,10 @@ const TrackManager = (() => {
 				if (point.isTimeout) continue;
 
 				let x, y;
-				if (!isNaN(point.x)) {
+				if (!isNaN(point.xM) && !isNaN(point.yM)) {
+					x = offsetX + point.xM * scale;
+					y = offsetY - point.yM * scale;
+				} else if (!isNaN(point.x)) {
 					x = offsetX + point.x * scale;
 					y = offsetY - point.y * scale;
 				} else {
