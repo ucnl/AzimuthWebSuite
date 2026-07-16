@@ -28,6 +28,9 @@
 			<div class="dropdown" style="display:inline-block; position:relative;">
 				<button class="top-btn btn-tools" onclick="App.toggleDropdown('tools-dropdown')">🔧 Инструменты ▾</button>
 				<div id="tools-dropdown" class="dropdown-menu" style="display:none; position:absolute; top:100%; right:0; z-index:300; min-width:200px;">
+				
+				    <div class="dropdown-item" onclick="UIWizard.resetWizard(); UIWizard.show(); App.closeAllDropdowns();">⚙ Мастер настройки</div>
+				
 					<div class="dropdown-item" onclick="App.toggleTopoPanel(); App.closeAllDropdowns();">🌐 Ручная топопривязка</div>
 					
 					<div class="dropdown-item" onclick="App.exportDRMS(); App.closeAllDropdowns();">📊 Отчёт DRMS</div>
@@ -337,6 +340,21 @@
 					</div>
 				</div>
 				
+				<!-- Секция: Режим антенны -->
+				<div class="settings-section">
+					<h4>📍 Режим антенны</h4>
+					<div class="settings-row">
+						<label>Режим работы:</label>
+						<select id="cfg-antenna-mode" style="flex:1; padding:6px 8px; border:1px solid var(--border-primary); border-radius:var(--radius-sm); background:var(--bg-input); color:var(--text-primary); font-size:12px;">
+							<option value="geographic">🌍 Географический</option>
+							<option value="cartesian_fixed">📐 Декартов (неподвижная)</option>
+						</select>
+					</div>
+					<div class="settings-row">
+						<small style="color: var(--text-secondary);">Декартов режим: антенна в (0,0,0), координаты маяков в метрах (X→право, Y→вперёд, Z→глубина)</small>
+					</div>
+				</div>
+				
 				<!-- Секция: Фильтр маяка DH -->
 				<div class="settings-section">
 					<h4>🎯 Фильтр маяка (DH)</h4>
@@ -371,6 +389,44 @@
         </div>
     </div>   
 
+	<!-- ===== Стартовый мастер ===== -->
+	<div id="wizard-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:500; align-items:center; justify-content:center;">
+		<div id="wizard-modal" style="background:var(--bg-overlay); border:2px solid var(--border-accent); border-radius:12px; padding:24px; max-width:420px; width:90%; backdrop-filter:blur(10px);">
+			<h3 id="wizard-title" style="color:var(--border-accent); text-align:center; margin-bottom:16px;">⚙ Настройка</h3>
+			<div id="wizard-body" style="margin-bottom:20px;"></div>
+			<div id="wizard-buttons" style="display:flex; gap:8px; justify-content:space-between; align-items:center;"></div>
+		</div>
+	</div>
+
+<style>
+    .wiz-btn {
+        padding:10px 20px;
+        border:none;
+        border-radius:6px;
+        cursor:pointer;
+        font-size:13px;
+        font-weight:bold;
+    }
+    .wiz-btn-next {
+        background:var(--btn-start);
+        color:var(--btn-text);
+    }
+    .wiz-btn-back {
+        background:var(--btn-close);
+        color:var(--btn-text);
+    }
+    .wiz-btn-finish {
+        background:var(--btn-connect);
+        color:var(--btn-text);
+    }
+    .wiz-btn-skip {
+        background:transparent;
+        color:var(--text-secondary);
+        border:1px solid var(--border-primary);
+    }
+</style>
+
+
     <!-- ===== СКРИПТЫ (порядок важен) ===== -->
 	<script src="log-storage.js"></script>
 	<script src="logger.js"></script>
@@ -381,6 +437,8 @@
 	<script src="dh-filter.js"></script>
 	<script src="median.js"></script>
 	<script src="smoother.js"></script>
+	<script src="dh-filter-xyz.js"></script>
+	<script src="smoother-xyz.js"></script>
 	<script src="calibration.js"></script>
 	<script src="gnss-parser.js"></script>
 	<script src="azm-parser.js"></script>
@@ -401,6 +459,7 @@
 	<script src="modules/ui-calibration.js"></script>
 	<script src="modules/ui-antenna-calibration.js"></script>
 	<script src="modules/ui-canvas.js"></script>
+	<script src="modules/ui-wizard.js"></script>
 	<script src="app.js"></script>
 </body>
 </html>

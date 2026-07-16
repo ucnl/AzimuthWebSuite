@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.3.1';
+    const APP_VERSION = '1.3.3';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -293,6 +293,41 @@ const App = (() => {
 		// Загружаем сохранённую калибровку
 		UICalibration.loadCalibrationFromStorage();
 		
+		
+		// Инициализация мастера
+		UIWizard.init({
+			onComplete: function(state) {
+				// Применяем режим
+				const mode = state.moving ? 'geographic' : (state.hasTopo ? 'geographic' : 'cartesian_fixed');
+				AZMManager.setAntennaMode(mode);
+				
+				if (mode === 'cartesian_fixed') {
+					AZMManager.setAntennaPosition(NaN, NaN, 0);
+				}
+				
+				// Сохраняем скорость GNSS
+				if (state.gnssBaud) {
+					try {
+						const saved = localStorage.getItem('zima2_settings');
+						const data = saved ? JSON.parse(saved) : {};
+						data.gnssBaudrate = state.gnssBaud;
+						localStorage.setItem('zima2_settings', JSON.stringify(data));
+					} catch (e) {}
+				}
+				
+				// Если нужно ввести топопривязку — открываем панель
+				if (!state.moving && state.hasTopo) {
+					setTimeout(() => UITopo.toggle(), 300);
+				}
+				
+				updateSettingsUI();
+				updateAntennaInfoUI();
+				saveSettings();
+			}
+		});
+		
+		
+		
 		updateAllButtons();
 		updateSettingsUI();
 		updateAntennaInfoUI();
@@ -515,103 +550,128 @@ const App = (() => {
 		let dist, azm;
 		let isFilterAccepted = false;
 
-		// Проверяем, прошла ли точка фильтр
-		if (!isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.absoluteAzimuthDeg) && beacon.absoluteDistanceM > 0) {
-			dist = beacon.absoluteDistanceM;
-			azm = beacon.absoluteAzimuthDeg;
-			isFilterAccepted = true;
-		} else if (!isNaN(beacon.slantRangeProjectionM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeProjectionM > 0) {
-			dist = beacon.slantRangeProjectionM;
-			azm = beacon.azimuthDeg + (st.antennaHeadingDeg || 0);
-		} else if (!isNaN(beacon.slantRangeM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeM > 0) {
-			dist = beacon.slantRangeM;
-			azm = beacon.azimuthDeg + (st.antennaHeadingDeg || 0);
-		} else {
-			return;
-		}
-
-		// Только принятые точки идут в трек
-		if (isFilterAccepted) {
-			let xM = NaN, yM = NaN, zM = NaN;
-
-			if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg) && !isNaN(st.antennaHeadingDeg) &&
-				!isNaN(beacon.latitudeDeg) && !isNaN(beacon.longitudeDeg)) {
-				
-				const deltas = GeoUtils.deltasByDegrees(st.antennaLatDeg, st.antennaLonDeg, beacon.latitudeDeg, beacon.longitudeDeg);
-				const headingRad = st.antennaHeadingDeg * Math.PI / 180;
-				const cosH = Math.cos(headingRad);
-				const sinH = Math.sin(headingRad);
-				xM = deltas.deltaLatM * cosH + deltas.deltaLonM * sinH;
-				yM = -deltas.deltaLatM * sinH + deltas.deltaLonM * cosH;
-				zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
-			} else if (!isNaN(dist) && !isNaN(azm) && !isNaN(st.antennaHeadingDeg)) {
-				const relativeAzmRad = (azm - st.antennaHeadingDeg) * Math.PI / 180;
-				xM = dist * Math.cos(relativeAzmRad);
-				yM = dist * Math.sin(relativeAzmRad);
-				zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
+		if (st.antennaMode === 'cartesian_fixed') {
+			// === ДЕКАРТОВ РЕЖИМ ===
+			if (!isNaN(beacon.xM) && !isNaN(beacon.yM)) {
+				dist = beacon.absoluteDistanceM;
+				azm = beacon.absoluteAzimuthDeg;
+				isFilterAccepted = true;
+			} else if (!isNaN(beacon.rejectedXM)) {
+				dist = beacon.rejectedDistanceM;
+				azm = beacon.rejectedAzimuthDeg;
+			} else if (!isNaN(beacon.slantRangeProjectionM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeProjectionM > 0) {
+				dist = beacon.slantRangeProjectionM;
+				azm = beacon.azimuthDeg;
+			} else if (!isNaN(beacon.slantRangeM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeM > 0) {
+				dist = beacon.slantRangeM;
+				azm = beacon.azimuthDeg;
+			} else {
+				return;
 			}
 
-			TrackManager.addPoint(
-				beacon.address, dist, azm,
-				beacon.latitudeDeg, beacon.longitudeDeg, beacon.depthM,
-				beacon.isTimeout,
-				xM, yM, zM
-			);
+			if (isFilterAccepted) {
+				TrackManager.addPoint(
+					beacon.address, dist, azm,
+					NaN, NaN, beacon.zM,
+					beacon.isTimeout,
+					beacon.xM, beacon.yM, beacon.zM
+				);
+			}
+
+		} else {
+			// === ГЕОГРАФИЧЕСКИЙ РЕЖИМ (существующая логика) ===
+			if (!isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.absoluteAzimuthDeg) && beacon.absoluteDistanceM > 0) {
+				dist = beacon.absoluteDistanceM;
+				azm = beacon.absoluteAzimuthDeg;
+				isFilterAccepted = true;
+			} else if (!isNaN(beacon.slantRangeProjectionM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeProjectionM > 0) {
+				dist = beacon.slantRangeProjectionM;
+				azm = beacon.azimuthDeg + (st.antennaHeadingDeg || 0);
+			} else if (!isNaN(beacon.slantRangeM) && !isNaN(beacon.azimuthDeg) && beacon.slantRangeM > 0) {
+				dist = beacon.slantRangeM;
+				azm = beacon.azimuthDeg + (st.antennaHeadingDeg || 0);
+			} else {
+				return;
+			}
+
+			if (isFilterAccepted) {
+				let xM = NaN, yM = NaN, zM = NaN;
+
+				if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg) && !isNaN(st.antennaHeadingDeg) &&
+					!isNaN(beacon.latitudeDeg) && !isNaN(beacon.longitudeDeg)) {
+
+					const deltas = GeoUtils.deltasByDegrees(st.antennaLatDeg, st.antennaLonDeg, beacon.latitudeDeg, beacon.longitudeDeg);
+					const headingRad = st.antennaHeadingDeg * Math.PI / 180;
+					const cosH = Math.cos(headingRad);
+					const sinH = Math.sin(headingRad);
+					xM = deltas.deltaLatM * cosH + deltas.deltaLonM * sinH;
+					yM = -deltas.deltaLatM * sinH + deltas.deltaLonM * cosH;
+					zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
+				} else if (!isNaN(dist) && !isNaN(azm) && !isNaN(st.antennaHeadingDeg)) {
+					const relativeAzmRad = (azm - st.antennaHeadingDeg) * Math.PI / 180;
+					xM = dist * Math.cos(relativeAzmRad);
+					yM = dist * Math.sin(relativeAzmRad);
+					zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
+				}
+
+				TrackManager.addPoint(
+					beacon.address, dist, azm,
+					beacon.latitudeDeg, beacon.longitudeDeg, beacon.depthM,
+					beacon.isTimeout,
+					xM, yM, zM
+				);
+			}
 		}
 
-		// Калибровка — только для принятых
-		if (UICalibration.isActive() && isFilterAccepted && !isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.azimuthDeg)) {
-			AngularCalibration.addPoint(
-				new Date(),
-				st.antennaHeadingDeg,
-				st.antennaLatDeg,
-				st.antennaLonDeg,
-				beacon.azimuthDeg,
-				beacon.slantRangeProjectionM || beacon.slantRangeM,
-				beacon.propTimeS,
-				st.antennaDepthM,
-				beacon.depthM
-			);
-			UICalibration.addPoint();
+		// Калибровка φ — только для географического режима
+		if (st.antennaMode === 'geographic') {
+			if (UICalibration.isActive() && isFilterAccepted && !isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.azimuthDeg)) {
+				AngularCalibration.addPoint(
+					new Date(),
+					st.antennaHeadingDeg,
+					st.antennaLatDeg,
+					st.antennaLonDeg,
+					beacon.azimuthDeg,
+					beacon.slantRangeProjectionM || beacon.slantRangeM,
+					beacon.propTimeS,
+					st.antennaDepthM,
+					beacon.depthM
+				);
+				UICalibration.addPoint();
+			}
+
+			if (UIAntennaCalibration.isActive() && isFilterAccepted &&
+				!isNaN(beacon.latitudeDeg) && !isNaN(beacon.longitudeDeg) &&
+				!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg) && !isNaN(st.antennaHeadingDeg)) {
+
+				const deltas = GeoUtils.deltasByDegrees(
+					st.antennaLatDeg, st.antennaLonDeg,
+					beacon.latitudeDeg, beacon.longitudeDeg
+				);
+
+				let absAzimuth = Math.atan2(deltas.deltaLonM, deltas.deltaLatM) * 180 / Math.PI;
+				if (absAzimuth < 0) absAzimuth += 360;
+
+				let relativeAzimuth = absAzimuth - st.antennaHeadingDeg;
+				relativeAzimuth = ((relativeAzimuth % 360) + 360) % 360;
+
+				const dist = GeoUtils.haversineDistance(
+					st.antennaLatDeg, st.antennaLonDeg,
+					beacon.latitudeDeg, beacon.longitudeDeg
+				);
+
+				AntennaTableCalibration.addPoint(
+					st.antennaHeadingDeg,
+					relativeAzimuth,
+					dist,
+					st.antennaLatDeg,
+					st.antennaLonDeg,
+					st.antennaDepthM || 0,
+					beacon.depthM || 0
+				);
+				UIAntennaCalibration.addPoint();
+			}
 		}
-		
-		if (UIAntennaCalibration.isActive() && isFilterAccepted && 
-			!isNaN(beacon.latitudeDeg) && !isNaN(beacon.longitudeDeg) &&  // ← используем координаты маяка
-			!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg) && !isNaN(st.antennaHeadingDeg)) {
-			
-			// Вычисляем азимут из координат (уже отфильтрованных)
-			const deltas = GeoUtils.deltasByDegrees(
-				st.antennaLatDeg, st.antennaLonDeg,
-				beacon.latitudeDeg, beacon.longitudeDeg
-			);
-			
-			// Абсолютный пеленг от антенны на маяк (из отфильтрованных координат)
-			let absAzimuth = Math.atan2(deltas.deltaLonM, deltas.deltaLatM) * 180 / Math.PI;
-			if (absAzimuth < 0) absAzimuth += 360;
-			
-			// Переводим в относительный
-			let relativeAzimuth = absAzimuth - st.antennaHeadingDeg;
-			relativeAzimuth = ((relativeAzimuth % 360) + 360) % 360;
-			
-			// Дистанция
-			const dist = GeoUtils.haversineDistance(
-				st.antennaLatDeg, st.antennaLonDeg,
-				beacon.latitudeDeg, beacon.longitudeDeg
-			);
-			
-			AntennaTableCalibration.addPoint(
-				st.antennaHeadingDeg,
-				relativeAzimuth,
-				dist,
-				st.antennaLatDeg,
-				st.antennaLonDeg,
-				st.antennaDepthM || 0,
-				beacon.depthM || 0
-			);
-			UIAntennaCalibration.addPoint();
-		}
-		
-		
 	}
 
 	function onSerialError(error) {
@@ -688,6 +748,10 @@ const App = (() => {
 		
 		const line = rawLine.trim();
 		Logger.logIncoming('GNSS', line);
+		
+		if (AZMManager.getState().antennaMode === 'cartesian_fixed') {
+			return;
+		}
 
 		const data = GNSSParser.parse(line);
 		if (!data) return;
@@ -768,12 +832,21 @@ const App = (() => {
 
 	function updateAntennaInfoUI() {
 		const st = AZMManager.getState();
-		document.getElementById('ai-lat').textContent = isNaN(st.antennaLatDeg) ? '--' : st.antennaLatDeg.toFixed(6);
-		document.getElementById('ai-lon').textContent = isNaN(st.antennaLonDeg) ? '--' : st.antennaLonDeg.toFixed(6);
-		document.getElementById('ai-hdg').textContent = isNaN(st.antennaHeadingDeg) ? '--' : st.antennaHeadingDeg.toFixed(1);
+
+		if (st.antennaMode === 'cartesian_fixed') {
+			document.getElementById('ai-lat').textContent = 'Y=0.00';  // Широта = North = Y
+			document.getElementById('ai-lon').textContent = 'X=0.00';  // Долгота = East = X
+			document.getElementById('ai-hdg').textContent = '0.0';
+			document.getElementById('ai-dpt').textContent = isNaN(st.antennaDepthM) ? '--' : st.antennaDepthM.toFixed(1);
+		} else {
+			document.getElementById('ai-lat').textContent = isNaN(st.antennaLatDeg) ? '--' : st.antennaLatDeg.toFixed(6);
+			document.getElementById('ai-lon').textContent = isNaN(st.antennaLonDeg) ? '--' : st.antennaLonDeg.toFixed(6);
+			document.getElementById('ai-hdg').textContent = isNaN(st.antennaHeadingDeg) ? '--' : st.antennaHeadingDeg.toFixed(1);
+			document.getElementById('ai-dpt').textContent = isNaN(st.antennaDepthM) ? '--' : st.antennaDepthM.toFixed(1);
+		}
+
 		document.getElementById('ai-spd').textContent = isNaN(st.speedMps) ? '--' : st.speedMps.toFixed(2);
 		document.getElementById('ai-crs').textContent = isNaN(st.courseDeg) ? '--' : st.courseDeg.toFixed(1);
-		document.getElementById('ai-dpt').textContent = isNaN(st.antennaDepthM) ? '--' : st.antennaDepthM.toFixed(1);
 		document.getElementById('ai-tmp').textContent = isNaN(st.waterTempC) ? '--' : st.waterTempC.toFixed(1);
 		document.getElementById('ai-pitch').textContent = isNaN(st.antennaPitchDeg) ? '--' : st.antennaPitchDeg.toFixed(1);
 		document.getElementById('ai-roll').textContent = isNaN(st.antennaRollDeg) ? '--' : st.antennaRollDeg.toFixed(1);
@@ -996,6 +1069,11 @@ const App = (() => {
 		// Пробуем парсить как GNSS
 		const gnssData = GNSSParser.parse(data);
 		if (gnssData) {
+			
+			if (AZMManager.getState().antennaMode === 'cartesian_fixed') {
+               return;
+			}
+			
 			AZMManager.setTimeProvider(() => virtualTime);
 			
 			const st = AZMManager.getState();
@@ -1255,11 +1333,22 @@ const App = (() => {
 		const b = AZMManager.getBeacons()[address];
 		if (!b) return;
 		
-		if (!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg)) {
-			UICanvas.followGeoPoint(b.latitudeDeg, b.longitudeDeg, 'beacon', address);
-			setStatus(`Слежение за маяком #${b.userAddress || b.address + 1}`);
+		const st = AZMManager.getState();
+		
+		if (st.antennaMode === 'cartesian_fixed') {
+			if (!isNaN(b.xM) && !isNaN(b.yM)) {
+				UICanvas.followCartesianPoint(b.xM, b.yM);
+				setStatus(`Слежение за маяком #${b.userAddress || b.address + 1}`);
+			} else {
+				setStatus(`Маяк #${b.userAddress || b.address + 1} не имеет координат`);
+			}
 		} else {
-			setStatus(`Маяк #${b.userAddress || b.address + 1} не имеет координат`);
+			if (!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg)) {
+				UICanvas.followGeoPoint(b.latitudeDeg, b.longitudeDeg, 'beacon', address);
+				setStatus(`Слежение за маяком #${b.userAddress || b.address + 1}`);
+			} else {
+				setStatus(`Маяк #${b.userAddress || b.address + 1} не имеет координат`);
+			}
 		}
 	}
 
@@ -1384,16 +1473,18 @@ const App = (() => {
 			canvas.style.cursor = 'grab'; 
 		});
 
+		// В dblclick:
 		canvas.addEventListener('dblclick', () => {
-			// Сброс вида: центрирование на антенне, масштаб 100
 			UICanvas.setScale(100);
 			const st = AZMManager.getState();
-			if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+			if (st.antennaMode === 'cartesian_fixed') {
+				UICanvas.centerOnWorldPoint(0, 0);
+			} else if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
 				UICanvas.followGeoPoint(st.antennaLatDeg, st.antennaLonDeg, 'antenna');
 			} else {
 				UICanvas.centerOnWorldPoint(0, 0);
 			}
-			setStatus('Вид сброшен на антенну');
+			setStatus('Вид сброшен');
 		});
 		
 		canvas.addEventListener('click', (e) => {
@@ -1419,12 +1510,14 @@ const App = (() => {
 				// Двойной тап - сброс вида
 				UICanvas.setScale(100);
 				const st = AZMManager.getState();
-				if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+				if (st.antennaMode === 'cartesian_fixed') {
+					UICanvas.centerOnWorldPoint(0, 0);
+				} else if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
 					UICanvas.followGeoPoint(st.antennaLatDeg, st.antennaLonDeg, 'antenna');
 				} else {
 					UICanvas.centerOnWorldPoint(0, 0);
 				}
-				setStatus('Вид сброшен на антенну');
+				setStatus('Вид сброшен');
 				lastTouchTime = 0;
 				return;
 			}
@@ -1575,6 +1668,14 @@ const App = (() => {
 			if (compassMode !== 'auto') hasTrueHeading = false;
 		}
 		
+		// === РЕЖИМ АНТЕННЫ — ПРИМЕНЯЕМ ПЕРВЫМ ===
+		const newAntennaMode = UISettings.getValue('cfg-antenna-mode');
+		const oldAntennaMode = AZMManager.getState().antennaMode;
+		
+		if (newAntennaMode) {
+			AZMManager.setAntennaMode(newAntennaMode);
+		}
+		
 		// Применяем настройки к менеджерам
 		AZMManager.setAddressMask(mask);
 		AZMManager.setMaxDistance(maxDist);
@@ -1590,8 +1691,34 @@ const App = (() => {
 		TrackManager.setMaxPoints(maxPoints);
 		TrackManager.setMinDistance(minDist);
 		
+		// === ВОССТАНАВЛИВАЕМ ТОПОПРИВЯЗКУ ПОСЛЕ СМЕНЫ РЕЖИМА ===
+		if (newAntennaMode === 'geographic' && newAntennaMode !== oldAntennaMode) {
+			const saved = localStorage.getItem('topo_binding');
+			if (saved) {
+				try {
+					const data = JSON.parse(saved);
+					if (data.lat !== undefined && data.lon !== undefined && data.hdg !== undefined &&
+						!isNaN(data.lat) && !isNaN(data.lon) && !isNaN(data.hdg)) {
+						AZMManager.setAntennaPosition(data.lat, data.lon, data.hdg);
+					} else {
+						AZMManager.setAntennaPosition(NaN, NaN, NaN);
+					}
+				} catch (e) {
+					AZMManager.setAntennaPosition(NaN, NaN, NaN);
+				}
+			} else {
+				// Нет сохранённой привязки — сбрасываем всё
+				AZMManager.setAntennaPosition(NaN, NaN, NaN);
+			}
+		} else if (newAntennaMode === 'cartesian_fixed' && newAntennaMode !== oldAntennaMode) {
+			AZMManager.setAntennaPosition(NaN, NaN, 0);
+		}
+		
 		// Сохраняем
 		saveSettings();
+		
+		// Обновляем UI антенны
+		updateAntennaInfoUI();
 		
 		// Перезапускаем опрос если активен
 		if (isConnected && AZMManager.getState().isInterrogationActive) {
@@ -1635,6 +1762,11 @@ const App = (() => {
 		const compassEl = document.getElementById('cfg-compass-mode');
 		if (compassEl) compassEl.value = compassMode;
 		
+		const antennaModeEl = document.getElementById('cfg-antenna-mode');
+		if (antennaModeEl) {
+			antennaModeEl.value = st.antennaMode || 'geographic';
+		}
+		
 		const maxSpeedEl = document.getElementById('cfg-max-beacon-speed');
 		if (maxSpeedEl) maxSpeedEl.value = st.maxBeaconSpeedMps || 1.0;
 		
@@ -1655,6 +1787,7 @@ const App = (() => {
 			minPointDist: TrackManager.getSettings().minPointDistanceM,
 			gnssBaudrate: parseInt(document.getElementById('cfg-gnss-baud')?.value) || 38400,
 			compassMode: compassMode,
+			antennaMode: AZMManager.getState().antennaMode || 'geographic',
 			maxBeaconSpeed: AZMManager.getState().maxBeaconSpeedMps || 1.0,
 		};
 		try { localStorage.setItem('zima2_settings', JSON.stringify(data)); } catch (e) {}
@@ -1683,6 +1816,11 @@ const App = (() => {
 					const el = document.getElementById('cfg-compass-mode'); 
 					if (el) el.value = data.compassMode; 
 				}
+				
+				if (data.antennaMode) {
+					AZMManager.setAntennaMode(data.antennaMode);
+				}
+					
 				if (data.maxBeaconSpeed !== undefined) AZMManager.setMaxBeaconSpeed(data.maxBeaconSpeed);
 			}
 		} catch (e) {}
@@ -1709,6 +1847,8 @@ const App = (() => {
 		toggleTracks, clearTracks, exportTracksKML,
 		onBeaconCardClick,
 		toggleGNSS,
+		isGNSSConnected: () => isGnssConnected,
+		connectGNSS,
 		toggleCalibration, startCalibration, stopCalibration,
 		cycleTheme,
 		toggleDropdown, closeAllDropdowns,
@@ -1724,7 +1864,13 @@ const App = (() => {
 		toggleRuler,
 		resetView: () => UICanvas.resetView(),
 		autoScale: () => UICanvas.autoScale(),
-		toggleAntennaCalibration: () => UIAntennaCalibration.toggle(),
+		toggleAntennaCalibration: () => { 
+		    if (AZMManager.getState().antennaMode === 'cartesian_fixed') {
+				alert('Калибровка таблицы антенны недоступна в режиме неподвижной антенны.\nТребуется топопривязка и географические координаты.');
+				return;
+			}
+			UIAntennaCalibration.toggle();
+		},
 		startAntennaCalibration: () => UIAntennaCalibration.startCalibration(),
 		stopAntennaCalibration: () => UIAntennaCalibration.stopCalibration(),
 		buildAntennaTable: () => UIAntennaCalibration.buildTable(),
