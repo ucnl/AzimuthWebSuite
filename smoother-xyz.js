@@ -60,9 +60,9 @@ const TrackMedianFilterXYZ = (() => {
     
     class TrackMedianFilterXYZ {
         constructor(fifoSize = 4, thresholdM = 100.0) {
-            this.fifoSize = fifoSize;
-            this.thresholdM = thresholdM;
-            this.buffer = [];
+            this.fifoSize = (fifoSize % 2 === 0) ? fifoSize + 1 : fifoSize;
+			this.thresholdM = thresholdM;
+			this.buffer = [];
         }
 
         process(x, y, z, ts) {
@@ -79,7 +79,7 @@ const TrackMedianFilterXYZ = (() => {
 
             if (dist > this.thresholdM) {
                 this.buffer = [{ x, y, z, ts }];
-                return { x: last.x, y: last.y, z: last.z, ts: last.ts };
+				return { x, y, z, ts };
             }
 
             this.buffer.push({ x, y, z, ts });
