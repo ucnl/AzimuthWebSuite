@@ -29,20 +29,21 @@ const AZMManager = (() => {
 	const DEFAULT_SOUND_SPEED_MPS = 1480.0;
 
     // ========== СОСТОЯНИЕ ==========
-    let state = {
-        antennaLatDeg: NaN, antennaLonDeg: NaN, antennaHeadingDeg: NaN,
-        antennaPitchDeg: NaN, antennaRollDeg: NaN, antennaDepthM: NaN,
-        waterTempC: NaN, pressureMBar: NaN,
+	let state = {
+		antennaLatDeg: NaN, antennaLonDeg: NaN, antennaHeadingDeg: NaN,
+		antennaPitchDeg: NaN, antennaRollDeg: NaN, antennaDepthM: NaN,
+		waterTempC: NaN, pressureMBar: NaN,
 		speedMps: NaN, courseDeg: NaN,
-        salinityPSU: 0.0, soundSpeedMps: NaN, maxDistM: 1000.0, addressMask: 1,
+		salinityPSU: 0.0, soundSpeedMps: NaN, maxDistM: 1000.0, addressMask: 1,
 		soundSpeedAuto: true,
-        phiDeg: 0.0, offsetXM: 0.0, offsetYM: 0.0,
+		phiDeg: 0.0, offsetXM: 0.0, offsetYM: 0.0,
 		maxBeaconSpeedMps: 1.0,
-        isInterrogationActive: false, isDeviceInfoValid: false,
-        deviceType: 0, serialNumber: '',
-        beacons: {}, lastUpdateTime: 0,
+		antennaMode: 'geographic', // 'geographic' | 'cartesian_fixed'
+		isInterrogationActive: false, isDeviceInfoValid: false,
+		deviceType: 0, serialNumber: '',
+		beacons: {}, lastUpdateTime: 0,
 		antennaCorrector: new AntennaCorrector.AZMAntennaCorrector(),
-    };
+	};
 
     let timeProvider = () => new Date();
 
@@ -98,14 +99,17 @@ const AZMManager = (() => {
     }
 
     // ========== ОБРАБОТКА ДАННЫХ МАЯКА ==========
-	 function processBeaconData(ndata) {
+	function processBeaconData(ndata) {
 		try {
-			
 			if (isNaN(ndata.propTimeS) || ndata.propTimeS <= 0) {
-				if (!isNaN(ndata.hAngleDeg)) beacon.azimuthDeg = ndata.hAngleDeg;
-				return beacon;
+				if (!isNaN(ndata.hAngleDeg)) {
+					const beacon = getOrCreateBeacon(ndata.address);
+					beacon.azimuthDeg = ndata.hAngleDeg;
+					return beacon;
+				}
+				return null;
 			}
-			
+
 			const beacon = getOrCreateBeacon(ndata.address);
 			beacon.lastNDTA = ndata;
 
@@ -116,14 +120,14 @@ const AZMManager = (() => {
 			if (!isNaN(ndata.vAngleDeg)) beacon.elevationDeg = ndata.vAngleDeg;
 			if (!isNaN(ndata.slantRangeM) && ndata.slantRangeM > 0.001) beacon.slantRangeM = ndata.slantRangeM;
 			if (!isNaN(ndata.slantRangeProjectionM) && ndata.slantRangeProjectionM > 0.001) beacon.slantRangeProjectionM = ndata.slantRangeProjectionM;
-			
+
 			if (!isNaN(ndata.reqCode) && !isNaN(ndata.resCode)) {
 				const ABS_MAX_VCC_V = 30.0;
 				const ABS_MIN_VCC_V = 0.0;
 				const ABS_MAX_TEMP_C = 80.0;
 				const ABS_MIN_TEMP_C = -10.0;
 				const CRANGE = 499;
-				
+
 				if (ndata.reqCode === 1) {
 					beacon.waterTempC = ndata.resCode * (ABS_MAX_TEMP_C - ABS_MIN_TEMP_C) / CRANGE + ABS_MIN_TEMP_C;
 				} else if (ndata.reqCode === 2) {
@@ -139,8 +143,8 @@ const AZMManager = (() => {
 			let projectionM = NaN;
 
 			if (!isNaN(beacon.propTimeS)) {
-				const sos = (state.soundSpeedMps > 0) ? state.soundSpeedMps : DEFAULT_SOUND_SPEED_MPS;				
-				
+				const sos = (state.soundSpeedMps > 0) ? state.soundSpeedMps : DEFAULT_SOUND_SPEED_MPS;
+
 				beacon.slantRangeM = beacon.propTimeS * sos;
 				if (!isNaN(state.antennaDepthM) && !isNaN(beacon.depthM)) {
 					projectionM = slantRangeProjection(state.antennaDepthM, beacon.depthM, beacon.slantRangeM);
@@ -159,6 +163,104 @@ const AZMManager = (() => {
 				hasProjection = true;
 			}
 
+			// =====================================================
+			// === ДЕКАРТОВ РЕЖИМ (НЕПОДВИЖНАЯ АНТЕННА) ===
+			// =====================================================
+			if (state.antennaMode === 'cartesian_fixed') {
+				if (!hasProjection || isNaN(beacon.azimuthDeg)) {
+					return beacon;
+				}
+
+				// Система координат: X → вправо (East), Y → вперёд (North), Z → вниз (глубина)
+				const azmRad = deg2rad(beacon.azimuthDeg + state.phiDeg);
+				const distXY = projectionM;
+
+				const xM = distXY * Math.sin(azmRad);  // +X = вправо
+				const yM = distXY * Math.cos(azmRad);  // +Y = вперёд
+				const zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
+
+				// Создаём XYZ-фильтр если нужно
+				if (!beacon.dhFilterXYZ && window.DHTrackFilterXYZ) {
+					beacon.dhFilterXYZ = new DHTrackFilterXYZ(
+						DEFAULT_USBL_DH_FIFO,
+						state.maxBeaconSpeedMps || 1.0,
+						DEFAULT_USBL_DH_THRESHOLD
+					);
+				}
+
+				if (beacon.dhFilterXYZ) {
+					// Адаптивные пороги по дистанции
+					if (!isNaN(distXY)) {
+						if (distXY > 3000) {
+							beacon.dhFilterXYZ.dstThreshold = DEFAULT_USBL_DH_THRESHOLD_FAR;
+							beacon.dhFilterXYZ.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
+						} else if (distXY > 1500) {
+							beacon.dhFilterXYZ.dstThreshold = DEFAULT_USBL_DH_THRESHOLD_MEDIUM;
+							beacon.dhFilterXYZ.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
+						} else if (distXY > 500) {
+							beacon.dhFilterXYZ.dstThreshold = DEFAULT_USBL_DH_THRESHOLD_NEAR;
+							beacon.dhFilterXYZ.setFifoSize(DEFAULT_USBL_DH_FIFO);
+						} else {
+							beacon.dhFilterXYZ.dstThreshold = DEFAULT_USBL_DH_THRESHOLD;
+							beacon.dhFilterXYZ.setFifoSize(DEFAULT_USBL_DH_FIFO);
+						}
+					}
+
+					if (beacon.dhFilterXYZ.maxSpeedMps !== state.maxBeaconSpeedMps) {
+						beacon.dhFilterXYZ.maxSpeedMps = state.maxBeaconSpeedMps;
+					}
+
+					const now = timeProvider();
+					const dhResult = beacon.dhFilterXYZ.process(xM, yM, zM, now);
+
+					if (dhResult.accepted) {
+						beacon.absoluteAzimuthDeg = beacon.azimuthDeg + state.phiDeg;
+						beacon.absoluteDistanceM = distXY;
+
+						// Сглаживатель (только до 1000 м)
+						if (distXY <= 1000.0) {
+							if (!beacon.smootherXYZ && window.TrackMedianFilterXYZ) {
+								beacon.smootherXYZ = new TrackMedianFilterXYZ(
+									DEFAULT_USBL_S_FIFO,
+									DEFAULT_USBL_S_THRESHOLD
+								);
+							}
+							if (beacon.smootherXYZ) {
+								const smoothResult = beacon.smootherXYZ.process(dhResult.x, dhResult.y, dhResult.z, now);
+								beacon.xM = smoothResult.x;
+								beacon.yM = smoothResult.y;
+								beacon.zM = smoothResult.z;
+							} else {
+								beacon.xM = dhResult.x;
+								beacon.yM = dhResult.y;
+								beacon.zM = dhResult.z;
+							}
+						} else {
+							beacon.xM = dhResult.x;
+							beacon.yM = dhResult.y;
+							beacon.zM = dhResult.z;
+						}
+
+						// Географические координаты — NaN
+						beacon.latitudeDeg = NaN;
+						beacon.longitudeDeg = NaN;
+
+					} else {
+						// Точка отвергнута
+						beacon.rejectedXM = xM;
+						beacon.rejectedYM = yM;
+						beacon.rejectedZM = zM;
+						beacon.rejectedDistanceM = distXY;
+						beacon.rejectedAzimuthDeg = beacon.azimuthDeg;
+					}
+				}
+
+				return beacon;
+			}
+
+			// =====================================================
+			// === ГЕОГРАФИЧЕСКИЙ РЕЖИМ (СУЩЕСТВУЮЩАЯ ЛОГИКА) ===
+			// =====================================================
 			if (hasProjection && !isNaN(beacon.azimuthDeg) &&
 				!isNaN(state.antennaLatDeg) && !isNaN(state.antennaLonDeg) &&
 				!isNaN(state.antennaHeadingDeg)) {
@@ -179,9 +281,9 @@ const AZMManager = (() => {
 				const lonRad = deg2rad(state.antennaLonDeg);
 				const absAzmRad = deg2rad(polarResult.a_deg);
 				const geoResult = directGeodetic(latRad, lonRad, absAzmRad, absRange);
-				
+
 				if (isNaN(geoResult.lat) || isNaN(geoResult.lon)) {
-					return beacon;  // прерываем, не портим фильтр
+					return beacon;
 				}
 
 				if (beacon.dhFilter) {
@@ -201,24 +303,22 @@ const AZMManager = (() => {
 							beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO);
 						}
 					}
-					
+
 					if (beacon.dhFilter.maxSpeedMps !== state.maxBeaconSpeedMps) {
 						beacon.dhFilter.maxSpeedMps = state.maxBeaconSpeedMps;
 					}
-					
+
 					const now = timeProvider();
 					const dhResult = beacon.dhFilter.process(geoResult.lat, geoResult.lon, !isNaN(beacon.depthM) ? beacon.depthM : 0, now);
-						
+
 					if (dhResult.accepted) {
-						// Обновляем абсолютные координаты только если фильтр принял точку
 						beacon.absoluteAzimuthDeg = polarResult.a_deg;
 						beacon.absoluteDistanceM = absRange;
 						beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
-						
-						// Сглаживатель — только на дистанциях до 1000 м
+
 						const distForSmoother = hasProjection ? projectionM : beacon.slantRangeM;
 						const useSmoother = !isNaN(distForSmoother) && distForSmoother <= 1000.0;
-						
+
 						if (useSmoother) {
 							if (!beacon.smoother && TrackMovingAverageSmoother) {
 								if (isUseMedian == 1)
@@ -236,19 +336,16 @@ const AZMManager = (() => {
 								beacon.longitudeDeg = rad2deg(geoResult.lon);
 							}
 						} else {
-							// Дальше 1000 м — без сглаживателя, сразу координаты
 							beacon.latitudeDeg = rad2deg(geoResult.lat);
 							beacon.longitudeDeg = rad2deg(geoResult.lon);
 						}
 					} else {
-						// Точка отвергнута — сохраняем измеренные значения для отрисовки серым
 						beacon.rejectedLatitudeDeg = rad2deg(geoResult.lat);
 						beacon.rejectedLongitudeDeg = rad2deg(geoResult.lon);
 						beacon.rejectedDistanceM = absRange;
 						beacon.rejectedAzimuthDeg = polarResult.a_deg;
 					}
 				} else {
-					// Нет фильтра — используем как есть
 					beacon.absoluteAzimuthDeg = polarResult.a_deg;
 					beacon.absoluteDistanceM = absRange;
 					beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
@@ -376,6 +473,11 @@ const AZMManager = (() => {
         }
     }
 }
+	function setAntennaMode(mode) {
+		if (mode === 'geographic' || mode === 'cartesian_fixed') {
+			state.antennaMode = mode;
+		}
+	}
 
     function recalcAllBeacons() {
         for (const addr in state.beacons) {
@@ -402,6 +504,7 @@ const AZMManager = (() => {
         setAntennaPosition, setSalinity, setMaxDistance, setSoundSpeed,
 		setSoundSpeedAuto,
         setAddressMask, setAntennaOffsets, setMaxBeaconSpeed,
+		setAntennaMode,
         recalcAllBeacons,
         getState, getBeacons, getBeaconsArray, tickAge, reset,
         DEFAULT_SOUND_SPEED_MPS,

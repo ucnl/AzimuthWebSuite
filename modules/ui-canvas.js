@@ -24,6 +24,12 @@ const UICanvas = (() => {
     
     let onBeaconsChanged = null;
     let lastBeaconsHash = '';
+	
+	function isCartesianMode() {
+		const AZMManager = getAZMManager ? getAZMManager() : null;
+		if (!AZMManager) return false;
+		return AZMManager.getState().antennaMode === 'cartesian_fixed';
+	}
     
     function init(canvasEl, containerEl, callbacks) {
         canvas = canvasEl;
@@ -77,53 +83,66 @@ const UICanvas = (() => {
 		};
 	}
     
-    function drawGrid() {
-        const gridSize = 50;
-        const rootStyles = getComputedStyle(document.documentElement);
-        
-        let gridColor = rootStyles.getPropertyValue('--map-grid').trim();
-        let axisColor = rootStyles.getPropertyValue('--map-axis').trim();
-        
-        if (!gridColor) gridColor = 'rgba(255, 255, 255, 0.06)';
-        if (!axisColor) axisColor = 'rgba(255, 255, 255, 0.2)';
-        
-        const AZMManager = getAZMManager ? getAZMManager() : null;
-        const TrackManager = getTrackManager ? getTrackManager() : null;
-        
-        let cx = offsetX, cy = offsetY;
-        if (AZMManager && TrackManager) {
-            const st = AZMManager.getState();
-            if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
-                const anchor = TrackManager.getAnchor();
-                if (!isNaN(anchor.lat)) {
-                    const screen = GeoUtils.geoToScreen(
-                        st.antennaLatDeg, st.antennaLonDeg,
-                        anchor.lat, anchor.lon,
-                        offsetX, offsetY, scale
-                    );
-                    cx = screen.x;
-                    cy = screen.y;
-                }
-            }
-        }
-        
-        ctx.strokeStyle = gridColor;
-        ctx.lineWidth = 1;
-        
-        const startX = ((cx % gridSize) + gridSize) % gridSize;
-        for (let x = startX; x < canvas.width; x += gridSize) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-        }
-        const startY = ((cy % gridSize) + gridSize) % gridSize;
-        for (let y = startY; y < canvas.height; y += gridSize) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-        }
-        
-        ctx.strokeStyle = axisColor;
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, canvas.height); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(canvas.width, cy); ctx.stroke();
-    }
+	function drawGrid() {
+		const AZMManager = getAZMManager ? getAZMManager() : null;
+		const TrackManager = getTrackManager ? getTrackManager() : null;
+		const cartesian = isCartesianMode();
+		
+		const gridSize = 50;
+		const rootStyles = getComputedStyle(document.documentElement);
+		
+		let gridColor = rootStyles.getPropertyValue('--map-grid').trim();
+		let axisColor = rootStyles.getPropertyValue('--map-axis').trim();
+		
+		if (!gridColor) gridColor = 'rgba(255, 255, 255, 0.06)';
+		if (!axisColor) axisColor = 'rgba(255, 255, 255, 0.2)';
+		
+		let cx = offsetX, cy = offsetY;
+		
+		if (!cartesian && AZMManager && TrackManager) {
+			const st = AZMManager.getState();
+			if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+				const anchor = TrackManager.getAnchor();
+				if (!isNaN(anchor.lat)) {
+					const screen = GeoUtils.geoToScreen(
+						st.antennaLatDeg, st.antennaLonDeg,
+						anchor.lat, anchor.lon,
+						offsetX, offsetY, scale
+					);
+					cx = screen.x;
+					cy = screen.y;
+				}
+			}
+		}
+		
+		ctx.strokeStyle = gridColor;
+		ctx.lineWidth = 1;
+		
+		const startX = ((cx % gridSize) + gridSize) % gridSize;
+		for (let x = startX; x < canvas.width; x += gridSize) {
+			ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+		}
+		const startY = ((cy % gridSize) + gridSize) % gridSize;
+		for (let y = startY; y < canvas.height; y += gridSize) {
+			ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+		}
+		
+		ctx.strokeStyle = axisColor;
+		ctx.lineWidth = 2;
+		ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, canvas.height); ctx.stroke();
+		ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(canvas.width, cy); ctx.stroke();
+		
+		// Подписи осей в декартовом режиме
+		if (cartesian) {
+			const cc = getCanvasColors();
+			ctx.font = 'bold 12px Arial';
+			ctx.fillStyle = cc.text;
+			ctx.textAlign = 'left';
+			ctx.fillText('X →', canvas.width - 40, cy - 10);
+			ctx.fillText('Y ↑', cx + 10, 20);
+			ctx.fillText('0,0', cx + 6, cy - 6);
+		}
+	}
     
     function drawAntenna() {
         const AZMManager = getAZMManager ? getAZMManager() : null;
@@ -183,161 +202,205 @@ const UICanvas = (() => {
         ctx.fillText('АНТ', ax, ay - 26);
     }
     
-    function drawBeacons() {
-        const AZMManager = getAZMManager ? getAZMManager() : null;
-        const TrackManager = getTrackManager ? getTrackManager() : null;
-        
-        if (!AZMManager) return;
-        
-        const beacons = AZMManager.getBeaconsArray();
-        if (!beacons || beacons.length === 0) return;
-        
-        if (autoScaleEnabled && beacons.some(b => !isNaN(b.absoluteDistanceM) || !isNaN(b.slantRangeM))) {
-            autoScale();
-        }
-        
-        const cc = getCanvasColors();
+	function drawBeacons() {
+		const AZMManager = getAZMManager ? getAZMManager() : null;
+		const TrackManager = getTrackManager ? getTrackManager() : null;
+		
+		if (!AZMManager) return;
+		
+		const beacons = AZMManager.getBeaconsArray();
+		if (!beacons || beacons.length === 0) return;
+		
+		if (autoScaleEnabled && beacons.some(b => !isNaN(b.absoluteDistanceM) || !isNaN(b.slantRangeM) || !isNaN(b.xM))) {
+			autoScale();
+		}
+		
+		const cc = getCanvasColors();
 		const rootStyles = getComputedStyle(document.documentElement);
 		const timeoutColor = rootStyles.getPropertyValue('--beacon-timeout-color').trim() || '#dc3545';
 		const warningColor = rootStyles.getPropertyValue('--beacon-warning-color').trim() || '#ffc107';
-        const anchor = TrackManager ? TrackManager.getAnchor() : { lat: NaN, lon: NaN };		
-        
-        beacons.forEach(b => {
-            let x, y, dist, azm;
-            
-            if (!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg) && !isNaN(anchor.lat)) {
-                const screen = GeoUtils.geoToScreen(
-                    b.latitudeDeg, b.longitudeDeg,
-                    anchor.lat, anchor.lon,
-                    offsetX, offsetY, scale
-                );
-                x = screen.x;
-                y = screen.y;
-                dist = NaN;
-                azm = NaN;
-            } else if (!isNaN(b.absoluteDistanceM) && !isNaN(b.absoluteAzimuthDeg) && b.absoluteDistanceM > 0) {
-                dist = b.absoluteDistanceM;
-                azm = b.absoluteAzimuthDeg;
-            } else if (!isNaN(b.slantRangeProjectionM) && !isNaN(b.azimuthDeg) && b.slantRangeProjectionM > 0) {
-                dist = b.slantRangeProjectionM;
-                azm = b.azimuthDeg + (AZMManager.getState().antennaHeadingDeg || 0);
-            } else if (!isNaN(b.slantRangeM) && !isNaN(b.azimuthDeg) && b.slantRangeM > 0) {
-                dist = b.slantRangeM;
-                azm = b.azimuthDeg + (AZMManager.getState().antennaHeadingDeg || 0);
-            } else {
-                return;
-            }
-            
-            if (isNaN(x) || isNaN(y)) {
-                const ang = azm * Math.PI / 180;
-                x = offsetX + dist * Math.sin(ang) * scale;
-                y = offsetY - dist * Math.cos(ang) * scale;
-            }
-            
-            if (isNaN(x) || isNaN(y)) return;
-            
-            const age = b.dataAge || 0;
-            let alpha = age > 10 ? 0.25 : age > 5 ? 0.55 : 1.0;
-            if (b.isTimeout) alpha = 0.2;
-            const hue = (b.address * 60) % 360;
-            
-            ctx.beginPath();
-            ctx.arc(x, y, 15, 0, 2 * Math.PI);
-            ctx.fillStyle = `hsla(${hue}, 80%, 55%, ${alpha})`;
-            ctx.fill();
-            ctx.strokeStyle = cc.stroke;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            
-            ctx.fillStyle = cc.text;
-            ctx.font = 'bold 12px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText((b.userAddress || b.address + 1).toString(), x, y);
-            
-            const displayDist = !isNaN(b.absoluteDistanceM) && b.absoluteDistanceM > 0 ? b.absoluteDistanceM
-                : !isNaN(b.slantRangeProjectionM) && b.slantRangeProjectionM > 0 ? b.slantRangeProjectionM
-                : !isNaN(b.slantRangeM) && b.slantRangeM > 0 ? b.slantRangeM
-                : 0;
-            
-            ctx.font = '9px Arial';
-            ctx.fillStyle = cc.textSecondary;
-            ctx.fillText(`${displayDist.toFixed(0)}м`, x, y + 26);
-            
-            if (!isNaN(b.msrDB)) {
-                ctx.font = '8px Arial';
-                ctx.fillStyle = cc.textSecondary;
-                ctx.fillText(`${b.msrDB.toFixed(0)}dB`, x, y + 36);
-            }
-            
-            if (b.isTimeout) {
+		const anchor = TrackManager ? TrackManager.getAnchor() : { lat: NaN, lon: NaN };
+		const st = AZMManager.getState();
+		const cartesian = isCartesianMode();
+		
+		beacons.forEach(b => {
+			let x, y, dist, azm;
+			
+			if (cartesian) {
+				// Декартов режим: xM/yM напрямую
+				if (!isNaN(b.xM) && !isNaN(b.yM)) {
+					x = offsetX + b.xM * scale;
+					y = offsetY - b.yM * scale;
+				} else if (!isNaN(b.absoluteDistanceM) && !isNaN(b.absoluteAzimuthDeg) && b.absoluteDistanceM > 0) {
+					dist = b.absoluteDistanceM;
+					azm = b.absoluteAzimuthDeg;
+					const ang = azm * Math.PI / 180;
+					x = offsetX + dist * Math.sin(ang) * scale;
+					y = offsetY - dist * Math.cos(ang) * scale;
+				} else if (!isNaN(b.slantRangeProjectionM) && !isNaN(b.azimuthDeg) && b.slantRangeProjectionM > 0) {
+					dist = b.slantRangeProjectionM;
+					azm = b.azimuthDeg;
+					const ang = azm * Math.PI / 180;
+					x = offsetX + dist * Math.sin(ang) * scale;
+					y = offsetY - dist * Math.cos(ang) * scale;
+				} else if (!isNaN(b.slantRangeM) && !isNaN(b.azimuthDeg) && b.slantRangeM > 0) {
+					dist = b.slantRangeM;
+					azm = b.azimuthDeg;
+					const ang = azm * Math.PI / 180;
+					x = offsetX + dist * Math.sin(ang) * scale;
+					y = offsetY - dist * Math.cos(ang) * scale;
+				} else {
+					return;
+				}
+			} else if (!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg) && !isNaN(anchor.lat)) {
+				const screen = GeoUtils.geoToScreen(
+					b.latitudeDeg, b.longitudeDeg,
+					anchor.lat, anchor.lon,
+					offsetX, offsetY, scale
+				);
+				x = screen.x;
+				y = screen.y;
+				dist = NaN;
+				azm = NaN;
+			} else if (!isNaN(b.absoluteDistanceM) && !isNaN(b.absoluteAzimuthDeg) && b.absoluteDistanceM > 0) {
+				dist = b.absoluteDistanceM;
+				azm = b.absoluteAzimuthDeg;
+			} else if (!isNaN(b.slantRangeProjectionM) && !isNaN(b.azimuthDeg) && b.slantRangeProjectionM > 0) {
+				dist = b.slantRangeProjectionM;
+				azm = b.azimuthDeg + (st.antennaHeadingDeg || 0);
+			} else if (!isNaN(b.slantRangeM) && !isNaN(b.azimuthDeg) && b.slantRangeM > 0) {
+				dist = b.slantRangeM;
+				azm = b.azimuthDeg + (st.antennaHeadingDeg || 0);
+			} else {
+				return;
+			}
+			
+			if (isNaN(x) || isNaN(y)) {
+				if (!isNaN(dist) && !isNaN(azm)) {
+					const ang = azm * Math.PI / 180;
+					x = offsetX + dist * Math.sin(ang) * scale;
+					y = offsetY - dist * Math.cos(ang) * scale;
+				} else {
+					return;
+				}
+			}
+			
+			if (isNaN(x) || isNaN(y)) return;
+			
+			const age = b.dataAge || 0;
+			let alpha = age > 10 ? 0.25 : age > 5 ? 0.55 : 1.0;
+			if (b.isTimeout) alpha = 0.2;
+			const hue = (b.address * 60) % 360;
+			
+			ctx.beginPath();
+			ctx.arc(x, y, 15, 0, 2 * Math.PI);
+			ctx.fillStyle = `hsla(${hue}, 80%, 55%, ${alpha})`;
+			ctx.fill();
+			ctx.strokeStyle = cc.stroke;
+			ctx.lineWidth = 2;
+			ctx.stroke();
+			
+			ctx.fillStyle = cc.text;
+			ctx.font = 'bold 12px Arial';
+			ctx.textAlign = 'center';
+			ctx.textBaseline = 'middle';
+			ctx.fillText((b.userAddress || b.address + 1).toString(), x, y);
+			
+			const displayDist = !isNaN(b.absoluteDistanceM) && b.absoluteDistanceM > 0 ? b.absoluteDistanceM
+				: !isNaN(b.slantRangeProjectionM) && b.slantRangeProjectionM > 0 ? b.slantRangeProjectionM
+				: !isNaN(b.slantRangeM) && b.slantRangeM > 0 ? b.slantRangeM
+				: 0;
+			
+			ctx.font = '9px Arial';
+			ctx.fillStyle = cc.textSecondary;
+			ctx.fillText(`${displayDist.toFixed(0)}м`, x, y + 26);
+			
+			if (!isNaN(b.msrDB)) {
+				ctx.font = '8px Arial';
+				ctx.fillStyle = cc.textSecondary;
+				ctx.fillText(`${b.msrDB.toFixed(0)}dB`, x, y + 36);
+			}
+			
+			if (b.isTimeout) {
 				ctx.font = 'bold 14px Arial'; ctx.fillStyle = timeoutColor;
 				ctx.fillText('✕', x + 15, y - 17);
 			} else if (age > 8) {
 				ctx.font = 'bold 14px Arial'; ctx.fillStyle = warningColor;
 				ctx.fillText('!', x + 15, y - 17);
 			}
-        });
-    }
+		});
+	}
     
-    function drawRejectedPoints() {
-        const AZMManager = getAZMManager ? getAZMManager() : null;
-        const TrackManager = getTrackManager ? getTrackManager() : null;
-        
-        if (!AZMManager) return;
-        
-        const beacons = AZMManager.getBeaconsArray();
-        if (!beacons || beacons.length === 0) return;
-        
-        const anchor = TrackManager ? TrackManager.getAnchor() : { lat: NaN, lon: NaN };
+	function drawRejectedPoints() {
+		const AZMManager = getAZMManager ? getAZMManager() : null;
+		const TrackManager = getTrackManager ? getTrackManager() : null;
+		
+		if (!AZMManager) return;
+		
+		const beacons = AZMManager.getBeaconsArray();
+		if (!beacons || beacons.length === 0) return;
+		
+		const anchor = TrackManager ? TrackManager.getAnchor() : { lat: NaN, lon: NaN };
+		const cartesian = isCartesianMode();
 		
 		const rootStyles = getComputedStyle(document.documentElement);
 		const rejectedColor = rootStyles.getPropertyValue('--beacon-rejected-color').trim() || 'rgba(128,128,128,0.45)';
-        
-        beacons.forEach(b => {
-            if (isNaN(b.rejectedDistanceM) || isNaN(b.rejectedAzimuthDeg)) return;
-            if (b.rejectedDistanceM <= 0) return;
-            
-            let x, y;
-            
-            if (!isNaN(b.rejectedLatitudeDeg) && !isNaN(b.rejectedLongitudeDeg) && !isNaN(anchor.lat)) {
-                const screen = GeoUtils.geoToScreen(
-                    b.rejectedLatitudeDeg, b.rejectedLongitudeDeg,
-                    anchor.lat, anchor.lon,
-                    offsetX, offsetY, scale
-                );
-                x = screen.x;
-                y = screen.y;
-            } else {
-                const ang = b.rejectedAzimuthDeg * Math.PI / 180;
-                x = offsetX + b.rejectedDistanceM * Math.sin(ang) * scale;
-                y = offsetY - b.rejectedDistanceM * Math.cos(ang) * scale;
-            }
-            
-            if (isNaN(x) || isNaN(y)) return;
-            
-            const size = 8;
-            ctx.strokeStyle = rejectedColor;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(x - size, y - size);
-            ctx.lineTo(x + size, y + size);
-            ctx.moveTo(x + size, y - size);
-            ctx.lineTo(x - size, y + size);
-            ctx.stroke();
-            
-            ctx.beginPath();
-            ctx.arc(x, y, 5, 0, 2 * Math.PI);
-            ctx.strokeStyle = rejectedColor;
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            
-            ctx.font = '9px Arial';
-            ctx.fillStyle = rejectedColor;
-            ctx.textAlign = 'center';
-            ctx.fillText(`${b.rejectedDistanceM.toFixed(0)}м`, x, y - 12);
-        });
-    }
+		
+		beacons.forEach(b => {
+			let x, y;
+			
+			if (cartesian) {
+				// Декартов режим: rejectedXM/rejectedYM
+				if (!isNaN(b.rejectedXM) && !isNaN(b.rejectedYM)) {
+					x = offsetX + b.rejectedXM * scale;
+					y = offsetY - b.rejectedYM * scale;
+				} else if (!isNaN(b.rejectedDistanceM) && !isNaN(b.rejectedAzimuthDeg)) {
+					const ang = b.rejectedAzimuthDeg * Math.PI / 180;
+					x = offsetX + b.rejectedDistanceM * Math.sin(ang) * scale;
+					y = offsetY - b.rejectedDistanceM * Math.cos(ang) * scale;
+				} else {
+					return;
+				}
+			} else if (!isNaN(b.rejectedLatitudeDeg) && !isNaN(b.rejectedLongitudeDeg) && !isNaN(anchor.lat)) {
+				const screen = GeoUtils.geoToScreen(
+					b.rejectedLatitudeDeg, b.rejectedLongitudeDeg,
+					anchor.lat, anchor.lon,
+					offsetX, offsetY, scale
+				);
+				x = screen.x;
+				y = screen.y;
+			} else if (!isNaN(b.rejectedDistanceM) && !isNaN(b.rejectedAzimuthDeg)) {
+				const ang = b.rejectedAzimuthDeg * Math.PI / 180;
+				x = offsetX + b.rejectedDistanceM * Math.sin(ang) * scale;
+				y = offsetY - b.rejectedDistanceM * Math.cos(ang) * scale;
+			} else {
+				return;
+			}
+			
+			if (isNaN(x) || isNaN(y)) return;
+			
+			const size = 8;
+			ctx.strokeStyle = rejectedColor;
+			ctx.lineWidth = 2;
+			ctx.beginPath();
+			ctx.moveTo(x - size, y - size);
+			ctx.lineTo(x + size, y + size);
+			ctx.moveTo(x + size, y - size);
+			ctx.lineTo(x - size, y + size);
+			ctx.stroke();
+			
+			ctx.beginPath();
+			ctx.arc(x, y, 5, 0, 2 * Math.PI);
+			ctx.strokeStyle = rejectedColor;
+			ctx.lineWidth = 1;
+			ctx.stroke();
+			
+			ctx.font = '9px Arial';
+			ctx.fillStyle = rejectedColor;
+			ctx.textAlign = 'center';
+			ctx.fillText(`${b.rejectedDistanceM.toFixed(0)}м`, x, y - 12);
+		});
+	}
     
     function drawScaleBar() {
         const rawM = 100 / scale;
@@ -367,6 +430,9 @@ const UICanvas = (() => {
     }
     
 	function drawPOI() {
+		
+		if (isCartesianMode()) return;
+		
 		const points = POIManager.getAll();
 		if (points.length === 0) return;
 		
@@ -465,73 +531,84 @@ const UICanvas = (() => {
 	
 	
 	
-    function autoScale() {
-        const AZMManager = getAZMManager ? getAZMManager() : null;
-        const TrackManager = getTrackManager ? getTrackManager() : null;
-        
-        if (!AZMManager || !TrackManager) return;
-        
-        const beacons = AZMManager.getBeaconsArray();
-        const anchor = TrackManager.getAnchor();
-        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        let found = false;
-        
-        const st = AZMManager.getState();
-        
-        // Сбрасываем слежение при автоскейле
-        followTarget = null;
-        
-        // Добавляем маяки
-        beacons.forEach(b => {
-            let wx, wy;
-            
-            if (!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg) && !isNaN(anchor.lat)) {
-                const screen = GeoUtils.geoToScreen(
-                    b.latitudeDeg, b.longitudeDeg,
-                    anchor.lat, anchor.lon,
-                    0, 0, 1
-                );
-                wx = screen.x; wy = screen.y;
-            } else if (!isNaN(b.absoluteDistanceM) && !isNaN(b.absoluteAzimuthDeg) && b.absoluteDistanceM > 0) {
-                const a = b.absoluteAzimuthDeg * Math.PI / 180;
-                wx = b.absoluteDistanceM * Math.sin(a);
-                wy = b.absoluteDistanceM * Math.cos(a);
-            } else if (!isNaN(b.slantRangeProjectionM) && !isNaN(b.azimuthDeg) && b.slantRangeProjectionM > 0) {
-                const heading = st.antennaHeadingDeg || 0;
-                const a = (b.azimuthDeg + heading) * Math.PI / 180;
-                wx = b.slantRangeProjectionM * Math.sin(a);
-                wy = b.slantRangeProjectionM * Math.cos(a);
-            } else if (!isNaN(b.slantRangeM) && !isNaN(b.azimuthDeg) && b.slantRangeM > 0) {
-                const heading = st.antennaHeadingDeg || 0;
-                const a = (b.azimuthDeg + heading) * Math.PI / 180;
-                wx = b.slantRangeM * Math.sin(a);
-                wy = b.slantRangeM * Math.cos(a);
-            } else {
-                return;
-            }
-            
-            if (!isNaN(wx) && !isNaN(wy)) {
-                minX = Math.min(minX, wx); maxX = Math.max(maxX, wx);
-                minY = Math.min(minY, wy); maxY = Math.max(maxY, wy);
-                found = true;
-            }
-        });
-        
-        if (!found) return;
-        
-        const pad = 0.35;
-        const rx = (maxX - minX) || 100;
-        const ry = (maxY - minY) || 100;
-        minX -= rx * pad; maxX += rx * pad;
-        minY -= ry * pad; maxY += ry * pad;
-        
-        const sx = canvas.width / (maxX - minX);
-        const sy = canvas.height / (maxY - minY);
-        scale = Math.min(sx, sy);
-        scale = Math.min(Math.max(scale, 0.1), 5000);
-        offsetX = canvas.width / 2 - ((minX + maxX) / 2) * scale;
-        offsetY = canvas.height / 2 + ((minY + maxY) / 2) * scale;
-    }
+	function autoScale() {
+		const AZMManager = getAZMManager ? getAZMManager() : null;
+		const TrackManager = getTrackManager ? getTrackManager() : null;
+		
+		if (!AZMManager || !TrackManager) return;
+		
+		const beacons = AZMManager.getBeaconsArray();
+		const anchor = TrackManager.getAnchor();
+		const cartesian = isCartesianMode();
+		let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+		let found = false;
+		
+		const st = AZMManager.getState();
+		
+		followTarget = null;
+		
+		beacons.forEach(b => {
+			let wx, wy;
+			
+			if (cartesian) {
+				// Декартов режим: используем xM/yM
+				if (!isNaN(b.xM) && !isNaN(b.yM)) {
+					wx = b.xM;
+					wy = b.yM;
+				} else if (!isNaN(b.absoluteDistanceM) && !isNaN(b.absoluteAzimuthDeg) && b.absoluteDistanceM > 0) {
+					const a = b.absoluteAzimuthDeg * Math.PI / 180;
+					wx = b.absoluteDistanceM * Math.sin(a);
+					wy = b.absoluteDistanceM * Math.cos(a);
+				} else {
+					return;
+				}
+			} else if (!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg) && !isNaN(anchor.lat)) {
+				const screen = GeoUtils.geoToScreen(
+					b.latitudeDeg, b.longitudeDeg,
+					anchor.lat, anchor.lon,
+					0, 0, 1
+				);
+				wx = screen.x; wy = screen.y;
+			} else if (!isNaN(b.absoluteDistanceM) && !isNaN(b.absoluteAzimuthDeg) && b.absoluteDistanceM > 0) {
+				const a = b.absoluteAzimuthDeg * Math.PI / 180;
+				wx = b.absoluteDistanceM * Math.sin(a);
+				wy = b.absoluteDistanceM * Math.cos(a);
+			} else if (!isNaN(b.slantRangeProjectionM) && !isNaN(b.azimuthDeg) && b.slantRangeProjectionM > 0) {
+				const heading = st.antennaHeadingDeg || 0;
+				const a = (b.azimuthDeg + heading) * Math.PI / 180;
+				wx = b.slantRangeProjectionM * Math.sin(a);
+				wy = b.slantRangeProjectionM * Math.cos(a);
+			} else if (!isNaN(b.slantRangeM) && !isNaN(b.azimuthDeg) && b.slantRangeM > 0) {
+				const heading = st.antennaHeadingDeg || 0;
+				const a = (b.azimuthDeg + heading) * Math.PI / 180;
+				wx = b.slantRangeM * Math.sin(a);
+				wy = b.slantRangeM * Math.cos(a);
+			} else {
+				return;
+			}
+			
+			if (!isNaN(wx) && !isNaN(wy)) {
+				minX = Math.min(minX, wx); maxX = Math.max(maxX, wx);
+				minY = Math.min(minY, wy); maxY = Math.max(maxY, wy);
+				found = true;
+			}
+		});
+		
+		if (!found) return;
+		
+		const pad = 0.35;
+		const rx = (maxX - minX) || 100;
+		const ry = (maxY - minY) || 100;
+		minX -= rx * pad; maxX += rx * pad;
+		minY -= ry * pad; maxY += ry * pad;
+		
+		const sx = canvas.width / (maxX - minX);
+		const sy = canvas.height / (maxY - minY);
+		scale = Math.min(sx, sy);
+		scale = Math.min(Math.max(scale, 0.1), 5000);
+		offsetX = canvas.width / 2 - ((minX + maxX) / 2) * scale;
+		offsetY = canvas.height / 2 + ((minY + maxY) / 2) * scale;
+	}
     
     function centerOnGeoPoint(latDeg, lonDeg) {
         const AZMManager = getAZMManager ? getAZMManager() : null;
@@ -601,6 +678,11 @@ const UICanvas = (() => {
         return false;
     }
     
+	function followCartesianPoint(xM, yM) {
+		followTarget = { type: 'cartesian', xM, yM };
+		centerOnWorldPoint(xM, yM);
+	}
+	
     function drawAll() {
         if (!ctx || canvas.width === 0) return;
         
@@ -613,10 +695,13 @@ const UICanvas = (() => {
         const UIRuler = getUIRuler ? getUIRuler() : null;
         
         drawGrid();
-        if (TrackManager) {
-            TrackManager.drawStationTrack(ctx, offsetX, offsetY, scale);
-            TrackManager.drawTracks(ctx, offsetX, offsetY, scale);
-        }
+        if (TrackManager && !isCartesianMode()) {
+			TrackManager.drawStationTrack(ctx, offsetX, offsetY, scale);
+		}
+		if (TrackManager) {
+			TrackManager.drawTracks(ctx, offsetX, offsetY, scale);
+		}
+		
         drawRejectedPoints();
         drawBeacons();
 		drawPOI();
@@ -676,6 +761,7 @@ const UICanvas = (() => {
         centerOnGeoPoint,
         centerOnWorldPoint,
         followGeoPoint,
+		followCartesianPoint,
         clearFollowTarget,
         getScale, setScale,
         getOffset, setOffset,
