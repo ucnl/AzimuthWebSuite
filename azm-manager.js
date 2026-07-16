@@ -134,6 +134,14 @@ const AZMManager = (() => {
 					beacon.vccV = ndata.resCode * (ABS_MAX_VCC_V - ABS_MIN_VCC_V) / CRANGE + ABS_MIN_VCC_V;
 				}
 			}
+			
+			if (!isNaN(ndata.resCode) && ndata.resCode >= 500) {
+				if (!isNaN(ndata.hAngleDeg)) {
+					beacon.azimuthDeg = state.antennaCorrector.correctAngle(ndata.hAngleDeg);
+				}
+				
+				return beacon;
+			}
 
 			beacon.isTimeout = false;
 			beacon.succeededRequests++;
@@ -144,13 +152,13 @@ const AZMManager = (() => {
 
 			if (!isNaN(beacon.propTimeS)) {
 				const sos = (state.soundSpeedMps > 0) ? state.soundSpeedMps : DEFAULT_SOUND_SPEED_MPS;
-
 				beacon.slantRangeM = beacon.propTimeS * sos;
 				if (!isNaN(state.antennaDepthM) && !isNaN(beacon.depthM)) {
 					projectionM = slantRangeProjection(state.antennaDepthM, beacon.depthM, beacon.slantRangeM);
 					beacon.slantRangeProjectionM = projectionM;
 					hasProjection = !isNaN(projectionM);
 				} else {
+					projectionM = beacon.slantRangeM;
 					beacon.slantRangeProjectionM = beacon.slantRangeM;
 					hasProjection = true;
 				}
@@ -161,7 +169,7 @@ const AZMManager = (() => {
 				projectionM = beacon.slantRangeM;
 				beacon.slantRangeProjectionM = projectionM;
 				hasProjection = true;
-			}
+			}			
 
 			// =====================================================
 			// === ДЕКАРТОВ РЕЖИМ (НЕПОДВИЖНАЯ АНТЕННА) ===
@@ -172,14 +180,13 @@ const AZMManager = (() => {
 				}
 
 				// Система координат: X → вправо (East), Y → вперёд (North), Z → вниз (глубина)
-				const azmRad = deg2rad(beacon.azimuthDeg + state.phiDeg);
+				const azmRad = deg2rad(beacon.azimuthDeg);
 				const distXY = projectionM;
 
 				const xM = distXY * Math.sin(azmRad);  // +X = вправо
 				const yM = distXY * Math.cos(azmRad);  // +Y = вперёд
-				const zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
-
-				// Создаём XYZ-фильтр если нужно
+				const zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;								
+				
 				if (!beacon.dhFilterXYZ && window.DHTrackFilterXYZ) {
 					beacon.dhFilterXYZ = new DHTrackFilterXYZ(
 						DEFAULT_USBL_DH_FIFO,
@@ -214,7 +221,7 @@ const AZMManager = (() => {
 					const dhResult = beacon.dhFilterXYZ.process(xM, yM, zM, now);
 
 					if (dhResult.accepted) {
-						beacon.absoluteAzimuthDeg = beacon.azimuthDeg + state.phiDeg;
+						beacon.absoluteAzimuthDeg = beacon.azimuthDeg;
 						beacon.absoluteDistanceM = distXY;
 
 						// Сглаживатель (только до 1000 м)
