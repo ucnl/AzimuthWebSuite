@@ -40,6 +40,7 @@
 - NMEA GGA (трек антенны)
 - NMEA PSIMSSB (эмуляция HiPAP, Head-Up и UTM)
 - KML (треки и POI для Google Earth/QGIS)
+- Утилита [конвертер координат](https://docs.unavlab.com/AzimuthWebSuite/tools/coord-converter.html) (Географические (Lat, Lon) <> Локальные (метры))
 
 ### Интерфейс
 - **Пять тем оформления:** Indoor, Light, Dark Contrast, Jack Black, Jack White, VAX
