@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.3.3';
+    const APP_VERSION = '1.3.4';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -196,7 +196,7 @@ const App = (() => {
 		window.addEventListener('resize', () => UICanvas.resizeCanvas());
 		initMouseHandlers();
 		initTouchHandlers();
-		loadSettings();  // ← оставить
+		loadSettings(); 
 		
 		document.addEventListener('click', function(e) {
 			if (!e.target.closest('.dropdown')) {
@@ -1819,6 +1819,10 @@ const App = (() => {
 				
 				if (data.antennaMode) {
 					AZMManager.setAntennaMode(data.antennaMode);
+				}
+
+				if (data.antennaMode === 'cartesian_fixed') {
+					AZMManager.setAntennaPosition(NaN, NaN, 0);
 				}
 					
 				if (data.maxBeaconSpeed !== undefined) AZMManager.setMaxBeaconSpeed(data.maxBeaconSpeed);
