@@ -208,6 +208,13 @@ const TrackManager = (() => {
 
 	function drawTracks(ctx, offsetX, offsetY, scale) {
 		if (!settings.showTracks) return;
+		
+		let isCartesian = false;
+		try {
+			if (typeof AZMManager !== 'undefined' && AZMManager.getState) {
+				isCartesian = AZMManager.getState().antennaMode === 'cartesian_fixed';
+			}
+		} catch(e) {}
 
 		const rootStyles = getComputedStyle(document.documentElement);
 		const trackGlowAlpha = parseFloat(rootStyles.getPropertyValue('--track-beacon-glow-alpha').trim()) || 0.2;
@@ -229,7 +236,7 @@ const TrackManager = (() => {
 				if (point.isTimeout) continue;
 
 				let x, y;
-				if (!isNaN(point.xM) && !isNaN(point.yM)) {
+				if (isCartesian && !isNaN(point.xM) && !isNaN(point.yM)) {
 					x = offsetX + point.xM * scale;
 					y = offsetY - point.yM * scale;
 				} else if (!isNaN(point.x)) {
@@ -258,7 +265,7 @@ const TrackManager = (() => {
 				if (point.isTimeout) continue;
 
 				let x, y;
-				if (!isNaN(point.xM) && !isNaN(point.yM)) {
+				if (isCartesian && !isNaN(point.xM) && !isNaN(point.yM)) {
 					x = offsetX + point.xM * scale;
 					y = offsetY - point.yM * scale;
 				} else if (!isNaN(point.x)) {
