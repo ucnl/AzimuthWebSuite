@@ -149,6 +149,12 @@ const AngularCalibration = (() => {
     return {
         reset, addPoint, getCount, calibratePhi,
         setOffsets: (x, y) => { xOffset = x; yOffset = y; },
-    };
+    };	
 
 })();
+
+window.AngularCalibration = AngularCalibration;
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = AngularCalibration;
+}
