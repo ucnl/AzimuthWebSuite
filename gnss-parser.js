@@ -168,12 +168,29 @@ const GNSSParser = (() => {
 		const line = rawLine.trim();
 		if (!line.startsWith('$')) return null;
 
-		const body = line.substring(1).split('*')[0];
+		// Проверка контрольной суммы
+		const starIdx = line.indexOf('*');
+		if (starIdx === -1) return null; // нет контрольной суммы — битая строка
+
+		// Вычисляем контрольную сумму
+		let calcChecksum = 0;
+		for (let i = 1; i < starIdx; i++) {
+			calcChecksum ^= line.charCodeAt(i);
+		}
+
+		// Читаем заявленную контрольную сумму
+		const expectedChecksum = parseInt(line.substring(starIdx + 1), 16);
+		if (isNaN(expectedChecksum) || calcChecksum !== expectedChecksum) {
+			return null; // контрольная сумма не совпала — битая строка
+		}
+
+		const body = line.substring(1, starIdx);
 		const parts = body.split(',');
 		const talker = parts[0];
 
-		// Извлекаем тип предложения — последние 3 буквы после talker
-		// Работает для любых префиксов: GP, GN, GL, GA, HE, HC, OUT, и т.д.
+		// Минимальная длина: хотя бы talker + 1 поле
+		if (parts.length < 2) return null;
+
 		const sentenceType = talker.slice(-3).toUpperCase();
 
 		if (sentenceType === 'HDT') return parseHDT(parts.slice(1));
