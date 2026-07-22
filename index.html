@@ -47,11 +47,12 @@
 					
 					<!-- Подменю Калибровки -->
 					<div class="dropdown-item">🔧 Калибровки ▸<div class="submenu">
-						<div class="dropdown-item" onclick="App.toggleCalibration(); App.closeAllDropdowns();">🔧 Калибровка φ</div>
-						<div class="dropdown-item" onclick="App.toggleAntennaCalibration(); App.closeAllDropdowns();">⚠📡 Калибровка антенны</div>
+						<div class="dropdown-item" onclick="App.toggleCalibration(); App.closeAllDropdowns();">🔧 Калибровка φ (по облаку точек)</div>
+						<div class="dropdown-item" onclick="App.openDRMSWithPhi(); App.closeAllDropdowns();">🔧 Калибровка φ (по известной точке)</div>
+						<div class="dropdown-item" onclick="App.toggleAntennaCalibration(); App.closeAllDropdowns();">⚠📡 Калибровка антенны (таблица)</div>
 						</div>
 					</div>
-										
+
 				</div>
 			</div>
 						
@@ -193,6 +194,38 @@
 			<div id="analysis-panel" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--bg-overlay); border:2px solid var(--btn-export); border-radius:12px; padding:20px; z-index:100; max-width:500px; max-height:70vh; overflow-y:auto; backdrop-filter:blur(10px);">
 				<h3 id="analysis-title" style="color:var(--btn-export); text-align:center; margin-bottom:12px;">🔍 Анализ лога</h3>
 				<div id="analysis-content" style="font-size:12px; line-height:1.6;"></div>
+				
+				<!-- Секция калибровки φ по известной точке -->
+				<div id="drms-phi-section" style="display:none; margin-top:16px; padding-top:16px; border-top:1px solid var(--border-primary);">
+					<h4 style="color:var(--btn-start); margin-bottom:10px;">🔧 Калибровка φ по известной точке</h4>
+					
+					<div id="drms-phi-beacon-select" style="margin-bottom:8px; display:none;">
+						<label style="font-size:12px; color:var(--text-secondary);">Маяк:</label>
+						<select id="drms-phi-beacon" style="width:100%; padding:6px 8px; border:1px solid var(--border-primary); border-radius:4px; background:var(--bg-input); color:var(--text-primary); font-size:12px; margin-top:4px;"></select>
+					</div>
+					
+					<div style="font-size:11px; color:var(--text-secondary); margin-bottom:8px;">
+						Центроид: <span id="drms-phi-centroid" style="color:var(--text-accent); font-weight:600;">—</span>
+					</div>
+					
+					<div class="topo-row">
+						<label>Широта реал.:</label>
+						<input type="text" id="drms-phi-real-lat" placeholder="55.123456" style="flex:1; padding:6px 8px; border:1px solid var(--border-primary); border-radius:4px; background:var(--bg-input); color:var(--text-primary); font-size:12px;">
+					</div>
+					<div class="topo-row">
+						<label>Долгота реал.:</label>
+						<input type="text" id="drms-phi-real-lon" placeholder="37.654321" style="flex:1; padding:6px 8px; border:1px solid var(--border-primary); border-radius:4px; background:var(--bg-input); color:var(--text-primary); font-size:12px;">
+					</div>
+					
+					<button id="drms-phi-calc-btn" class="btn-apply-topo" style="width:100%; margin-top:8px;">Вычислить φ</button>
+					
+					<div id="drms-phi-result" style="text-align:center; font-size:14px; margin-top:10px; display:none;">
+						Вычисленный φ: <span id="drms-phi-value" style="color:var(--btn-connect); font-weight:700;"></span>°
+					</div>
+					
+					<button id="drms-phi-apply-btn" class="btn-apply-topo" style="width:100%; margin-top:8px; display:none;">✓ Применить φ</button>
+				</div>
+				
 				<div style="display:flex; gap:8px; margin-top:12px;">
 					<button onclick="App.copyAnalysis()" style="flex:1; padding:8px; background:var(--btn-start); color:var(--btn-text); border:none; border-radius:4px; cursor:pointer;">📋 Копировать</button>
 					<button id="analysis-download-btn" onclick="App.downloadDRMS()" style="flex:1; padding:8px; background:var(--btn-export); color:var(--btn-text); border:none; border-radius:4px; cursor:pointer; display:none;">💾 Скачать CSV</button>

@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.3.5';
+    const APP_VERSION = '1.3.6';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -132,6 +132,24 @@ const App = (() => {
 		}).catch(() => {
 			alert('Не удалось скопировать');
 		});
+	}
+	
+	function openDRMSWithPhi() {
+		// Сначала считаем DRMS
+		const allTracks = TrackManager.getAll();
+		const trackAddresses = Object.keys(allTracks);
+		
+		if (trackAddresses.length === 0) {
+			alert('Нет треков для расчёта. Сначала накопите треки маяков.');
+			return;
+		}
+		
+		// Вызываем обычный exportDRMS
+		exportDRMS();
+		
+		// Меняем заголовок
+		const title = document.getElementById('analysis-title');
+		if (title) title.textContent = '🔧 Калибровка φ (по известной точке)';
 	}
 
 	function cycleTheme() {
@@ -1355,6 +1373,8 @@ const App = (() => {
 	function exportDRMS() {
 		const allTracks = TrackManager.getAll();
 		const trackAddresses = Object.keys(allTracks);
+		const st = AZMManager.getState();
+		const isCartesian = st.antennaMode === 'cartesian_fixed';
 		
 		if (trackAddresses.length === 0) {
 			alert('Нет треков для расчёта');
@@ -1362,34 +1382,55 @@ const App = (() => {
 		}
 		
 		let report = '';
-		const csvLines = ['Beacon,Points,DRMS_m,2DRMS_m,3DRMS_m,SigmaX_m,SigmaY_m,CentroidLat,CentroidLon'];
+		const csvLines = isCartesian
+			? ['Beacon,Points,DRMS_m,2DRMS_m,3DRMS_m,SigmaX_m,SigmaY_m,CentroidX_m,CentroidY_m']
+			: ['Beacon,Points,DRMS_m,2DRMS_m,3DRMS_m,SigmaX_m,SigmaY_m,CentroidLat,CentroidLon'];
 		let beaconsWithStats = 0;
+		
+		// Сохраняем данные для калибровки φ
+		window._drmsData = {};
 		
 		for (const addr of trackAddresses) {
 			const track = allTracks[addr];
-			const validPoints = track.filter(p => !p.isTimeout && !isNaN(p.lat) && !isNaN(p.lon));
+			let validPoints, cX = 0, cY = 0, stats;
 			
-			if (validPoints.length < 3) continue;
+			if (isCartesian) {
+				validPoints = track.filter(p => !p.isTimeout && !isNaN(p.xM) && !isNaN(p.yM));
+				if (validPoints.length < 3) continue;
+				
+				for (const p of validPoints) { cX += p.xM; cY += p.yM; }
+				cX /= validPoints.length;
+				cY /= validPoints.length;
+				
+				stats = GeoUtils.calcDRMS(validPoints.map(p => ({ x: p.xM, y: p.yM })));
+			} else {
+				validPoints = track.filter(p => !p.isTimeout && !isNaN(p.lat) && !isNaN(p.lon));
+				if (validPoints.length < 3) continue;
+				
+				let cLat = 0, cLon = 0;
+				for (const p of validPoints) { cLat += p.lat; cLon += p.lon; }
+				cLat /= validPoints.length;
+				cLon /= validPoints.length;
+				
+				stats = GeoUtils.calcDRMS(validPoints.map(p => {
+					const d = GeoUtils.deltasByDegrees(cLat, cLon, p.lat, p.lon);
+					return { x: d.deltaLonM, y: d.deltaLatM };
+				}));
+				cX = cLon; cY = cLat;
+			}
 			
-			let cLat = 0, cLon = 0;
-			for (const p of validPoints) { cLat += p.lat; cLon += p.lon; }
-			cLat /= validPoints.length;
-			cLon /= validPoints.length;
-			
-			const points = validPoints.map(p => {
-				const d = GeoUtils.deltasByDegrees(cLat, cLon, p.lat, p.lon);
-				return { x: d.deltaLonM, y: d.deltaLatM };
-			});
-			
-			const stats = GeoUtils.calcDRMS(points);
 			if (!stats) continue;
 			
 			beaconsWithStats++;
-			
 			const userAddr = parseInt(addr) + 1;
-			report += `Маяк #${userAddr}: DRMS=${stats.drms.toFixed(2)}м, 2DRMS=${stats.drms2.toFixed(2)}м, 3DRMS=${stats.drms3.toFixed(2)}м, σX=${stats.sigmaX.toFixed(2)}м, σY=${stats.sigmaY.toFixed(2)}м, точек=${stats.count}\n`;
 			
-			csvLines.push(`${userAddr},${stats.count},${stats.drms.toFixed(3)},${stats.drms2.toFixed(3)},${stats.drms3.toFixed(3)},${stats.sigmaX.toFixed(3)},${stats.sigmaY.toFixed(3)},${cLat.toFixed(8)},${cLon.toFixed(8)}`);
+			if (isCartesian) {
+				report += `Маяк #${userAddr}: DRMS=${stats.drms.toFixed(2)}м, 2DRMS=${stats.drms2.toFixed(2)}м, 3DRMS=${stats.drms3.toFixed(2)}м, σX=${stats.sigmaX.toFixed(2)}м, σY=${stats.sigmaY.toFixed(2)}м, точек=${stats.count}\n  Центроид: X=${cX.toFixed(2)}м, Y=${cY.toFixed(2)}м\n\n`;
+				window._drmsData[addr] = { centroidXM: cX, centroidYM: cY, cartesian: true };
+			} else {
+				report += `Маяк #${userAddr}: DRMS=${stats.drms.toFixed(2)}м, 2DRMS=${stats.drms2.toFixed(2)}м, 3DRMS=${stats.drms3.toFixed(2)}м, σX=${stats.sigmaX.toFixed(2)}м, σY=${stats.sigmaY.toFixed(2)}м, точек=${stats.count}\n  Центроид: ${cY.toFixed(8)}, ${cX.toFixed(8)}\n\n`;
+				window._drmsData[addr] = { centroidLat: cY, centroidLon: cX, cartesian: false };
+			}
 		}
 		
 		if (!report) {
@@ -1397,27 +1438,171 @@ const App = (() => {
 			return;
 		}
 		
-		// Показываем в панели анализа
 		if (analysisPanel && analysisContent) {
-			// Меняем заголовок
 			const title = document.getElementById('analysis-title');
 			if (title) title.textContent = '📊 Отчёт DRMS';
 			
 			analysisContent.innerHTML = '<pre style="font-size:12px; line-height:1.6;">' + report + '</pre>';
 			
-			// Показываем кнопку скачивания CSV
 			const downloadBtn = document.getElementById('analysis-download-btn');
 			if (downloadBtn) downloadBtn.style.display = '';
+			
+			// Показываем секцию калибровки φ (только в географическом режиме)
+			const phiSection = document.getElementById('drms-phi-section');
+			if (phiSection) {
+				if (!isCartesian && beaconsWithStats > 0) {
+					phiSection.style.display = 'block';
+					setupDRMSPhiSection();
+				} else {
+					phiSection.style.display = 'none';
+				}
+			}
 			
 			analysisPanel.style.display = 'block';
 		} else {
 			alert(report);
 		}
 		
-		// Сохраняем CSV для скачивания
 		window._drmsCSV = csvLines.join('\n');
-		
 		setStatus(`DRMS рассчитан для ${beaconsWithStats} маяков`);
+	}
+
+	// Новая функция: настройка секции калибровки φ
+	function setupDRMSPhiSection() {
+		const data = window._drmsData;
+		if (!data) return;
+		
+		const addresses = Object.keys(data).filter(a => !data[a].cartesian);
+		const beaconSelect = document.getElementById('drms-phi-beacon');
+		const beaconSelectDiv = document.getElementById('drms-phi-beacon-select');
+		
+		// Если больше одного маяка — показываем выпадающий список
+		if (addresses.length > 1 && beaconSelect && beaconSelectDiv) {
+			beaconSelectDiv.style.display = 'block';
+			beaconSelect.innerHTML = addresses.map(a => {
+				const userAddr = parseInt(a) + 1;
+				return `<option value="${a}">Маяк #${userAddr}</option>`;
+			}).join('');
+			beaconSelect.onchange = updateDRMSPhiCentroid;
+		}
+		
+		updateDRMSPhiCentroid();
+		
+		// Сбрасываем поля
+		document.getElementById('drms-phi-real-lat').value = '';
+		document.getElementById('drms-phi-real-lon').value = '';
+		document.getElementById('drms-phi-result').style.display = 'none';
+		document.getElementById('drms-phi-apply-btn').style.display = 'none';
+		
+		// Кнопка «Вычислить φ»
+		const calcBtn = document.getElementById('drms-phi-calc-btn');
+		calcBtn.onclick = calculatePhiFromDRMS;
+		
+		// Кнопка «Применить»
+		const applyBtn = document.getElementById('drms-phi-apply-btn');
+		applyBtn.onclick = applyPhiFromDRMS;
+	}
+
+	function updateDRMSPhiCentroid() {
+		const data = window._drmsData;
+		if (!data) return;
+		
+		let addr = null;
+		const beaconSelect = document.getElementById('drms-phi-beacon');
+		if (beaconSelect && beaconSelect.options.length > 0) {
+			addr = beaconSelect.value;
+		} else {
+			// Берём первый (единственный)
+			const addresses = Object.keys(data).filter(a => !data[a].cartesian);
+			addr = addresses[0];
+		}
+		
+		if (addr && data[addr]) {
+			const d = data[addr];
+			document.getElementById('drms-phi-centroid').textContent = 
+				`${d.centroidLat.toFixed(8)}, ${d.centroidLon.toFixed(8)}`;
+			// Сохраняем текущий адрес
+			document.getElementById('drms-phi-centroid').dataset.addr = addr;
+		}
+	}
+
+	function calculatePhiFromDRMS() {
+		const data = window._drmsData;
+		if (!data) return;
+		
+		const addr = document.getElementById('drms-phi-centroid').dataset.addr;
+		const d = data[addr];
+		if (!d || d.cartesian) return;
+		
+		const realLat = parseFloat(document.getElementById('drms-phi-real-lat').value);
+		const realLon = parseFloat(document.getElementById('drms-phi-real-lon').value);
+		
+		if (isNaN(realLat) || isNaN(realLon)) {
+			alert('Введите реальные координаты маяка');
+			return;
+		}
+		
+		// Координаты антенны
+		const st = AZMManager.getState();
+		const antLat = st.antennaLatDeg;
+		const antLon = st.antennaLonDeg;
+		
+		if (isNaN(antLat) || isNaN(antLon)) {
+			alert('Нет координат антенны. Выполните топопривязку.');
+			return;
+		}
+		
+		const antLatRad = antLat * Math.PI / 180;
+		const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * antLatRad) + 1.175 * Math.cos(4 * antLatRad);
+		const mPerDegLon = 111412.84 * Math.cos(antLatRad) - 93.5 * Math.cos(3 * antLatRad);
+		
+		// Азимут от антенны к реальной точке
+		const deltaNReal = (realLat - antLat) * mPerDegLat;
+		const deltaEReal = (realLon - antLon) * mPerDegLon;
+		const azmReal = Math.atan2(deltaEReal, deltaNReal) * 180 / Math.PI;
+		
+		// Азимут от антенны к центроиду
+		const deltaNCentroid = (d.centroidLat - antLat) * mPerDegLat;
+		const deltaECentroid = (d.centroidLon - antLon) * mPerDegLon;
+		const azmCentroid = Math.atan2(deltaECentroid, deltaNCentroid) * 180 / Math.PI;
+		
+		// φ = разница азимутов
+		let phi = azmReal - azmCentroid;
+		phi = ((phi % 360) + 360) % 360;
+		if (phi > 180) phi -= 360;
+		
+		document.getElementById('drms-phi-value').textContent = phi.toFixed(1);
+		document.getElementById('drms-phi-result').style.display = 'block';
+		document.getElementById('drms-phi-apply-btn').style.display = 'block';
+		
+		window._drmsCalculatedPhi = phi;
+	}
+
+	function applyPhiFromDRMS() {
+		if (isNaN(window._drmsCalculatedPhi)) return;
+		
+		const phi = window._drmsCalculatedPhi;
+		
+		// Записываем в поле настроек
+		const phiEl = document.getElementById('cfg-phi');
+		if (phiEl) phiEl.value = phi.toFixed(1);
+		
+		// Применяем к менеджеру
+		const st = AZMManager.getState();
+		AZMManager.setAntennaOffsets(st.offsetXM, st.offsetYM, phi);
+		
+		// Сохраняем
+		saveSettings();
+		
+		// Обновляем статус калибровки
+		if (typeof UICalibration !== 'undefined') {
+			// Обновляем UI калибровки если нужно
+		}
+		
+		setStatus(`φ = ${phi.toFixed(1)}° применён`);
+		
+		// Пересчитываем маяки
+		AZMManager.recalcAllBeacons();
 	}
 
 	function downloadDRMS() {
@@ -1883,6 +2068,7 @@ const App = (() => {
 		loadPOI, clearPOI, markBeaconPoint,	exportPOI_CSV,
 		toggleRemoteConfig,
 		sendRemoteConfig,
+		openDRMSWithPhi,
 	};
 
 })();
