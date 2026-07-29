@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.3.6';
+    const APP_VERSION = '1.3.7';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -1467,7 +1467,7 @@ const App = (() => {
 		setStatus(`DRMS рассчитан для ${beaconsWithStats} маяков`);
 	}
 
-	// Новая функция: настройка секции калибровки φ
+	// Настройка секции калибровки φ
 	function setupDRMSPhiSection() {
 		const data = window._drmsData;
 		if (!data) return;
@@ -1822,6 +1822,7 @@ const App = (() => {
 	function exportPSIMSSB() { ExportManager.exportPSIMSSB(); }
 	function exportPSIMSSB_NE() { ExportManager.exportPSIMSSB_NE(); }
 	function exportTracksKML() { ExportManager.exportTracksKML(); }
+	function exportDXF() { ExportManager.exportDXF(); }
 
 	// ========== ЛИНЕЙКА (обёртки для вызова из HTML) ==========
 	function toggleRuler() { UIRuler.toggle(); }
@@ -2046,7 +2047,7 @@ const App = (() => {
 		increasePlaybackSpeed,
 		decreasePlaybackSpeed,
 		exportCSV, exportGGA, exportAntennaGGA, exportPSIMSSB, exportPSIMSSB_NE,
-		exportDRMS, downloadDRMS,
+		exportDRMS, downloadDRMS, exportDXF,
 		getPhoneGPS,
 		loadCalibrationFile,
 		resetCalibration,

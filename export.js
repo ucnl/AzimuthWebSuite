@@ -294,6 +294,154 @@ const ExportManager = (() => {
         downloadBlob(lines.join('\r\n'), 'text/plain', `psimssb_utm_tracks_${getTimestamp()}.nmea`);
     }
 
+	// ========== DXF ==========
+	function exportDXF() {
+		const allTracks = TrackManager.getAll();
+		const stTrack = TrackManager.stationTrack;
+		const st = AZMManager.getState();
+		const isCartesian = st.antennaMode === 'cartesian_fixed';
+		
+		if (Object.keys(allTracks).length === 0 && stTrack.length === 0) {
+			alert('Нет данных треков для экспорта');
+			return;
+		}
+		
+		const dxf = [];
+		
+		// R12 заголовок
+		dxf.push('0'); dxf.push('SECTION');
+		dxf.push('2'); dxf.push('HEADER');
+		dxf.push('9'); dxf.push('$ACADVER');
+		dxf.push('1'); dxf.push('AC1009');
+		dxf.push('9'); dxf.push('$INSUNITS');
+		dxf.push('70'); dxf.push('6');
+		dxf.push('9'); dxf.push('$LIMMIN');
+		dxf.push('10'); dxf.push('-10000.0');
+		dxf.push('20'); dxf.push('-10000.0');
+		dxf.push('9'); dxf.push('$LIMMAX');
+		dxf.push('10'); dxf.push('10000.0');
+		dxf.push('20'); dxf.push('10000.0');
+		dxf.push('9'); dxf.push('$EXTMIN');
+		dxf.push('10'); dxf.push('-10000.0');
+		dxf.push('20'); dxf.push('-10000.0');
+		dxf.push('30'); dxf.push('-10000.0');
+		dxf.push('9'); dxf.push('$EXTMAX');
+		dxf.push('10'); dxf.push('10000.0');
+		dxf.push('20'); dxf.push('10000.0');
+		dxf.push('30'); dxf.push('0.0');
+		dxf.push('0'); dxf.push('ENDSEC');
+		
+		// Таблицы (пустые, но обязательные для R12)
+		dxf.push('0'); dxf.push('SECTION');
+		dxf.push('2'); dxf.push('TABLES');
+		dxf.push('0'); dxf.push('ENDSEC');
+		
+		// Блоки (пустые, обязательные)
+		dxf.push('0'); dxf.push('SECTION');
+		dxf.push('2'); dxf.push('BLOCKS');
+		dxf.push('0'); dxf.push('ENDSEC');
+		
+		// Сущности
+		dxf.push('0'); dxf.push('SECTION');
+		dxf.push('2'); dxf.push('ENTITIES');
+		
+		// Трек станции
+		if (stTrack.length >= 2) {
+			dxf.push('0'); dxf.push('POLYLINE');
+			dxf.push('8'); dxf.push('STATION');
+			dxf.push('66'); dxf.push('1');
+			dxf.push('70'); dxf.push('8');
+			dxf.push('10'); dxf.push('0.0');
+			dxf.push('20'); dxf.push('0.0');
+			dxf.push('30'); dxf.push('0.0');
+			
+			for (const p of stTrack) {
+				if (isNaN(p.x)) continue;
+				dxf.push('0'); dxf.push('VERTEX');
+				dxf.push('8'); dxf.push('STATION');
+				dxf.push('10'); dxf.push(p.x.toFixed(3));
+				dxf.push('20'); dxf.push(p.y.toFixed(3));
+				dxf.push('30'); dxf.push('0.0');
+				dxf.push('70'); dxf.push('32');
+			}
+			
+			dxf.push('0'); dxf.push('SEQEND');
+		}
+		
+		// Треки маяков
+		for (const addr in allTracks) {
+			const track = allTracks[addr];
+			const validPoints = track.filter(p => !p.isTimeout);
+			if (validPoints.length < 2) continue;
+			
+			let hasDepth = false;
+			for (const p of validPoints) {
+				const z = isCartesian ? p.zM : p.dpt;
+				if (!isNaN(z) && z !== 0) { hasDepth = true; break; }
+			}
+			
+			if (hasDepth) {
+				dxf.push('0'); dxf.push('POLYLINE');
+				dxf.push('8'); dxf.push(`BEACON_${parseInt(addr)+1}`);
+				dxf.push('66'); dxf.push('1');
+				dxf.push('70'); dxf.push('8');
+				dxf.push('10'); dxf.push('0.0');
+				dxf.push('20'); dxf.push('0.0');
+				dxf.push('30'); dxf.push('0.0');
+				
+				for (const p of validPoints) {
+					const x = isCartesian ? p.xM : p.x;
+					const y = isCartesian ? p.yM : p.y;
+					const z = isCartesian ? (p.zM || 0) : (p.dpt || 0);
+					if (x === null || isNaN(x)) continue;
+					
+					dxf.push('0'); dxf.push('VERTEX');
+					dxf.push('8'); dxf.push(`BEACON_${parseInt(addr)+1}`);
+					dxf.push('10'); dxf.push(x.toFixed(3));
+					dxf.push('20'); dxf.push(y.toFixed(3));
+					dxf.push('30'); dxf.push((-z).toFixed(3));
+					dxf.push('70'); dxf.push('32');
+				}
+				
+				dxf.push('0'); dxf.push('SEQEND');
+			} else {
+				const pts = validPoints.filter(p => {
+					const x = isCartesian ? p.xM : p.x;
+					return x !== null && !isNaN(x);
+				});
+				
+				dxf.push('0'); dxf.push('POLYLINE');
+				dxf.push('8'); dxf.push(`BEACON_${parseInt(addr)+1}`);
+				dxf.push('66'); dxf.push('1');
+				dxf.push('70'); dxf.push('0');
+				dxf.push('10'); dxf.push('0.0');
+				dxf.push('20'); dxf.push('0.0');
+				dxf.push('30'); dxf.push('0.0');
+				
+				for (const p of pts) {
+					const x = isCartesian ? p.xM : p.x;
+					const y = isCartesian ? p.yM : p.y;
+					
+					dxf.push('0'); dxf.push('VERTEX');
+					dxf.push('8'); dxf.push(`BEACON_${parseInt(addr)+1}`);
+					dxf.push('10'); dxf.push(x.toFixed(3));
+					dxf.push('20'); dxf.push(y.toFixed(3));
+					dxf.push('30'); dxf.push('0.0');
+					dxf.push('70'); dxf.push('32');
+				}
+				
+				dxf.push('0'); dxf.push('SEQEND');
+			}
+		}
+		
+		dxf.push('0'); dxf.push('ENDSEC');
+		dxf.push('0'); dxf.push('EOF');
+		
+		const dxfContent = dxf.join('\r\n') + '\r\n';
+		downloadBlob(dxfContent, 'application/octet-stream', `zima2_tracks_${getTimestamp()}.dxf`);
+	}
+
+
     // ========== KML ==========
     
     function escapeXml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -428,7 +576,8 @@ const ExportManager = (() => {
         exportAntennaGGA,
         exportPSIMSSB,
         exportPSIMSSB_NE,
-        exportTracksKML
+		exportDXF,
+        exportTracksKML,
     };
 })();
 
