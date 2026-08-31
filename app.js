@@ -212,21 +212,7 @@ const App = (() => {
 		Logger.onPlaybackProgress = onPlaybackProgress;
 		
 		window.addEventListener('resize', () => UICanvas.resizeCanvas());
-		
-		window.addEventListener('native-gnss-update', () => {
-		if (window._nativeGNSS) {
-			const g = window._nativeGNSS;
-			const st = AZMManager.getState();
-			
-			AZMManager.setAntennaPosition(g.lat, g.lon, st.antennaHeadingDeg || 0);
-			if (!isNaN(g.speed) && g.speed > 0) {
-				AZMManager.setSpeedCourse(g.speed, g.course);
-			}
-			TrackManager.addStationPoint(g.lat, g.lon, st.antennaHeadingDeg || 0);
-			updateAntennaInfoUI();
-		}
-	});
-		
+				
 		initMouseHandlers();
 		initTouchHandlers();
 		loadSettings(); 
