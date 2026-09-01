@@ -65,6 +65,7 @@ const UITopo = (() => {
     function getPhoneGPS() {
         const latEl = document.getElementById('topo-lat');
         const lonEl = document.getElementById('topo-lon');
+        const hdgEl = document.getElementById('topo-hdg');
         const statusEl = document.getElementById('topo-gnss-status');
 
         if (!navigator.geolocation) {
@@ -73,15 +74,26 @@ const UITopo = (() => {
             return;
         }
 
-        statusEl.textContent = 'Поиск GPS...';
+        statusEl.textContent = 'Поиск GPS и компаса...';
         statusEl.className = '';
 
+        // Получаем координаты через нативный GPS
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 latEl.value = pos.coords.latitude.toFixed(6);
                 lonEl.value = pos.coords.longitude.toFixed(6);
-                statusEl.textContent = `✓ ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)} (±${pos.coords.accuracy.toFixed(0)}м)`;
-                statusEl.className = 'locked';
+                
+                // Проверяем, есть ли данные от нативного компаса
+                if (window._nativeCompass && !isNaN(window._nativeCompass.heading)) {
+                    hdgEl.value = window._nativeCompass.heading.toFixed(1);
+                    
+                    // Показываем подсказку
+                    statusEl.innerHTML = `✓ Координаты: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)} (±${pos.coords.accuracy.toFixed(0)}м)<br>🧭 Азимут: ${window._nativeCompass.heading.toFixed(1)}°<br><small style="font-size:10px;">⚠ Сориентируйте устройство так же, как антенну (нулевое направление)</small>`;
+                    statusEl.className = 'locked';
+                } else {
+                    statusEl.textContent = `✓ ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)} (±${pos.coords.accuracy.toFixed(0)}м)`;
+                    statusEl.className = 'locked';
+                }
             },
             (err) => {
                 statusEl.textContent = 'Ошибка: ' + err.message;
@@ -89,6 +101,57 @@ const UITopo = (() => {
             },
             { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
+        
+        // Запускаем компас, если он еще не запущен
+        startCompassIfNeeded();
+    }
+    
+    function startCompassIfNeeded() {
+        // Проверяем, есть ли уже данные компаса
+        if (window._nativeCompass && !isNaN(window._nativeCompass.heading)) {
+            return;
+        }
+        
+        // Запускаем компас через WebView
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = 'app://start_compass';
+        document.body.appendChild(iframe);
+        setTimeout(() => document.body.removeChild(iframe), 100);
+        
+        // Ждем обновления компаса
+        window.addEventListener('native-compass-update', handleCompassUpdate, { once: false });
+        
+        // Останавливаем компас через 10 секунд, если не получили данные
+        setTimeout(() => {
+            if (!window._nativeCompass || isNaN(window._nativeCompass.heading)) {
+                window.removeEventListener('native-compass-update', handleCompassUpdate);
+                stopCompass();
+            }
+        }, 10000);
+    }
+    
+    function handleCompassUpdate() {
+        if (window._nativeCompass && !isNaN(window._nativeCompass.heading)) {
+            const hdgEl = document.getElementById('topo-hdg');
+            if (hdgEl && hdgEl.value === '' && isVisible) {
+                hdgEl.value = window._nativeCompass.heading.toFixed(1);
+                
+                const statusEl = document.getElementById('topo-gnss-status');
+                if (statusEl) {
+                    statusEl.innerHTML = `🧭 Азимут: ${window._nativeCompass.heading.toFixed(1)}°<br><small style="font-size:10px;">⚠ Сориентируйте устройство так же, как антенну (нулевое направление)</small>`;
+                    statusEl.className = 'locked';
+                }
+            }
+        }
+    }
+    
+    function stopCompass() {
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = 'app://stop_compass';
+        document.body.appendChild(iframe);
+        setTimeout(() => document.body.removeChild(iframe), 100);
     }
     
     function applyBinding() {
@@ -128,6 +191,9 @@ const UITopo = (() => {
             setStatusCallback(`Топопривязка: ${finalLat.toFixed(5)}, ${finalLon.toFixed(5)}, ${finalHdg.toFixed(1)}°`);
         }
         if (onApplyCallback) onApplyCallback(finalLat, finalLon, finalHdg);
+        
+        // Останавливаем компас после применения
+        stopCompass();
     }
     
     function clearBinding() {
@@ -141,6 +207,9 @@ const UITopo = (() => {
         if (isVisible) toggle();
         if (updateAllButtons) updateAllButtons();
         if (onClearCallback) onClearCallback();
+        
+        // Останавливаем компас
+        stopCompass();
     }
     
     function saveTopoBinding(lat, lon, hdg) {
@@ -214,7 +283,9 @@ const UITopo = (() => {
         setGnssConnected,
         updateFieldsFromGNSS,
         loadTopoBinding,
-        updateGNSSStatus
+        updateGNSSStatus,
+        startCompassIfNeeded,
+        stopCompass
     };
 })();
 
