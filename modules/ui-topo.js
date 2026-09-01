@@ -16,6 +16,12 @@ const UITopo = (() => {
     let updateAntennaInfoUI = null;
     let updateAllButtons = null;
     
+    // Состояние компаса
+    let compassActive = false;
+    let compassValues = [];
+    let compassUpdateTimer = null;
+    let compassStabilityTimer = null;
+    
     function init(panelId, callbacks) {
         topoPanel = document.getElementById(panelId);
         if (!topoPanel) return;
@@ -41,6 +47,7 @@ const UITopo = (() => {
             updateGNSSStatus();
         } else {
             topoPanel.classList.remove('visible');
+            stopCompassUpdates();
         }
     }
     
@@ -65,7 +72,6 @@ const UITopo = (() => {
     function getPhoneGPS() {
         const latEl = document.getElementById('topo-lat');
         const lonEl = document.getElementById('topo-lon');
-        const hdgEl = document.getElementById('topo-hdg');
         const statusEl = document.getElementById('topo-gnss-status');
 
         if (!navigator.geolocation) {
@@ -74,7 +80,7 @@ const UITopo = (() => {
             return;
         }
 
-        statusEl.textContent = 'Поиск GPS и компаса...';
+        statusEl.textContent = 'Поиск GPS...';
         statusEl.className = '';
 
         // Получаем координаты через нативный GPS
@@ -83,17 +89,11 @@ const UITopo = (() => {
                 latEl.value = pos.coords.latitude.toFixed(6);
                 lonEl.value = pos.coords.longitude.toFixed(6);
                 
-                // Проверяем, есть ли данные от нативного компаса
-                if (window._nativeCompass && !isNaN(window._nativeCompass.heading)) {
-                    hdgEl.value = window._nativeCompass.heading.toFixed(1);
-                    
-                    // Показываем подсказку
-                    statusEl.innerHTML = `✓ Координаты: ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)} (±${pos.coords.accuracy.toFixed(0)}м)<br>🧭 Азимут: ${window._nativeCompass.heading.toFixed(1)}°<br><small style="font-size:10px;">⚠ Сориентируйте устройство так же, как антенну (нулевое направление)</small>`;
-                    statusEl.className = 'locked';
-                } else {
-                    statusEl.textContent = `✓ ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)} (±${pos.coords.accuracy.toFixed(0)}м)`;
-                    statusEl.className = 'locked';
-                }
+                // Запускаем компас для получения азимута
+                startCompassUpdates();
+                
+                statusEl.innerHTML = `✓ Координаты получены (${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)})<br>Запуск компаса...`;
+                statusEl.className = 'locked';
             },
             (err) => {
                 statusEl.textContent = 'Ошибка: ' + err.message;
@@ -101,49 +101,141 @@ const UITopo = (() => {
             },
             { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
-        
-        // Запускаем компас, если он еще не запущен
-        startCompassIfNeeded();
     }
     
-    function startCompassIfNeeded() {
-        // Проверяем, есть ли уже данные компаса
-        if (window._nativeCompass && !isNaN(window._nativeCompass.heading)) {
-            return;
-        }
+    function startCompassUpdates() {
+        if (compassActive) return;
         
-        // Запускаем компас через WebView
+        compassActive = true;
+        compassValues = [];
+        
+        // Запускаем нативный компас
         const iframe = document.createElement('iframe');
         iframe.style.display = 'none';
         iframe.src = 'app://start_compass';
         document.body.appendChild(iframe);
         setTimeout(() => document.body.removeChild(iframe), 100);
         
-        // Ждем обновления компаса
-        window.addEventListener('native-compass-update', handleCompassUpdate, { once: false });
+        // Слушаем обновления компаса
+        window.addEventListener('native-compass-update', handleCompassUpdate);
         
-        // Останавливаем компас через 10 секунд, если не получили данные
-        setTimeout(() => {
-            if (!window._nativeCompass || isNaN(window._nativeCompass.heading)) {
-                window.removeEventListener('native-compass-update', handleCompassUpdate);
-                stopCompass();
-            }
-        }, 10000);
+        // Обновляем UI каждые 500мс
+        compassUpdateTimer = setInterval(updateCompassUI, 500);
+        
+        // Проверяем стабильность каждые 2 секунды
+        compassStabilityTimer = setInterval(checkCompassStability, 2000);
     }
     
     function handleCompassUpdate() {
-        if (window._nativeCompass && !isNaN(window._nativeCompass.heading)) {
-            const hdgEl = document.getElementById('topo-hdg');
-            if (hdgEl && hdgEl.value === '' && isVisible) {
-                hdgEl.value = window._nativeCompass.heading.toFixed(1);
-                
-                const statusEl = document.getElementById('topo-gnss-status');
-                if (statusEl) {
-                    statusEl.innerHTML = `🧭 Азимут: ${window._nativeCompass.heading.toFixed(1)}°<br><small style="font-size:10px;">⚠ Сориентируйте устройство так же, как антенну (нулевое направление)</small>`;
-                    statusEl.className = 'locked';
-                }
+        if (!compassActive) return;
+        
+        const heading = window._nativeCompass?.heading;
+        if (heading !== undefined && !isNaN(heading)) {
+            // Добавляем значение в массив для анализа стабильности
+            compassValues.push({
+                heading: heading,
+                timestamp: Date.now()
+            });
+            
+            // Ограничиваем массив последними 20 значениями
+            if (compassValues.length > 20) {
+                compassValues.shift();
             }
         }
+    }
+    
+    function updateCompassUI() {
+        if (!compassActive || !isVisible) return;
+        
+        const heading = window._nativeCompass?.heading;
+        const hdgEl = document.getElementById('topo-hdg');
+        const statusEl = document.getElementById('topo-gnss-status');
+        
+        if (heading !== undefined && !isNaN(heading) && hdgEl) {
+            // Обновляем поле курса в реальном времени
+            hdgEl.value = heading.toFixed(1);
+            
+            // Обновляем статус
+            if (statusEl) {
+                const stability = getCompassStability();
+                const stabilityIcon = stability === 'stable' ? '✅' : stability === 'medium' ? '⚠️' : '🔄';
+                const stabilityText = stability === 'stable' ? 'Стабильно' : stability === 'medium' ? 'Нестабильно' : 'Измерение...';
+                
+                statusEl.innerHTML = `
+                    🧭 Азимут: ${heading.toFixed(1)}° ${stabilityIcon} ${stabilityText}<br>
+                    <small style="font-size:10px;">
+                        📱 Держите устройство горизонтально<br>
+                        ➡️ Сориентируйте его по нулевому направлению антенны
+                    </small>
+                `;
+                statusEl.className = 'locked';
+            }
+        }
+    }
+    
+    function getCompassStability() {
+        if (compassValues.length < 5) return 'measuring';
+        
+        // Берем последние 5 значений
+        const recent = compassValues.slice(-5);
+        const headings = recent.map(v => v.heading);
+        
+        // Вычисляем разброс (учитывая циклическую природу углов)
+        let maxDiff = 0;
+        for (let i = 0; i < headings.length; i++) {
+            for (let j = i + 1; j < headings.length; j++) {
+                let diff = Math.abs(headings[i] - headings[j]);
+                if (diff > 180) diff = 360 - diff;
+                maxDiff = Math.max(maxDiff, diff);
+            }
+        }
+        
+        if (maxDiff < 2) return 'stable';
+        if (maxDiff < 5) return 'medium';
+        return 'unstable';
+    }
+    
+    function checkCompassStability() {
+        if (!compassActive || !isVisible) return;
+        
+        const stability = getCompassStability();
+        const statusEl = document.getElementById('topo-gnss-status');
+        
+        if (statusEl && stability === 'stable') {
+            // Если стабильно - можно останавливать компас
+            const heading = window._nativeCompass?.heading;
+            if (heading !== undefined && !isNaN(heading)) {
+                statusEl.innerHTML = `
+                    ✅ Азимут стабилен: ${heading.toFixed(1)}°<br>
+                    <small style="font-size:10px;">
+                        Можно применять топопривязку
+                    </small>
+                `;
+                statusEl.className = 'locked';
+            }
+        }
+    }
+    
+    function stopCompassUpdates() {
+        if (!compassActive) return;
+        
+        compassActive = false;
+        
+        // Удаляем слушатель
+        window.removeEventListener('native-compass-update', handleCompassUpdate);
+        
+        // Очищаем таймеры
+        if (compassUpdateTimer) {
+            clearInterval(compassUpdateTimer);
+            compassUpdateTimer = null;
+        }
+        if (compassStabilityTimer) {
+            clearInterval(compassStabilityTimer);
+            compassStabilityTimer = null;
+        }
+        
+        // Останавливаем нативный компас
+        stopCompass();
     }
     
     function stopCompass() {
@@ -184,6 +276,9 @@ const UITopo = (() => {
         if (updateAntennaInfoUI) updateAntennaInfoUI();
         saveTopoBinding(finalLat, finalLon, finalHdg);
 
+        // Останавливаем компас
+        stopCompassUpdates();
+        
         if (isVisible) toggle();
         if (updateAllButtons) updateAllButtons();
 
@@ -191,9 +286,6 @@ const UITopo = (() => {
             setStatusCallback(`Топопривязка: ${finalLat.toFixed(5)}, ${finalLon.toFixed(5)}, ${finalHdg.toFixed(1)}°`);
         }
         if (onApplyCallback) onApplyCallback(finalLat, finalLon, finalHdg);
-        
-        // Останавливаем компас после применения
-        stopCompass();
     }
     
     function clearBinding() {
@@ -204,12 +296,12 @@ const UITopo = (() => {
         try { localStorage.removeItem('topo_binding'); } catch (e) {}
         if (setStatusCallback) setStatusCallback('Топопривязка сброшена');
 
+        // Останавливаем компас
+        stopCompassUpdates();
+        
         if (isVisible) toggle();
         if (updateAllButtons) updateAllButtons();
         if (onClearCallback) onClearCallback();
-        
-        // Останавливаем компас
-        stopCompass();
     }
     
     function saveTopoBinding(lat, lon, hdg) {
@@ -284,8 +376,8 @@ const UITopo = (() => {
         updateFieldsFromGNSS,
         loadTopoBinding,
         updateGNSSStatus,
-        startCompassIfNeeded,
-        stopCompass
+        startCompassUpdates,
+        stopCompassUpdates
     };
 })();
 
