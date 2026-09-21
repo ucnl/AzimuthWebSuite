@@ -385,22 +385,64 @@
             return best[1] > 0 ? best[0] : ',';
         }
 
-        function parseCsvData(text) {
-            const sep = detectSeparator(text);
-            const lines = text.split('\n').filter(l => l.trim());
-            const first = lines[0].split(sep).map(h => h.trim());
-            const second = lines.length > 1 ? lines[1].split(sep) : null;
-            let hasHeader = false;
-            if (second && first.length === second.length) {
-                const fN = first.every(v => !isNaN(parseFloat(v.replace(',','.'))) || v.trim()==='');
-                const sN = second.every(v => !isNaN(parseFloat(v.replace(',','.'))) || v.trim()==='');
-                if (!fN && sN) hasHeader = true;
-                if (first.some(v => /[NSWE]/.test(v.toUpperCase())) && !fN) hasHeader = true;
-            }
-            const headers = hasHeader ? first : first.map((_,i) => `Col ${i+1}`);
-            const rows = hasHeader ? lines.slice(1).map(l => l.split(sep).map(v => v.trim())) : lines.map(l => l.split(sep).map(v => v.trim()));
-            return { headers, rows };
-        }
+		// Извлекает метаданные из строк-комментариев вида "# Ref point: lat, lon"
+		// и/или "# Ref: lat, lon, Heading: N°"
+		function extractCsvMeta(text) {
+			const meta = { refLat: null, refLon: null, heading: null };
+			const lines = text.split('\n');
+			for (const raw of lines) {
+				const line = raw.trim();
+				if (!line.startsWith('#')) continue;
+
+				// Ref point: 48.52448073, 44.51573125
+				let m = line.match(/#\s*Ref\s*point\s*:\s*(-?\d+(?:[.,]\d+)?)\s*,\s*(-?\d+(?:[.,]\d+)?)/i);
+				if (m) {
+					meta.refLat = parseFloat(m[1].replace(',', '.'));
+					meta.refLon = parseFloat(m[2].replace(',', '.'));
+					continue;
+				}
+
+				// Ref: 48.52448073, 44.51573125, Heading: 90°
+				m = line.match(/#\s*Ref\s*:\s*(-?\d+(?:[.,]\d+)?)\s*,\s*(-?\d+(?:[.,]\d+)?)(?:\s*,\s*Heading\s*:\s*(-?\d+(?:[.,]\d+)?))?/i);
+				if (m) {
+					meta.refLat = parseFloat(m[1].replace(',', '.'));
+					meta.refLon = parseFloat(m[2].replace(',', '.'));
+					if (m[3] !== undefined) meta.heading = parseFloat(m[3].replace(',', '.'));
+				}
+			}
+			return meta;
+		}
+
+		function parseCsvData(text) {
+			// Пропускаем пустые строки и строки-комментарии (начинаются с #)
+			const lines = text.split('\n')
+				.map(l => l.trim())
+				.filter(l => l && !l.startsWith('#'));
+
+			if (lines.length === 0) return { headers: [], rows: [] };
+
+			const sep = detectSeparator(lines[0]);
+			const first = lines[0].split(sep).map(h => h.trim());
+			const second = lines.length > 1 ? lines[1].split(sep).map(v => v.trim()) : null;
+
+			let hasHeader = false;
+			if (second && first.length === second.length) {
+				const isNum = v => v !== '' && !isNaN(parseFloat(v.replace(',', '.')));
+				const fN = first.every(isNum);
+				const sN = second.every(isNum);
+				if (!fN && sN) hasHeader = true;
+				if (!fN && first.some(v => /[A-Za-z_]/.test(v))) hasHeader = true;
+			} else if (first.length === 1 && isNaN(parseFloat(first[0]))) {
+				hasHeader = true;
+			}
+
+			const headers = hasHeader ? first : first.map((_, i) => `Col ${i + 1}`);
+			const rows = (hasHeader ? lines.slice(1) : lines).map(l =>
+				l.split(sep).map(v => v.trim())
+			);
+
+			return { headers, rows };
+		}
 
         function parseKmlCoords(kmlText) {
             const points = [];
@@ -468,19 +510,38 @@
         document.getElementById('geoInput').addEventListener('input', parseGeoInput);
 
         function parseGeoInput() {
-            const text = document.getElementById('geoInput').value.trim();
-            if (!text) { geoParsedPoints = []; geoHeaders = []; geoRows = []; updateGeoPreview(); return; }
-            if (text.startsWith('<?xml') || text.includes('<kml')) {
-                geoParsedPoints = parseKmlCoords(text);
-                geoHeaders = ['Name','Lat','Lon','Depth'];
-                geoRows = geoParsedPoints.map(p => [p.name, String(p.lat), String(p.lon), String(p.depth)]);
-            } else {
-                const parsed = parseCsvData(text);
-                geoHeaders = parsed.headers; geoRows = parsed.rows; geoParsedPoints = [];
-            }
-            buildColumnSelectors(geoHeaders, 'geoLatCol', 'geoLonCol', 'geoDepthCol');
-            updateGeoCentroid(); updateGeoPreview();
-        }
+			const text = document.getElementById('geoInput').value.trim();
+			if (!text) {
+				geoParsedPoints = []; geoHeaders = []; geoRows = [];
+				updateGeoPreview(); return;
+			}
+
+			if (text.startsWith('<?xml') || text.includes('<kml')) {
+				geoParsedPoints = parseKmlCoords(text);
+				geoHeaders = ['Name', 'Lat', 'Lon', 'Depth'];
+				geoRows = geoParsedPoints.map(p => [p.name, String(p.lat), String(p.lon), String(p.depth)]);
+			} else {
+				const parsed = parseCsvData(text);
+				geoHeaders = parsed.headers;
+				geoRows = parsed.rows;
+				geoParsedPoints = [];
+
+				// Подставляем Ref-точку из комментария, если поле пустое
+				const meta = extractCsvMeta(text);
+				const refLatEl = document.getElementById('geoRefLat');
+				const refLonEl = document.getElementById('geoRefLon');
+				if (meta.refLat !== null && refLatEl.value.trim() === '') {
+					refLatEl.value = meta.refLat;
+				}
+				if (meta.refLon !== null && refLonEl.value.trim() === '') {
+					refLonEl.value = meta.refLon;
+				}
+			}
+
+			buildColumnSelectors(geoHeaders, 'geoLatCol', 'geoLonCol', 'geoDepthCol');
+			updateGeoCentroid();
+			updateGeoPreview();
+		}
 
         function getGeoRefPoint() {
             const lat = parseFloat(document.getElementById('geoRefLat').value);
@@ -555,7 +616,7 @@
             if (isNaN(latIdx) || isNaN(lonIdx)) { showStatus('❌ Выберите столбцы координат', 'error'); return; }
             if (geoRows.length === 0) { showStatus('❌ Нет данных', 'error'); return; }
 
-            let csv = `# Ref point: ${ref.lat.toFixed(8)}, ${ref.lon.toFixed(8)}\nName,X_m,Y_m,Z_m\n`;
+            let csv = `Name,X_m,Y_m,Z_m,RefLat,RefLon\n`;
             let count = 0;
             geoRows.forEach(row => {
                 const lat = parseFloat(row[latIdx]?.replace(',','.'));
@@ -564,7 +625,7 @@
                 if (isNaN(lat) || isNaN(lon)) return;
                 const xyz = geoToXyz(lat, lon, depth, ref.lat, ref.lon);
                 const name = (row[0]||'').includes(',') ? `"${row[0]}"` : (row[0] || `Point ${count+1}`);
-                csv += `${name},${xyz.x.toFixed(2)},${xyz.y.toFixed(2)},${xyz.z.toFixed(2)}\n`;
+                csv += `${name},${xyz.x.toFixed(2)},${xyz.y.toFixed(2)},${xyz.z.toFixed(2)},${ref.lat.toFixed(8)},${ref.lon.toFixed(8)}\n`;
                 count++;
             });
             generatedOutput = csv; generatedFileExt = '.csv'; generatedKml = '';
@@ -586,13 +647,34 @@
         document.getElementById('xyzInput').addEventListener('input', parseXyzInput);
 
         function parseXyzInput() {
-            const text = document.getElementById('xyzInput').value.trim();
-            if (!text) { xyzHeaders = []; xyzRows = []; updateXyzPreview(); updateXyzPreviewData(); return; }
-            const parsed = parseCsvData(text);
-            xyzHeaders = parsed.headers; xyzRows = parsed.rows;
-            buildColumnSelectors(xyzHeaders, 'xyzXCol', 'xyzYCol', 'xyzZCol');
-            updateXyzPreview(); updateXyzPreviewData();
-        }
+			const text = document.getElementById('xyzInput').value.trim();
+			if (!text) {
+				xyzHeaders = []; xyzRows = [];
+				updateXyzPreview(); updateXyzPreviewData(); return;
+			}
+			const parsed = parseCsvData(text);
+			xyzHeaders = parsed.headers;
+			xyzRows = parsed.rows;
+
+			// Подставляем Ref-точку и Heading из комментария, если поля пустые
+			const meta = extractCsvMeta(text);
+			const refLatEl = document.getElementById('xyzRefLat');
+			const refLonEl = document.getElementById('xyzRefLon');
+			const hdgEl = document.getElementById('xyzHeading');
+
+			if (meta.refLat !== null && refLatEl.value.trim() === '') refLatEl.value = meta.refLat;
+			if (meta.refLon !== null && refLonEl.value.trim() === '') refLonEl.value = meta.refLon;
+			if (meta.heading !== null && hdgEl.value.trim() === '') {
+				hdgEl.value = meta.heading;
+				const slider = document.getElementById('xyzHeadingSlider');
+				slider.value = Math.round(meta.heading) % 360;
+				document.getElementById('xyzHeadingValue').textContent = Math.round(meta.heading) % 360 + '°';
+			}
+
+			buildColumnSelectors(xyzHeaders, 'xyzXCol', 'xyzYCol', 'xyzZCol');
+			updateXyzPreview();
+			updateXyzPreviewData();
+		}
 
         function updateXyzPreviewData() {
             const xIdx = parseInt(document.getElementById('xyzXCol').value);
@@ -771,7 +853,7 @@
             if (xyzRows.length === 0) { showStatus('❌ Нет данных', 'error'); return; }
 
             xyzConvertedPoints = [];
-            let csv = `# Ref: ${refLat.toFixed(8)}, ${refLon.toFixed(8)}, Heading: ${heading}°\nLatitude,Longitude,Depth_m\n`;
+            let csv = `Latitude,Longitude,Depth_m,RefLat,RefLon,Heading\n`;
             let count = 0;
 
             xyzRows.forEach(row => {
@@ -780,7 +862,7 @@
                 const z = zIdx >= 0 ? parseFloat(row[zIdx]?.replace(',','.')) || 0 : 0;
                 if (isNaN(x) || isNaN(y)) return;
                 const geo = xyzToGeoVincenty(x, y, z, refLat, refLon, heading);
-                csv += `${geo.lat.toFixed(8)},${geo.lon.toFixed(8)},${geo.depth.toFixed(1)}\n`;
+                csv += `${geo.lat.toFixed(8)},${geo.lon.toFixed(8)},${geo.depth.toFixed(1)},${refLat.toFixed(8)},${refLon.toFixed(8)},${heading}\n`;
                 xyzConvertedPoints.push(geo);
                 count++;
             });

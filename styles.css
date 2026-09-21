@@ -1091,34 +1091,6 @@ body {
     backdrop-filter: blur(10px);
 }
 
-/* ========== ПОДМЕНЮ ========== */
-.submenu {
-    display: none;
-    position: static;
-    background: var(--bg-tertiary);
-    border-radius: 0;
-    min-width: auto;
-    z-index: auto;
-    padding: 2px 0;
-    margin: 2px 0;
-    box-shadow: none;
-}
-
-.dropdown-item:hover > .submenu,
-.dropdown-item.open > .submenu {
-    display: block;
-}
-
-.submenu .dropdown-item {
-    padding: 6px 14px 6px 28px;
-    font-size: 11px;
-    color: var(--text-secondary);
-}
-.submenu .dropdown-item:hover {
-    color: var(--text-primary);
-    background: rgba(255,255,255,0.05);
-}
-
 .bc-actions {
     display: flex;
     gap: 4px;
