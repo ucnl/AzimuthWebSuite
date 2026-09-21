@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.3.9';
+    const APP_VERSION = '1.3.10';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -790,24 +790,40 @@ const App = (() => {
 			}
 		} else if (data.type === 'hdt' && !isNaN(data.heading)) {
 			hasTrueHeading = true;
+			AZMManager.setAntennaHeading(data.heading);
 			if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
-				AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, data.heading);
-				updateAntennaInfoUI();
+				AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, data.heading);				
 				if (UITopo.isOpen()) {
 					document.getElementById('topo-hdg').value = data.heading.toFixed(1);
 				}
 			}
+			updateAntennaInfoUI();
+			
 		} else if (data.type === 'hdm' && !isNaN(data.heading)) {
 			if (shouldUseHeading('hdm')) {
+				AZMManager.setAntennaHeading(data.heading);
 				if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
-					AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, data.heading);
-					updateAntennaInfoUI();
+					AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, data.heading);					
 					if (UITopo.isOpen()) {
 						document.getElementById('topo-hdg').value = data.heading.toFixed(1);
 					}
 				}
+				updateAntennaInfoUI();
 			}
+		} else if (data.type === 'hdg' && !isNaN(data.heading)) {
+			// HDG — магнитный курс с девиацией/склонением.
+			// GNSSParser.parseHDG уже привёл его к истинному курсу (heading = trueHeading).
+			hasTrueHeading = true;
+			AZMManager.setAntennaHeading(data.heading);
+			if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+				AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, data.heading);				
+				if (UITopo.isOpen()) {
+					document.getElementById('topo-hdg').value = data.heading.toFixed(1);
+				}
+			}
+			updateAntennaInfoUI();
 		}
+		
 	}
 	
 	
@@ -1066,11 +1082,11 @@ const App = (() => {
 	function shouldUseHeading(type) {
 		switch (compassMode) {
 			case 'hdt': return type === 'hdt';
-			case 'magnetic': return type === 'hdm';
+			case 'magnetic': return type === 'hdm' || type === 'hdg';
 			case 'auto':
 			default:
 				if (type === 'hdt') { hasTrueHeading = true; return true; }
-				if (type === 'hdm') return !hasTrueHeading;
+				if (type === 'hdm' || type === 'hdg') return !hasTrueHeading;
 				return false;
 		}
 	}
@@ -1104,18 +1120,29 @@ const App = (() => {
 				updateAntennaInfoUI();
 			} else if (gnssData.type === 'hdt' && !isNaN(gnssData.heading)) {
 				hasTrueHeading = true;
+				AZMManager.setAntennaHeading(gnssData.heading);
 				if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
-					AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, gnssData.heading);
-					updateAntennaInfoUI();
+					AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, gnssData.heading);					
 				}
+				updateAntennaInfoUI();
 			} else if (gnssData.type === 'hdm' && !isNaN(gnssData.heading)) {
 				if (shouldUseHeading('hdm')) {
+					AZMManager.setAntennaHeading(gnssData.heading);
 					if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
-						AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, gnssData.heading);
-						updateAntennaInfoUI();
+						AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, gnssData.heading);						
 					}
+					updateAntennaInfoUI();
 				}
-			}
+			} else if (gnssData.type === 'hdg' && !isNaN(gnssData.heading)) {
+                // HDG — истинный курс (уже приведён парсером)
+                hasTrueHeading = true;
+				AZMManager.setAntennaHeading(gnssData.heading);
+                if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+                    AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, gnssData.heading);
+                    
+                }
+				updateAntennaInfoUI();
+            }
 			return;
 		}
 

@@ -686,6 +686,8 @@ const UICanvas = (() => {
     function drawAll() {
         if (!ctx || canvas.width === 0) return;
         
+		resizeCanvas();
+		
         // Обновляем слежение
         updateFollowTarget();
         
