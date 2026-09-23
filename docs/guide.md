@@ -302,7 +302,7 @@
 
 ## Режим «⚓ По опорным маякам»
 
- | (https://github.com/user-attachments/assets/3a9a9cbc-0591-439c-960b-50d5d7b9f806) |
+ | ![img](https://github.com/user-attachments/assets/3a9a9cbc-0591-439c-960b-50d5d7b9f806) |
  | :---: |
  | _Панель управления опорными маяками_ |
 
