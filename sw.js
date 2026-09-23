@@ -1,4 +1,4 @@
-const CACHE = 'aws-v4';
+const CACHE = 'aws-v5';
 
 const ASSETS = [
   './',
@@ -52,7 +52,15 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(clients.claim());
+  event.waitUntil(
+    caches.keys()
+      .then((keys) =>
+        Promise.all(
+          keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))
+        )
+      )
+      .then(() => clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
@@ -62,12 +70,14 @@ self.addEventListener('fetch', (event) => {
         return;
     }
     
-    // 2. Навигационные запросы — всегда index.html из кэша
-    //    (покрывает ?native=1, ?foo=bar, #hash и т.д.)
+    // 2. Навигационные запросы — сначала точное совпадение, потом fallback на index.html    
     if (event.request.mode === 'navigate') {
         event.respondWith(
-            caches.match('./index.html', { ignoreSearch: true }).then((cached) => {
-                return cached || fetch(event.request);
+            caches.match(event.request, { ignoreSearch: true }).then((cached) => {
+                if (cached) return cached;
+                return caches.match('./index.html').then((index) => {
+                    return index || fetch(event.request);
+                });
             })
         );
         return;
