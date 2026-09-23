@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.3.10';
+    const APP_VERSION = '1.4.0';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -69,30 +69,35 @@ const App = (() => {
 	let analysisPanel, analysisContent;
 	let lastAnalysisText = '';
 
-    // ========== ТОПОПРИВЯЗКА ==========
 	let gnssBridge = null;
 	let isGnssConnected = false;
 
     // ========== ВСПОМОГАТЕЛЬНЫЕ ==========
 	function toggleDropdown(id) {
 		const menu = document.getElementById(id);
+		if (!menu) return;
+		
 		if (activeDropdown && activeDropdown !== menu) {
-			activeDropdown.style.display = 'none';
+			activeDropdown.classList.remove('visible');
 		}
-		if (menu.style.display === 'block') {
-			menu.style.display = 'none';
+		if (menu.classList.contains('visible')) {
+			menu.classList.remove('visible');
 			activeDropdown = null;
 		} else {
-			menu.style.display = 'block';
+			menu.classList.add('visible');
 			activeDropdown = menu;
 		}
 	}
 
 	function closeAllDropdowns() {
 		if (activeDropdown) {
-			activeDropdown.style.display = 'none';
+			activeDropdown.classList.remove('visible');
 			activeDropdown = null;
 		}
+		// Закрываем все открытые подменю
+		document.querySelectorAll('.dropdown-item.submenu-open').forEach(item => {
+			item.classList.remove('submenu-open');
+		});
 	}
 
 	function showLogAnalysis() {
@@ -316,8 +321,15 @@ const App = (() => {
 		// Инициализация мастера
 		UIWizard.init({
 			onComplete: function(state) {
-				// Применяем режим
-				const mode = state.moving ? 'geographic' : (state.hasTopo ? 'geographic' : 'cartesian_fixed');
+				let mode;
+				
+				// Приоритет: режим опорных маяков
+				if (state.useReferenceBeacons) {
+					mode = 'beacon_referenced';
+				} else {
+					mode = state.moving ? 'geographic' : (state.hasTopo ? 'geographic' : 'cartesian_fixed');
+				}
+				
 				AZMManager.setAntennaMode(mode);
 				
 				if (mode === 'cartesian_fixed') {
@@ -334,8 +346,14 @@ const App = (() => {
 					} catch (e) {}
 				}
 				
+				// Открываем панель опорных маяков при выборе режима ⚓
+				if (mode === 'beacon_referenced') {
+					setTimeout(() => App.toggleReferencePanel(), 300);
+					setStatus('Режим опорных маяков. Добавьте опорный маяк с известными координатами.');
+				}
+				
 				// Если нужно ввести топопривязку — открываем панель
-				if (!state.moving && state.hasTopo) {
+				if (!state.moving && state.hasTopo && mode === 'geographic') {
 					setTimeout(() => UITopo.toggle(), 300);
 				}
 				
@@ -566,6 +584,46 @@ const App = (() => {
 		if (!beacon) return;
 
 		const st = AZMManager.getState();
+		
+		// =====================================================
+		// === ОПОРНЫЙ МАЯК (режим beacon_referenced) ===
+		// =====================================================
+		// Опорный маяк НЕ добавляем в трек, НЕ применяем DH-фильтр,
+		// НЕ сглаживаем. Его координаты уже установлены в strategyBeaconReferenced
+		// (ref.lat / ref.lon), они стабильны.
+		// 
+		// Этот блок только обновляет UI. Трек станции по shipPosition
+		// добавляется ОДИН раз в конце функции.
+		if (st.antennaMode === 'beacon_referenced' && st.referenceBeacons[beacon.address]) {
+			updateAntennaInfoUI();
+			updateBeaconsBar();
+			
+			const refPanel = document.getElementById('reference-panel');
+			if (refPanel && refPanel.style.display === 'block') {
+				refreshReferencePanel();
+			}
+			
+			if (st.shipPosition) {
+				const anchor = TrackManager.getAnchor();
+				if (isNaN(anchor.lat)) {
+					TrackManager.setAnchor(st.shipPosition.lat, st.shipPosition.lon);
+				}
+				TrackManager.addStationPoint(
+					st.shipPosition.lat,
+					st.shipPosition.lon,
+					st.antennaHeadingDeg
+				);
+			}
+    
+			
+			
+			return;
+		}
+		
+		// =====================================================
+		// === ИСКОМЫЙ МАЯК ===
+		// =====================================================
+		
 		let dist, azm;
 		let isFilterAccepted = false;
 
@@ -598,7 +656,7 @@ const App = (() => {
 			}
 
 		} else {
-			// === ГЕОГРАФИЧЕСКИЙ РЕЖИМ (существующая логика) ===
+			// === ГЕОГРАФИЧЕСКИЙ РЕЖИМ (в т.ч. beacon_referenced для искомых маяков) ===
 			if (!isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.absoluteAzimuthDeg) && beacon.absoluteDistanceM > 0) {
 				dist = beacon.absoluteDistanceM;
 				azm = beacon.absoluteAzimuthDeg;
@@ -642,7 +700,9 @@ const App = (() => {
 			}
 		}
 
-		// Калибровка φ — только для географического режима
+		// =====================================================
+		// === КАЛИБРОВКА φ (только для geographic) ===
+		// =====================================================
 		if (st.antennaMode === 'geographic') {
 			if (UICalibration.isActive() && isFilterAccepted && !isNaN(beacon.absoluteDistanceM) && !isNaN(beacon.azimuthDeg)) {
 				AngularCalibration.addPoint(
@@ -674,7 +734,7 @@ const App = (() => {
 				let relativeAzimuth = absAzimuth - st.antennaHeadingDeg;
 				relativeAzimuth = ((relativeAzimuth % 360) + 360) % 360;
 
-				const dist = GeoUtils.haversineDistance(
+				const distCalc = GeoUtils.haversineDistance(
 					st.antennaLatDeg, st.antennaLonDeg,
 					beacon.latitudeDeg, beacon.longitudeDeg
 				);
@@ -682,7 +742,7 @@ const App = (() => {
 				AntennaTableCalibration.addPoint(
 					st.antennaHeadingDeg,
 					relativeAzimuth,
-					dist,
+					distCalc,
 					st.antennaLatDeg,
 					st.antennaLonDeg,
 					st.antennaDepthM || 0,
@@ -691,6 +751,16 @@ const App = (() => {
 				UIAntennaCalibration.addPoint();
 			}
 		}
+
+		// =====================================================
+		// === ОБЩЕЕ ДЛЯ ВСЕХ РЕЖИМОВ ===
+		// =====================================================
+		
+		// Обновляем панель опорных маяков, если она открыта
+		const refPanel = document.getElementById('reference-panel');
+		if (refPanel && refPanel.style.display === 'block') {
+			refreshReferencePanel();
+		}		
 	}
 
 	function onSerialError(error) {
@@ -777,9 +847,22 @@ const App = (() => {
 
 		const st = AZMManager.getState();
 
+
 		if (data.type === 'rmc' && !isNaN(data.latitude) && !isNaN(data.longitude)) {
-			AZMManager.setAntennaPosition(data.latitude, data.longitude, st.antennaHeadingDeg);
+			// Всегда записываем GNSS-позицию (справочно)
+			AZMManager.setGnssPosition(data.latitude, data.longitude);
+			
+			// Скорость/курс — всегда
 			if (!isNaN(data.speedMps)) AZMManager.setSpeedCourse(data.speedMps, data.course);
+			
+			// В beacon_referenced — не трогаем рабочую позицию и трек станции
+			if (st.antennaMode === 'beacon_referenced') {
+				updateAntennaInfoUI();
+				return;
+			}
+			
+			// В geographic — устанавливаем рабочую позицию и трек станции
+			AZMManager.setAntennaPosition(data.latitude, data.longitude, st.antennaHeadingDeg);
 			TrackManager.addStationPoint(data.latitude, data.longitude, st.antennaHeadingDeg);
 			updateAntennaInfoUI();
 			
@@ -863,14 +946,244 @@ const App = (() => {
 	function applyTopoBinding() { UITopo.applyBinding(); }
 	function clearTopoBinding() { UITopo.clearBinding(); }
 
+	// ========== ОПОРНЫЕ МАЯКИ ==========
+	function toggleReferencePanel() {
+		const panel = document.getElementById('reference-panel');
+		if (!panel) return;
+		
+		if (panel.style.display === 'none' || !panel.style.display) {
+			refreshReferencePanel();
+			panel.style.display = 'block';
+		} else {
+			panel.style.display = 'none';
+		}
+	}
+
+	function refreshReferencePanel() {
+		const refs = AZMManager.getState().referenceBeacons || {};
+		const refAddrs = Object.keys(refs).map(Number);
+		
+		// --- Список опорных ---
+		const listEl = document.getElementById('ref-list');
+		if (refAddrs.length === 0) {
+			listEl.innerHTML = '<div style="text-align:center; color:var(--text-secondary); font-size:11px; padding:8px; background:var(--bg-input); border-radius:4px;">Нет опорных маяков</div>';
+		} else {
+			listEl.innerHTML = refAddrs.map(addr => {
+				const r = refs[addr];
+				const userAddr = addr + 1;
+				return `
+					<div style="display:flex; justify-content:space-between; align-items:center; padding:8px; background:var(--bg-input); border-radius:4px; margin-bottom:4px; font-size:11px;">
+						<div style="flex:1;">
+							<b style="color:var(--border-accent);">Маяк #${userAddr}</b><br>
+							<span style="color:var(--text-secondary);">${r.lat.toFixed(6)}, ${r.lon.toFixed(6)}</span><br>
+							<span style="color:var(--text-secondary);">Глубина: ${r.depth.toFixed(1)} м</span>
+						</div>
+						<button onclick="App.removeReferenceBeacon(${addr})" 
+								style="background:var(--btn-disconnect); color:white; border:none; border-radius:4px; padding:4px 8px; cursor:pointer; font-size:14px;"
+								title="Убрать опорный">✕</button>
+					</div>
+				`;
+			}).join('');
+		}
+		
+		
+		
+		
+		// --- Dropdown адресов из маски ---
+		const st = AZMManager.getState();
+		const mask = st.addressMask || 0;
+		const addrSelect = document.getElementById('ref-addr');
+		
+		// Собираем список адресов из маски (0..15)
+		const allAddrs = [];
+		for (let i = 0; i < 16; i++) {
+			if (mask & (1 << i)) {
+				allAddrs.push(i);
+			}
+		}
+		
+		if (allAddrs.length === 0) {
+			addrSelect.innerHTML = '<option value="">— маска адресов пуста —</option>';
+			addrSelect.disabled = true;
+		} else {
+			addrSelect.disabled = false;
+			
+			// Получаем список уже измеренных маяков (для подсказки)
+			const beacons = AZMManager.getBeaconsArray();
+			const measuredAddrs = new Set(beacons.map(b => b.address));
+			
+			addrSelect.innerHTML = allAddrs.map(addr => {
+				const userAddr = addr + 1;
+				const isRef = refs[addr] !== undefined;
+				const isMeasured = measuredAddrs.has(addr);
+				const suffix = isRef 
+					? ' (уже опорный)' 
+					: (isMeasured ? '' : ' (нет данных)');
+				const disabled = isRef ? 'disabled' : '';
+				return `<option value="${addr}" ${disabled}>Маяк #${userAddr}${suffix}</option>`;
+			}).join('');
+		}
+		
+		
+		
+		
+		// --- Статус режима ---		
+		const isRefMode = st.antennaMode === 'beacon_referenced';
+		const statusEl = document.getElementById('ref-status');
+		const toggleBtn = document.getElementById('ref-btn-toggle');
+		
+		if (isRefMode) {
+			statusEl.innerHTML = `✅ Режим активен (${refAddrs.length} опорных)`;
+			statusEl.style.color = 'var(--status-success)';
+			toggleBtn.textContent = '⏸ Деактивировать';
+			toggleBtn.className = 'panel-btn panel-btn-close';
+		} else {
+			if (refAddrs.length > 0) {
+				statusEl.innerHTML = `⚪ Готов к активации (${refAddrs.length} опорных)`;
+				statusEl.style.color = 'var(--text-secondary)';
+			} else {
+				statusEl.innerHTML = '⚪ Режим не активирован';
+				statusEl.style.color = 'var(--text-secondary)';
+			}
+			toggleBtn.textContent = '▶ Активировать';
+			toggleBtn.className = 'panel-btn panel-btn-apply';
+		}
+		
+		// --- Текущее состояние позиции судна ---
+		const stateEl = document.getElementById('ref-state');
+		const shipPos = st.shipPosition;
+		
+		if (isRefMode) {
+			if (shipPos) {
+				const age = shipPos.updatedAt 
+					? Math.round((Date.now() - shipPos.updatedAt) / 1000)
+					: 0;
+				
+				// Разброс показываем только при 2+ источниках
+				const spreadLine = shipPos.count >= 2
+					? `📊 Источников: ${shipPos.count}, разброс: ${shipPos.spread.toFixed(1)} м<br>`
+					: `📊 Источников: ${shipPos.count}<br>`;
+				
+				stateEl.innerHTML = `
+					📍 <b>Позиция судна:</b> ${shipPos.lat.toFixed(6)}, ${shipPos.lon.toFixed(6)}<br>
+					${spreadLine}
+					⏱ Возраст: ${age} с
+				`;
+			} else if (refAddrs.length > 0) {
+				stateEl.innerHTML = '⏳ Ожидание данных от опорных маяков...<br><small style="color:var(--text-muted);">Убедитесь, что маяки опрашиваются (кнопка ▶ Опрос) и попадают в маску.</small>';
+			} else {
+				stateEl.innerHTML = '⚠ Добавьте хотя бы один опорный маяк.';
+			}
+		} else {
+			stateEl.innerHTML = '';
+		}
+	}
+
+	function addReferenceBeacon() {
+		const addr = parseInt(document.getElementById('ref-addr').value);
+		const lat = parseFloat(document.getElementById('ref-lat').value);
+		const lon = parseFloat(document.getElementById('ref-lon').value);
+		const depth = parseFloat(document.getElementById('ref-depth').value);
+		
+		if (isNaN(addr)) { alert('Выберите маяк'); return; }
+		if (isNaN(lat) || isNaN(lon)) { alert('Введите корректные координаты'); return; }
+		if (lat < -90 || lat > 90) { alert('Широта должна быть от -90 до 90'); return; }
+		if (lon < -180 || lon > 180) { alert('Долгота должна быть от -180 до 180'); return; }
+		
+		AZMManager.setReferenceBeacon(addr, lat, lon, isNaN(depth) ? 0 : depth);
+		
+		// Если режим beacon_referenced уже активен — установить якорь по первому опорному
+		// (чтобы карта сразу привязалась к миру, без ожидания shipPosition)
+		const st = AZMManager.getState();
+		if (st.antennaMode === 'beacon_referenced') {
+			const anchor = TrackManager.getAnchor();
+			if (isNaN(anchor.lat)) {
+				TrackManager.setAnchor(lat, lon);
+			}
+		}
+		
+		// Очищаем форму
+		document.getElementById('ref-lat').value = '';
+		document.getElementById('ref-lon').value = '';
+		document.getElementById('ref-depth').value = '';
+		
+		saveSettings();
+		refreshReferencePanel();
+		setStatus(`Опорный маяк #${addr + 1} добавлен`);
+	}
+
+	function removeReferenceBeacon(addr) {
+		AZMManager.removeReferenceBeacon(addr);
+		saveSettings();
+		refreshReferencePanel();
+		setStatus(`Опорный маяк #${addr + 1} удалён`);
+	}
+
+	function toggleReferenceMode() {
+		const st = AZMManager.getState();
+		const refs = st.referenceBeacons || {};
+		const refAddrs = Object.keys(refs);
+		const isRefMode = st.antennaMode === 'beacon_referenced';
+		
+		if (isRefMode) {
+			AZMManager.setAntennaMode('geographic');
+			setStatus('Режим опорных маяков деактивирован');
+		} else {
+			if (refAddrs.length === 0) {
+				alert('Сначала добавьте хотя бы один опорный маяк');
+				return;
+			}
+			
+			// Сбрасываем трек станции и устанавливаем якорь по первому опорному маяку
+			TrackManager.clearStationTrack();   // сбросит якорь
+			const firstAddr = refAddrs[0];
+			const firstRef = refs[firstAddr];
+			if (firstRef && !isNaN(firstRef.lat) && !isNaN(firstRef.lon)) {
+				TrackManager.setAnchor(firstRef.lat, firstRef.lon);
+			}
+			
+			AZMManager.setAntennaMode('beacon_referenced');
+			setStatus('Режим опорных маяков активирован');
+		}
+		
+		saveSettings();
+		refreshReferencePanel();
+		updateSettingsUI();
+		updateAntennaInfoUI();
+		updateAllButtons();
+	}
+
+
+
 	function getPhoneGPS() { UITopo.getPhoneGPS(); }
 
 	function updateAntennaInfoUI() {
 		const st = AZMManager.getState();
+		
+		// Индикатор режима опорных маяков
+		const isRefMode = st.antennaMode === 'beacon_referenced';
+		const latEl = document.getElementById('ai-lat');
+		const lonEl = document.getElementById('ai-lon');
+		
+		// Ищем/создаём значок ⚓ рядом с координатами
+		const anchorIcon = document.getElementById('ai-ref-indicator');
+		if (isRefMode && !anchorIcon) {
+			const container = latEl.parentElement;
+			const icon = document.createElement('span');
+			icon.id = 'ai-ref-indicator';
+			icon.textContent = ' ⚓';
+			icon.title = 'Позиция вычислена по опорным маякам';
+			icon.style.color = 'var(--border-accent)';
+			icon.style.cursor = 'help';
+			container.appendChild(icon);
+		} else if (!isRefMode && anchorIcon) {
+			anchorIcon.remove();
+		}
 
+		// === Рабочая позиция (Широта/Долгота/Курс/Глубина) ===
 		if (st.antennaMode === 'cartesian_fixed') {
-			document.getElementById('ai-lat').textContent = 'Y=0.00';  // Широта = North = Y
-			document.getElementById('ai-lon').textContent = 'X=0.00';  // Долгота = East = X
+			document.getElementById('ai-lat').textContent = 'Y=0.00';
+			document.getElementById('ai-lon').textContent = 'X=0.00';
 			document.getElementById('ai-hdg').textContent = '0.0';
 			document.getElementById('ai-dpt').textContent = isNaN(st.antennaDepthM) ? '--' : st.antennaDepthM.toFixed(1);
 		} else {
@@ -885,6 +1198,60 @@ const App = (() => {
 		document.getElementById('ai-tmp').textContent = isNaN(st.waterTempC) ? '--' : st.waterTempC.toFixed(1);
 		document.getElementById('ai-pitch').textContent = isNaN(st.antennaPitchDeg) ? '--' : st.antennaPitchDeg.toFixed(1);
 		document.getElementById('ai-roll').textContent = isNaN(st.antennaRollDeg) ? '--' : st.antennaRollDeg.toFixed(1);
+		
+		// === Строка "⚓ Точность" ===
+		// Показываем ТОЛЬКО если 2+ источника (иначе spread = 0 и смысла нет)
+		const qualityRow = document.getElementById('ai-quality-row');
+		const qualityEl = document.getElementById('ai-quality');
+		const shipPos = st.shipPosition;
+		
+		if (qualityRow && qualityEl) {
+			const showQuality = isRefMode && shipPos && shipPos.count >= 2;
+			qualityRow.classList.toggle('visible', showQuality);
+			
+			if (showQuality) {
+				const age = shipPos.updatedAt 
+					? Math.round((Date.now() - shipPos.updatedAt) / 1000)
+					: 0;
+				
+				let qualityClass = 'quality-none';
+				if (shipPos.spread < 5) {
+					qualityClass = 'quality-good';
+				} else if (shipPos.spread < 20) {
+					qualityClass = 'quality-fair';
+				} else {
+					qualityClass = 'quality-poor';
+				}
+				
+				qualityEl.textContent = `±${shipPos.spread.toFixed(1)}м (${shipPos.count}×, ${age}с)`;
+				qualityEl.className = 'ai-value ' + qualityClass;
+			}
+		}
+		
+		// === Строка GNSS (только в beacon_referenced, если есть GNSS) ===
+		const gnssRow = document.getElementById('ai-gnss-row');
+		
+		if (gnssRow) {
+			const hasGnss = !isNaN(st.gnssLatDeg) && !isNaN(st.gnssLonDeg);
+			const showGnss = isRefMode && hasGnss;
+			gnssRow.classList.toggle('visible', showGnss);
+			
+			if (showGnss) {
+				document.getElementById('ai-gnss-lat').textContent = st.gnssLatDeg.toFixed(6);
+				document.getElementById('ai-gnss-lon').textContent = st.gnssLonDeg.toFixed(6);
+				
+				// Расхождение между рабочей позицией и GNSS
+				if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+					const diff = Haversine.haversineInverse(
+						st.antennaLatDeg * Math.PI / 180, st.antennaLonDeg * Math.PI / 180,
+						st.gnssLatDeg * Math.PI / 180, st.gnssLonDeg * Math.PI / 180
+					);
+					document.getElementById('ai-diff').textContent = diff.toFixed(1) + ' м';
+				} else {
+					document.getElementById('ai-diff').textContent = '--';
+				}
+			}
+		}
 	}
 
 	function updateAllButtons() {
@@ -1062,15 +1429,30 @@ const App = (() => {
 		
 		const st = AZMManager.getState();
 		UICanvas.setScale(100);
-		if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+
+		// В режиме beacon_referenced — установить якорь по первому опорному маяку
+		if (st.antennaMode === 'beacon_referenced') {
+			AZMManager.resetShipTracking();
+			const refs = st.referenceBeacons || {};
+			const firstAddr = Object.keys(refs)[0];
+			if (firstAddr !== undefined) {
+				const ref = refs[firstAddr];
+				if (!isNaN(ref.lat) && !isNaN(ref.lon)) {
+					TrackManager.clearStationTrack();   // сбросит трек станции и якорь
+					TrackManager.setAnchor(ref.lat, ref.lon);
+					UICanvas.centerOnGeoPoint(ref.lat, ref.lon);
+					console.log('[App] Anchor установлен по опорному маяку:', ref.lat, ref.lon);
+				}
+			}
+		} else if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
 			UICanvas.followGeoPoint(st.antennaLatDeg, st.antennaLonDeg, 'antenna');
 		} else {
 			UICanvas.centerOnWorldPoint(0, 0);
 		}
-		UICanvas.clearFollowTarget();  // сбрасываем слежение, чтобы не мешало
+		UICanvas.clearFollowTarget();
 
 		Logger.startPlayback(1.0, true, true);
-		playbackProgress.style.display = 'block';
+		playbackProgress.classList.add('active');
 		if (serialBridge) serialBridge.onMessage = null;
 
 		document.getElementById('log-play-item').style.display = 'none';
@@ -1114,9 +1496,21 @@ const App = (() => {
 			const st = AZMManager.getState();
 
 			if (gnssData.type === 'rmc' && !isNaN(gnssData.latitude) && !isNaN(gnssData.longitude)) {
-				AZMManager.setAntennaPosition(gnssData.latitude, gnssData.longitude, st.antennaHeadingDeg);
+				// Всегда записываем GNSS-позицию (справочно)
+				AZMManager.setGnssPosition(gnssData.latitude, gnssData.longitude);
+				
+				// Скорость/курс — всегда
 				if (!isNaN(gnssData.speedMps)) AZMManager.setSpeedCourse(gnssData.speedMps, gnssData.course);
-				TrackManager.addStationPoint(gnssData.latitude, gnssData.longitude, AZMManager.getState().antennaHeadingDeg);
+				
+				// В beacon_referenced — не трогаем рабочую позицию и трек станции
+				if (st.antennaMode === 'beacon_referenced') {
+					updateAntennaInfoUI();
+					return;
+				}
+				
+				// В geographic — устанавливаем рабочую позицию и трек станции
+				AZMManager.setAntennaPosition(gnssData.latitude, gnssData.longitude, st.antennaHeadingDeg);
+				TrackManager.addStationPoint(gnssData.latitude, gnssData.longitude, st.antennaHeadingDeg);
 				updateAntennaInfoUI();
 			} else if (gnssData.type === 'hdt' && !isNaN(gnssData.heading)) {
 				hasTrueHeading = true;
@@ -1169,17 +1563,17 @@ const App = (() => {
     function onPlaybackStart() {
         setStatus('▶ Воспроизведение...');
 		const speedControl = document.getElementById('playback-speed-control');
-		if (speedControl) speedControl.style.display = 'inline-flex';
+		if (speedControl) speedControl.classList.add('active');
 		updateSpeedUI();
     }
 
 	function onPlaybackEnd() {
 		AZMManager.setTimeProvider(() => new Date());
-		playbackProgress.style.display = 'none';
+		playbackProgress.classList.remove('active');
 		
 		// Скрываем контрол скорости
 		const speedControl = document.getElementById('playback-speed-control');
-		if (speedControl) speedControl.style.display = 'none';
+		if (speedControl) speedControl.classList.remove('active');
 		
 		// Сбрасываем скорость на 1x
 		Logger.setPlaybackSpeed(1.0);
@@ -1334,10 +1728,21 @@ const App = (() => {
         beaconsBar.classList.remove('empty');
 
         let html = '';
+		
+		// Получаем список опорных маяков и текущий режим
+		const refBeacons = AZMManager.getState().referenceBeacons || {};
+		const isRefMode = AZMManager.getState().antennaMode === 'beacon_referenced';
+		
         beacons.forEach(b => {
 			const age = b.dataAge || 0;
 			let ageClass = age > 20 ? 'stale' : age > 10 ? 'old' : 'fresh';
 			let cardClass = b.isTimeout ? 'timeout' : '';
+        
+			// Если это опорный маяк и активен режим — добавляем класс
+			const isReference = refBeacons[b.address] !== undefined;
+			if (isReference && isRefMode) {
+				cardClass += ' reference';
+			}
 
 			const userAddr = b.userAddress || b.address + 1;
 			const range = !isNaN(b.slantRangeProjectionM) && b.slantRangeProjectionM > 0 
@@ -1708,6 +2113,27 @@ const App = (() => {
 				setStatus('Слежение отключено');  // добавить
 			}
 		});
+		
+		// === Подменю: клик по родителю открывает/закрывает (для тач-устройств) ===
+		document.querySelectorAll('.dropdown-item').forEach(item => {
+			if (item.querySelector(':scope > .submenu')) {
+				item.addEventListener('click', function(e) {
+					// Игнорируем клики внутри .submenu
+					if (e.target.closest('.submenu')) return;
+					
+					e.stopPropagation();
+					e.preventDefault();
+					
+					// Закрываем другие открытые подменю
+					document.querySelectorAll('.dropdown-item.submenu-open').forEach(other => {
+						if (other !== this) other.classList.remove('submenu-open');
+					});
+					
+					// Переключаем текущее
+					this.classList.toggle('submenu-open');
+				});
+			}
+		});
 	}
 
 	function initTouchHandlers() {
@@ -1875,6 +2301,7 @@ const App = (() => {
 		const maxPoints = UISettings.getInt('cfg-maxpoints', 500);
 		const minDist = UISettings.getFloat('cfg-minpointdist', 0.5);
 		const maxBeaconSpeed = UISettings.getFloat('cfg-max-beacon-speed', 1.0);
+		const maxShipSpeed = UISettings.getFloat('cfg-max-ship-speed', 2.0);
 		
 		const newCompassMode = UISettings.getValue('cfg-compass-mode');
 		if (newCompassMode) {
@@ -1902,6 +2329,10 @@ const App = (() => {
 			AZMManager.setMaxBeaconSpeed(maxBeaconSpeed);
 		}
 		
+		if (!isNaN(maxShipSpeed) && maxShipSpeed >= 0.5 && maxShipSpeed <= 50) {
+			AZMManager.setMaxShipSpeed(maxShipSpeed);
+		}
+		
 		TrackManager.setMaxPoints(maxPoints);
 		TrackManager.setMinDistance(minDist);
 		
@@ -1926,6 +2357,8 @@ const App = (() => {
 			}
 		} else if (newAntennaMode === 'cartesian_fixed' && newAntennaMode !== oldAntennaMode) {
 			AZMManager.setAntennaPosition(NaN, NaN, 0);
+		} else if (newAntennaMode === 'beacon_referenced' && newAntennaMode !== oldAntennaMode) {
+			AZMManager.setAntennaPosition(NaN, NaN, AZMManager.getState().antennaHeadingDeg);
 		}
 		
 		// Сохраняем
@@ -1984,6 +2417,9 @@ const App = (() => {
 		const maxSpeedEl = document.getElementById('cfg-max-beacon-speed');
 		if (maxSpeedEl) maxSpeedEl.value = st.maxBeaconSpeedMps || 1.0;
 		
+		const maxShipSpeedEl = document.getElementById('cfg-max-ship-speed');
+		if (maxShipSpeedEl) maxShipSpeedEl.value = st.maxShipSpeedMps || 2.0;
+		
 		UISettings.syncCheckboxesFromMask(st.addressMask);
 	}
 
@@ -2003,6 +2439,8 @@ const App = (() => {
 			compassMode: compassMode,
 			antennaMode: AZMManager.getState().antennaMode || 'geographic',
 			maxBeaconSpeed: AZMManager.getState().maxBeaconSpeedMps || 1.0,
+			maxShipSpeed: AZMManager.getState().maxShipSpeedMps || 2.0,
+			referenceBeacons: AZMManager.getState().referenceBeacons || {},
 		};
 		try { localStorage.setItem('zima2_settings', JSON.stringify(data)); } catch (e) {}
 	}
@@ -2039,7 +2477,25 @@ const App = (() => {
 					AZMManager.setAntennaPosition(NaN, NaN, 0);
 				}
 					
-				if (data.maxBeaconSpeed !== undefined) AZMManager.setMaxBeaconSpeed(data.maxBeaconSpeed);
+				if (data.maxBeaconSpeed !== undefined) { 
+					AZMManager.setMaxBeaconSpeed(data.maxBeaconSpeed);
+				}
+				
+				if (data.maxShipSpeed !== undefined) AZMManager.setMaxShipSpeed(data.maxShipSpeed);
+				
+				if (data.referenceBeacons) {
+					// Сначала очищаем, потом восстанавливаем
+					AZMManager.clearReferenceBeacons();
+					for (const addr in data.referenceBeacons) {
+						const r = data.referenceBeacons[addr];
+						if (!isNaN(r.lat) && !isNaN(r.lon)) {
+							AZMManager.setReferenceBeacon(parseInt(addr), r.lat, r.lon, r.depth || 0);
+						}
+					}
+				}
+				
+				
+				
 			}
 		} catch (e) {}
 	}
@@ -2098,6 +2554,11 @@ const App = (() => {
 		toggleRemoteConfig,
 		sendRemoteConfig,
 		openDRMSWithPhi,
+		// Опорные маяки
+		toggleReferencePanel,
+		addReferenceBeacon,
+		removeReferenceBeacon,
+		toggleReferenceMode,
 	};
 
 })();

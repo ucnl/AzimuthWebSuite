@@ -143,6 +143,91 @@ const UICanvas = (() => {
 			ctx.fillText('0,0', cx + 6, cy - 6);
 		}
 	}
+	
+	
+	
+	
+	/**
+	 * Рисует пунктирные линии от опорных маяков до позиции антенны
+	 * и круг разброса вокруг антенны (в режиме beacon_referenced).
+	 * 
+	 * Вызывается ПОСЛЕ drawTracks и ДО drawBeacons — чтобы линии были
+	 * под значками маяков и под значком антенны.
+	 */
+	function drawReferenceLinks() {
+		const AZMManager = getAZMManager ? getAZMManager() : null;
+		const TrackManager = getTrackManager ? getTrackManager() : null;
+		
+		if (!AZMManager) return;
+		
+		const st = AZMManager.getState();
+		if (st.antennaMode !== 'beacon_referenced') return;
+		
+		const refBeacons = st.referenceBeacons || {};
+		const refAddrs = Object.keys(refBeacons).map(Number);
+		if (refAddrs.length === 0) return;
+		
+		const shipPos = st.shipPosition;
+		if (!shipPos) return;
+		
+		const beacons = AZMManager.getBeaconsArray();
+		const anchor = TrackManager ? TrackManager.getAnchor() : { lat: NaN, lon: NaN };
+		if (isNaN(anchor.lat) || isNaN(anchor.lon)) return;
+		
+		const rootStyles = getComputedStyle(document.documentElement);
+		const refColor = rootStyles.getPropertyValue('--reference-beacon-color').trim() || '#ffcc00';
+		const refGlow = rootStyles.getPropertyValue('--reference-beacon-glow').trim() || 'rgba(255,204,0,0.3)';
+		
+		// Экранные координаты судна
+		const shipScreen = GeoUtils.geoToScreen(
+			shipPos.lat, shipPos.lon,
+			anchor.lat, anchor.lon,
+			offsetX, offsetY, scale
+		);
+		
+		const now = Date.now();
+		
+		// === 1. Линии от опорных маяков до судна ===
+		beacons.forEach(b => {
+			if (refAddrs.indexOf(b.address) === -1) return;
+			if (isNaN(b.latitudeDeg) || isNaN(b.longitudeDeg)) return;
+			
+			const beaconScreen = GeoUtils.geoToScreen(
+				b.latitudeDeg, b.longitudeDeg,
+				anchor.lat, anchor.lon,
+				offsetX, offsetY, scale
+			);
+			
+			// Пунктирная линия
+			ctx.save();
+			ctx.setLineDash([6, 5]);
+			ctx.strokeStyle = refColor;
+			ctx.lineWidth = 2;
+			ctx.globalAlpha = 0.75;
+			ctx.beginPath();
+			ctx.moveTo(beaconScreen.x, beaconScreen.y);
+			ctx.lineTo(shipScreen.x, shipScreen.y);
+			ctx.stroke();
+			ctx.restore();
+		});
+		
+		// === 2. Круг разброса вокруг судна ===
+		if (shipPos.spread > 0.5) {  // показываем если разброс > 0.5 м
+			const spreadPx = shipPos.spread * scale;
+			
+			// Если круг слишком большой (> 200px) — не рисуем (визуальный шум)
+			if (spreadPx < 200) {
+				ctx.save();
+				ctx.beginPath();
+				ctx.arc(shipScreen.x, shipScreen.y, spreadPx, 0, 2 * Math.PI);
+				ctx.strokeStyle = refGlow;
+				ctx.lineWidth = 2;
+				ctx.setLineDash([4, 4]);
+				ctx.stroke();
+				ctx.restore();
+			}
+		}
+	}	
     
     function drawAntenna() {
         const AZMManager = getAZMManager ? getAZMManager() : null;
@@ -290,14 +375,27 @@ const UICanvas = (() => {
 			const age = b.dataAge || 0;
 			let alpha = age > 10 ? 0.25 : age > 5 ? 0.55 : 1.0;
 			if (b.isTimeout) alpha = 0.2;
-			const hue = (b.address * 60) % 360;
+			
+			// Проверяем, опорный ли это маяк
+			const refBeacons = AZMManager.getState().referenceBeacons || {};
+			const isReference = refBeacons[b.address] !== undefined;
+			
+			let hue = (b.address * 60) % 360;
+			let strokeColor = cc.stroke;
+			let strokeWidth = 2;
+			
+			if (isReference) {
+				// Опорный маяк — золотая обводка и больший размер
+				strokeColor = rootStyles.getPropertyValue('--reference-beacon-color').trim() || '#ffcc00';
+				strokeWidth = 3;
+			}
 			
 			ctx.beginPath();
 			ctx.arc(x, y, 15, 0, 2 * Math.PI);
 			ctx.fillStyle = `hsla(${hue}, 80%, 55%, ${alpha})`;
 			ctx.fill();
-			ctx.strokeStyle = cc.stroke;
-			ctx.lineWidth = 2;
+			ctx.strokeStyle = strokeColor;
+			ctx.lineWidth = strokeWidth;
 			ctx.stroke();
 			
 			ctx.fillStyle = cc.text;
@@ -305,6 +403,13 @@ const UICanvas = (() => {
 			ctx.textAlign = 'center';
 			ctx.textBaseline = 'middle';
 			ctx.fillText((b.userAddress || b.address + 1).toString(), x, y);
+			
+			// Значок ⚓ для опорного маяка
+			if (isReference) {
+				ctx.font = 'bold 16px Arial';
+				ctx.fillStyle = strokeColor;
+				ctx.fillText('⚓', x + 22, y - 18);
+			}
 			
 			const displayDist = !isNaN(b.absoluteDistanceM) && b.absoluteDistanceM > 0 ? b.absoluteDistanceM
 				: !isNaN(b.slantRangeProjectionM) && b.slantRangeProjectionM > 0 ? b.slantRangeProjectionM
@@ -402,6 +507,66 @@ const UICanvas = (() => {
 		});
 	}
     
+	/**
+	 * Рисует отвергнутую DH-фильтром позицию судна (крестик).
+	 * Только в режиме beacon_referenced.
+	 */
+	function drawRejectedShipPosition() {
+		const AZMManager = getAZMManager ? getAZMManager() : null;
+		const TrackManager = getTrackManager ? getTrackManager() : null;
+		
+		if (!AZMManager) return;
+		
+		const st = AZMManager.getState();
+		if (st.antennaMode !== 'beacon_referenced') return;
+		if (!st.rejectedShipPosition) return;
+		
+		const anchor = TrackManager ? TrackManager.getAnchor() : { lat: NaN, lon: NaN };
+		if (isNaN(anchor.lat) || isNaN(anchor.lon)) return;
+		
+		const rejected = st.rejectedShipPosition;
+		if (isNaN(rejected.lat) || isNaN(rejected.lon)) return;
+		
+		const screen = GeoUtils.geoToScreen(
+			rejected.lat, rejected.lon,
+			anchor.lat, anchor.lon,
+			offsetX, offsetY, scale
+		);
+		
+		if (isNaN(screen.x) || isNaN(screen.y)) return;
+		
+		// Цвет — как у отвергнутых точек маяков
+		const rootStyles = getComputedStyle(document.documentElement);
+		const rejectedColor = rootStyles.getPropertyValue('--beacon-rejected-color').trim() || 'rgba(128,128,128,0.45)';
+		
+		const x = screen.x;
+		const y = screen.y;
+		const size = 10;
+		
+		// Крестик
+		ctx.strokeStyle = rejectedColor;
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		ctx.moveTo(x - size, y - size);
+		ctx.lineTo(x + size, y + size);
+		ctx.moveTo(x + size, y - size);
+		ctx.lineTo(x - size, y + size);
+		ctx.stroke();
+		
+		// Круг вокруг
+		ctx.beginPath();
+		ctx.arc(x, y, 6, 0, 2 * Math.PI);
+		ctx.strokeStyle = rejectedColor;
+		ctx.lineWidth = 1;
+		ctx.stroke();
+		
+		// Подпись
+		ctx.font = '9px Arial';
+		ctx.fillStyle = rejectedColor;
+		ctx.textAlign = 'center';
+		ctx.fillText('ОТВЕРГНУТО', x, y - 14);
+	}
+	
     function drawScaleBar() {
         const rawM = 100 / scale;
         const nice = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500];
@@ -704,10 +869,14 @@ const UICanvas = (() => {
 			TrackManager.drawTracks(ctx, offsetX, offsetY, scale);
 		}
 		
+		drawReferenceLinks();
         drawRejectedPoints();
+		drawRejectedShipPosition();
         drawBeacons();
 		drawPOI();
         drawAntenna();
+		
+		
         drawScaleBar();
         if (UIRuler) UIRuler.draw();
         
