@@ -1,4 +1,4 @@
-const CACHE = 'aws-v3';
+const CACHE = 'aws-v4';
 
 const ASSETS = [
   './',
@@ -13,6 +13,7 @@ const ASSETS = [
   './geo-utils.js',
   './vincenty.js',
   './haversine.js',
+  './achod-bearing-filter.js',
   './dh-filter.js',
   './median.js',
   './smoother.js',
@@ -36,7 +37,11 @@ const ASSETS = [
   './modules/ui-calibration.js',
   './modules/ui-antenna-calibration.js',
   './modules/ui-canvas.js',
-  './modules/ui-wizard.js'
+  './modules/ui-wizard.js',
+  './README.html',
+  './CHANGELOG.html',
+  './docs/guide.html'
+  
 ];
 
 self.addEventListener('install', (event) => {
