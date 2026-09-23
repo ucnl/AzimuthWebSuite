@@ -84,7 +84,25 @@
 	--track-station-glow: rgba(0, 255, 255, 0.2);
 	--track-station-line: rgba(0, 255, 255, 0.7);
 	--track-beacon-glow-alpha: 0.2;
-	--track-beacon-line-alpha: 0.8;	
+	--track-beacon-line-alpha: 0.8;
+	
+	/* Режим опорных маяков */
+	--reference-beacon-color: #ffcc00;
+	--reference-beacon-glow: rgba(255, 204, 0, 0.3);
+	
+	/* === Общие размеры (не зависят от темы) === */
+    --radius-sm: 4px;
+    --radius: 8px;
+    --radius-lg: 12px;
+    
+    /* === Z-index иерархия === */
+    --z-map: 10;          /* элементы на карте (antenna-info, scale-bar, tracks-control) */
+    --z-topbar: 50;       /* #top-bar */
+    --z-panel: 100;       /* панели (topo, calibration, reference, analysis) */
+    --z-modal: 200;       /* settings-overlay */
+    --z-dropdown: 300;    /* выпадающие меню (tools, export, log) */
+    --z-submenu: 400;     /* подменю внутри dropdown */
+    --z-wizard: 500;      /* wizard-overlay */
 }
 
 /* ========== ТЕМА: LIGHT (солнце) ========== */
@@ -164,6 +182,9 @@
 	--track-station-line: rgba(0, 150, 200, 0.7);
 	--track-beacon-glow-alpha: 0.15;
 	--track-beacon-line-alpha: 0.7;	
+	
+	--reference-beacon-color: #ff8800;
+	--reference-beacon-glow: rgba(255, 136, 0, 0.3);
 }
 
 /* ========== ТЕМА: DARK CONTRAST (солнце + очки) ========== */
@@ -242,7 +263,10 @@
 	--track-station-glow: rgba(0, 255, 255, 0.25);
 	--track-station-line: rgba(0, 255, 255, 0.8);
 	--track-beacon-glow-alpha: 0.25;
-	--track-beacon-line-alpha: 0.9;	
+	--track-beacon-line-alpha: 0.9;
+	
+	--reference-beacon-color: #ffd740;
+	--reference-beacon-glow: rgba(255, 215, 64, 0.35);
 }
 
 /* ========== ТЕМА: JACK BLACK (Черный фон, белый текст, серые акценты) ========== */
@@ -321,7 +345,10 @@
 	--track-station-glow: rgba(255, 255, 255, 0.15);
 	--track-station-line: rgba(255, 255, 255, 0.6);
 	--track-beacon-glow-alpha: 0.15;
-	--track-beacon-line-alpha: 0.7;	
+	--track-beacon-line-alpha: 0.7;
+	
+	--reference-beacon-color: #ffffff;
+	--reference-beacon-glow: rgba(255, 255, 255, 0.3);
 }
 
 /* ========== ТЕМА: JACK WHITE (Белый фон, черный текст, серые акценты, редкий красный) ========== */
@@ -400,7 +427,10 @@
 	--track-station-glow: rgba(0, 0, 0, 0.1);
 	--track-station-line: rgba(0, 0, 0, 0.5);
 	--track-beacon-glow-alpha: 0.1;
-	--track-beacon-line-alpha: 0.6;	
+	--track-beacon-line-alpha: 0.6;
+	
+	--reference-beacon-color: #000000;
+	--reference-beacon-glow: rgba(0, 0, 0, 0.25);
 }
 
 /* ========== ТЕМА: VAX (Вырвиглазно-зеленый на черном, в стиле терминалов VAX/VT) ========== */
@@ -480,7 +510,10 @@
 	--track-station-glow: rgba(51, 255, 51, 0.2);
 	--track-station-line: rgba(51, 255, 51, 0.7);
 	--track-beacon-glow-alpha: 0.25;
-	--track-beacon-line-alpha: 0.9;	
+	--track-beacon-line-alpha: 0.9;
+	
+	--reference-beacon-color: #66ff66;
+	--reference-beacon-glow: rgba(102, 255, 102, 0.3);
 }
 
 html, body {
@@ -516,7 +549,7 @@ body {
     flex-shrink: 0;
     flex-wrap: wrap;
     min-height: 50px;
-    z-index: 50;
+    z-index: var(--z-topbar);
 }
 
 #connection-indicator {
@@ -580,7 +613,6 @@ body {
 .btn-gnss { background: var(--btn-gnss); color: var(--btn-text); }
 .btn-export { background: var(--btn-export); color: var(--btn-text); }
 .btn-tools { background: var(--btn-tools); color: var(--btn-text); }
-.btn-log { background: var(--btn-log); color: var(--btn-text); }
 
 
 .btn-connect { background: var(--btn-connect); color: var(--btn-text); }
@@ -602,8 +634,8 @@ body {
 .btn-settings { background: var(--btn-settings); color: var(--btn-text); }
 .btn-settings:hover:not(:disabled) { background: var(--btn-settings-hover); }
 
-.btn-log { background: var(--btn-log); color: var(--btn-text); font-size: 11px; padding: 5px 10px; }
-.btn-log:hover:not(:disabled) { background: var(--btn-log-hover, #777); }
+.btn-log { background: var(--btn-log); color: var(--btn-text); }
+.btn-log:hover:not(:disabled) { background: var(--btn-log-hover); }
 .btn-log.recording { background: #dc3545; animation: pulse 1s infinite; }
 .btn-log.playing { background: #28a745; }
 
@@ -614,11 +646,26 @@ body {
 }
 
 .dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     border-radius: 4px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    overflow: hidden;
+    z-index: var(--z-dropdown);
+    min-width: 200px;
+    padding: 0;
+}
+
+.dropdown-menu.visible {
+    display: block;
+}
+/* Компактные меню (Экспорт, Лог) */
+#export-dropdown,
+#log-dropdown {
+    min-width: 170px;
 }
 .dropdown-item {
     padding: 8px 14px;
@@ -631,6 +678,32 @@ body {
 }
 .dropdown-item:hover {
     background: var(--bg-tertiary);
+}
+
+/* ===== Подменю (вложенные пункты dropdown) ===== */
+.submenu {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 100%;
+    min-width: 240px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    overflow: hidden;
+    z-index: var(--z-submenu);
+    padding: 0;
+}
+
+.dropdown-item:hover > .submenu {
+    display: block;
+}
+
+/* Подменю внутри подменю — открывать влево (для длинных меню) */
+.submenu .dropdown-item:hover > .submenu {
+    left: auto;
+    right: 100%;
 }
 
 /* ========== КАРТА ========== */
@@ -660,7 +733,7 @@ body {
     border-radius: var(--radius);
     font-size: 11px;
     line-height: 1.7;
-    z-index: 10;
+    z-index: var(--z-map);
     cursor: pointer;
     border: 1px solid var(--border-primary);
     backdrop-filter: blur(8px);
@@ -677,7 +750,7 @@ body {
     color: var(--scale-color);
     text-shadow: 0 0 4px rgba(0,0,0,0.8);
     font-size: 11px;
-    z-index: 10;
+    z-index: var(--z-map);
     pointer-events: none;
 }
 
@@ -767,7 +840,7 @@ body {
     border: 2px solid var(--border-accent);
     border-radius: var(--radius-lg);
     padding: 20px 24px;
-    z-index: 100;
+    z-index: var(--z-panel);
     min-width: 300px;
     max-width: 90vw;
     backdrop-filter: blur(12px);
@@ -910,7 +983,7 @@ body {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0, 0, 0, 0.6);
-    z-index: 200;
+    z-index: var(--z-modal);
     justify-content: center;
     align-items: center;
     backdrop-filter: blur(4px);
@@ -1060,7 +1133,7 @@ body {
     right: 12px;
     display: flex;
     gap: 6px;
-    z-index: 10;
+    z-index: var(--z-map);
 }
 .track-btn {
     padding: 6px 10px;
@@ -1077,19 +1150,95 @@ body {
 .track-btn:hover { border-color: var(--text-accent); }
 .track-btn.active { background: var(--btn-start); border-color: var(--btn-start); color: #fff; }
 
-#calibration-panel {
+/* ========== ОБЩИЕ СТИЛИ ПАНЕЛЕЙ ========== */
+/* Панели (topo, reference, calibration, remote-config, analysis, antenna-calibration) */
+#topo-panel,
+#reference-panel,
+#calibration-panel,
+#remote-config-panel,
+#analysis-panel,
+#antenna-calibration-panel {
     display: none;
     position: absolute;
-    top: 50%; left: 50%;
+    top: 50%;
+    left: 50%;
     transform: translate(-50%, -50%);
     background: var(--bg-overlay);
-    border: 2px solid #fd7e14;
+    border: 2px solid var(--border-accent);
     border-radius: var(--radius-lg);
-    padding: 20px;
-    z-index: 100;
-    min-width: 280px;
-    backdrop-filter: blur(10px);
+    padding: 20px 24px;
+    z-index: var(--z-panel);
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow);
+    max-height: 85vh;
+    overflow-y: auto;
 }
+
+/* Индивидуальные настройки панелей */
+
+#topo-panel {
+    min-width: 300px;
+    max-width: 90vw;
+    overflow-y: visible;   /* топопривязка — маленькая, скролл не нужен */
+    max-height: none;
+}
+
+#reference-panel {
+    min-width: 400px;
+    max-width: 90vw;
+}
+
+#calibration-panel {
+    min-width: 280px;
+    border-color: var(--border-accent);   /* было #fd7e14 — унифицируем */
+}
+
+#remote-config-panel {
+    min-width: 280px;
+    border-color: var(--btn-topo-active);
+}
+
+#analysis-panel {
+    max-width: 500px;
+    max-height: 70vh;
+    border-color: var(--btn-export);
+}
+
+#antenna-calibration-panel {
+    min-width: 320px;
+    border-color: var(--border-warning);
+}
+
+
+/* ========== WIZARD ========== */
+#wizard-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: var(--z-wizard);
+    align-items: center;
+    justify-content: center;
+}
+
+#wizard-overlay.visible {
+    display: flex;
+}
+
+#wizard-modal {
+    background: var(--bg-overlay);
+    border: 2px solid var(--border-accent);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    max-width: 420px;
+    width: 90%;
+    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow);
+}
+
 
 .bc-actions {
     display: flex;
@@ -1104,7 +1253,7 @@ body {
     opacity: 0.5;
     transition: opacity 0.15s;
     padding: 2px 6px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 14px;
     pointer-events: auto;
 }
@@ -1112,6 +1261,366 @@ body {
     opacity: 1;
     background: rgba(255, 255, 255, 0.15);
 }
+
+
+/* ========== СЛУЖЕБНЫЕ КЛАССЫ (замена inline) ========== */
+
+/* Скрытый элемент (для управления через JS) */
+.hidden {
+    display: none !important;
+}
+
+/* Заголовки панелей */
+.panel-title {
+    text-align: center;
+    margin-bottom: 16px;
+    font-size: 16px;
+    letter-spacing: 0.5px;
+}
+
+.panel-title-accent { color: var(--border-accent); }
+.panel-title-warning { color: var(--border-warning); }
+.panel-title-export { color: var(--btn-export); }
+.panel-title-topo { color: var(--btn-topo-active); }
+
+/* Подзаголовки */
+.panel-subtitle {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+/* Информационные блоки */
+.panel-info {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-primary);
+    line-height: 1.6;
+    min-height: 18px;
+}
+
+/* Разделитель внутри панели */
+.panel-divider {
+    border-top: 1px solid var(--border-primary);
+    padding-top: 12px;
+    margin-top: 12px;
+}
+
+/* Кнопка во всю ширину */
+.btn-full {
+    width: 100%;
+    margin-top: 8px;
+}
+
+/* Строка кнопок (flex) */
+.btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.btn-row > button {
+    flex: 1;
+}
+
+/* Кнопки панели (общий стиль) */
+.panel-btn {
+    padding: 8px;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.panel-btn:active {
+    transform: scale(0.96);
+}
+
+.panel-btn-start { background: var(--btn-start); color: var(--btn-text); }
+.panel-btn-start:hover { background: var(--btn-start-hover); }
+
+.panel-btn-apply { background: var(--btn-connect); color: var(--btn-text); }
+.panel-btn-apply:hover { background: var(--btn-connect-hover); }
+
+.panel-btn-export { background: var(--btn-export); color: var(--btn-text); }
+.panel-btn-export:hover { filter: brightness(1.1); }
+
+.panel-btn-close { background: var(--btn-close); color: var(--btn-text); }
+.panel-btn-close:hover { background: var(--btn-close-hover); }
+
+.panel-btn-warning { background: var(--border-warning); color: var(--btn-text); }
+.panel-btn-warning:hover { filter: brightness(1.1); }
+
+.panel-btn-topo { background: var(--btn-topo); color: var(--btn-text); }
+.panel-btn-topo:hover { background: var(--btn-topo-hover); }
+
+.panel-btn-danger { background: var(--btn-disconnect); color: var(--btn-text); }
+.panel-btn-danger:hover { background: var(--btn-disconnect-hover); }
+
+/* Строка с кнопками в настройках */
+.settings-btn-row {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+}
+
+.settings-btn-row > button {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+}
+
+/* Селекты в настройках */
+.settings-select {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.settings-select:focus {
+    outline: none;
+    border-color: var(--text-accent);
+}
+
+/* Селекты в панелях */
+.panel-select {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 12px;
+}
+
+/* Информационный span (для статусов) */
+.status-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.status-accent {
+    color: var(--text-accent);
+    font-weight: 700;
+}
+
+/* Секция DRMS */
+.drms-section {
+    display: none;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-primary);
+}
+
+.drms-section h4 {
+    color: var(--btn-start);
+    margin-bottom: 10px;
+}
+
+.drms-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.drms-row label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    width: 110px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.drms-row input,
+.drms-row select {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 12px;
+    min-width: 0;
+}
+
+.drms-info {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.drms-result {
+    text-align: center;
+    font-size: 14px;
+    margin-top: 10px;
+    display: none;
+}
+
+.drms-result-value {
+    color: var(--btn-connect);
+    font-weight: 700;
+}
+
+/* Кнопки управления в панелях */
+.panel-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 12px;
+}
+
+.panel-buttons > button {
+    flex: 1;
+    min-width: 100px;
+}
+
+/* Текстовое поле для коротких значений */
+.input-narrow {
+    width: 80px;
+}
+
+/* ========== PLAYBACK PROGRESS ========== */
+#playback-progress {
+    display: none;
+    width: 150px;
+    height: 4px;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+    align-self: center;
+    margin: 0 4px;
+}
+
+#playback-progress-fill {
+    width: 0%;
+    height: 100%;
+    background: var(--btn-start);
+    border-radius: 2px;
+    transition: width 0.1s linear;
+}
+
+#playback-speed-control {
+    display: none;
+    margin-left: 10px;
+    align-items: center;
+    gap: 5px;
+}
+
+#playback-speed-control.active {
+    display: inline-flex;
+}
+
+#playback-speed-current {
+    background: var(--btn-start);
+    color: var(--btn-text);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: bold;
+}
+
+#btn-speed-down,
+#btn-speed-up {
+    width: 32px;
+    padding: 6px 0;
+}
+
+/* Показ прогресса */
+#playback-progress.active {
+    display: block;
+}
+
+
+/* ========== WIZARD (стили для кнопок) ========== */
+.wiz-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.wiz-btn-next {
+    background: var(--btn-start);
+    color: var(--btn-text);
+}
+
+.wiz-btn-back {
+    background: var(--btn-close);
+    color: var(--btn-text);
+}
+
+.wiz-btn-finish {
+    background: var(--btn-connect);
+    color: var(--btn-text);
+}
+
+.wiz-btn-skip {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-primary);
+}
+
+
+/* ========== ОПОРНЫЕ МАЯКИ ========== */
+
+/* Карточка опорного маяка в beacons-bar */
+.beacon-card.reference {
+    border-color: var(--reference-beacon-color);
+    box-shadow: 0 0 8px var(--reference-beacon-glow);
+}
+
+.beacon-card.reference .bc-addr::after {
+    content: ' ⚓';
+    font-size: 12px;
+    color: var(--reference-beacon-color);
+}
+
+#ai-quality-row {
+    display: none;
+}
+
+#ai-quality-row.visible {
+    display: block;
+}
+
+.quality-good { color: var(--border-success); }
+.quality-fair { color: var(--border-warning); }
+.quality-poor { color: var(--border-danger); }
+.quality-none { color: var(--text-muted); }
+
+/* === Строка GNSS в antenna-info (только в beacon_referenced, если есть GNSS) === */
+#ai-gnss-row {
+    display: none;
+    border-top: 1px solid var(--border-primary);
+    margin-top: 6px;
+    padding-top: 6px;
+}
+
+#ai-gnss-row.visible {
+    display: block;
+}
+
+#ai-diff {
+    color: var(--border-warning);
+}
+
 
 
 /* ========== АДАПТИВНОСТЬ ========== */
@@ -1180,10 +1689,61 @@ body {
         max-height: 18vh;
     }
     .beacon-card { width: 140px; }
-    #addr-checkboxes {
-        grid-template-columns: repeat(4, 1fr);
+}
+
+/* ========== АДАПТИВНОСТЬ DROPDOWN-МЕНЮ ========== */
+@media (max-width: 768px) {
+    .dropdown-menu {
+        /* На узких экранах: центрируем по кнопке */
+        right: auto;
+        left: 50%;
+        transform: translateX(-50%);
+        min-width: 220px;
+        max-width: calc(100vw - 20px);
+    }
+    
+    #export-dropdown,
+    #log-dropdown {
+        min-width: 200px;
+    }
+    
+    /* Подменю на узких экранах — раскрываем ВНИЗ */
+    .submenu {
+        position: static;
+        left: auto;
+        right: auto;
+        margin-left: 12px;
+        margin-top: 4px;
+        min-width: auto;
+        max-width: 100%;
+        box-shadow: none;
+        border: none;
+        border-left: 2px solid var(--border-primary);
+        border-radius: 0;
+        background: rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Чтобы на планшете подменю открывалось не только по hover, 
+       но и по tap — добавляем правило для .submenu-open (см. JS) */
+    .dropdown-item.submenu-open > .submenu {
+        display: block;
     }
 }
+
+/* Очень узкие экраны */
+@media (max-width: 480px) {
+    .dropdown-menu {
+        min-width: 180px;
+        max-width: calc(100vw - 16px);
+        font-size: 11px;
+    }
+    
+    .dropdown-item {
+        padding: 8px 10px;
+        font-size: 11px;
+    }
+}
+
 
 /* ========== ПОДДЕРЖКА NOTCH ========== */
 @supports (padding: max(0px)) {

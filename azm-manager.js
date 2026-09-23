@@ -1,5 +1,4 @@
  // azm-manager.js — Конвейер обработки данных Zima2 USBL
-// ФИНАЛЬНАЯ ВЕРСИЯ БЕЗ ЛОГОВ
 
 const AZMManager = (() => {
 	
@@ -33,6 +32,14 @@ const AZMManager = (() => {
 	const DEFAULT_ACHOD_MIN_SECTOR_WIDTH_DEG = 8.0;
 	const DEFAULT_ACHOD_SENSOR_NOISE_FACTOR = 3.0;
 	const DEFAULT_ACHOD_MAX_RANGE_CHANGE_M = 10.0;
+	
+	// === режим опорных маяков ===
+	const DEFAULT_REF_SHIP_MAX_AGE_MS = 20000;   // 20 сек — время жизни позиции судна
+	const DEFAULT_REF_MAX_SPREAD_M = 50.0;       // макс. разброс между опорными
+	
+	// === НОВОЕ: DH-фильтр позиции судна ===
+	const DEFAULT_SHIP_DH_THRESHOLD = 8.0;      // порог DH-фильтра судна (м)
+	const DEFAULT_MAX_SHIP_SPEED_MPS = 2.0;     // макс. скорость судна (м/с)
 
     // ========== СОСТОЯНИЕ ==========
 	let state = {
@@ -45,9 +52,20 @@ const AZMManager = (() => {
 		phiDeg: 0.0, offsetXM: 0.0, offsetYM: 0.0,
 		maxBeaconSpeedMps: 1.0,
 		antennaMode: 'geographic', // 'geographic' | 'cartesian_fixed'
+		// GNSS-позиция (справочно, для диагностики и сравнения)
+		gnssLatDeg: NaN, gnssLonDeg: NaN, gnssTimestamp: 0,
 		isInterrogationActive: false, isDeviceInfoValid: false,
 		deviceType: 0, serialNumber: '',
 		beacons: {}, lastUpdateTime: 0,
+		referenceBeacons: {},        // { [addr]: { lat, lon, depth } }
+		refShipMaxAgeMs: DEFAULT_REF_SHIP_MAX_AGE_MS,
+		refMaxSpreadM: DEFAULT_REF_MAX_SPREAD_M,
+		shipPosition: null,          // { lat, lon, ts, count, spread, sourceAddr }
+		shipPositionsBuffer: {},     // { [addr]: { lat, lon, ts } }
+		// DH-фильтр позиции судна (один на все опорные маяки)
+		shipDHFilter: null,
+		maxShipSpeedMps: DEFAULT_MAX_SHIP_SPEED_MPS,
+		rejectedShipPosition: null,   // { lat, lon, ts } — последняя отвергнутая позиция
 		antennaCorrector: new AntennaCorrector.AZMAntennaCorrector(),
 	};
 
@@ -104,7 +122,16 @@ const AZMManager = (() => {
         state.lastUpdateTime = Date.now();
     }
 
-    // ========== ОБРАБОТКА ДАННЫХ МАЯКА ==========
+
+
+
+	// ========== ОБРАБОТКА ДАННЫХ МАЯКА ==========
+
+	/**
+	 * Диспетчер: общая подготовка данных + вызов стратегии по режиму.
+	 * Стратегии: strategyCartesianFixed, strategyGeographic.
+	 * Поведение идентично старой монолитной processBeaconData.
+	 */
 	function processBeaconData(ndata) {
 		try {
 			if (isNaN(ndata.propTimeS) || ndata.propTimeS <= 0) {
@@ -145,7 +172,6 @@ const AZMManager = (() => {
 				if (!isNaN(ndata.hAngleDeg)) {
 					beacon.azimuthDeg = state.antennaCorrector.correctAngle(ndata.hAngleDeg);
 				}
-
 				return beacon;
 			}
 
@@ -177,253 +203,598 @@ const AZMManager = (() => {
 				hasProjection = true;
 			}
 
-			// =====================================================
-			// === ДЕКАРТОВ РЕЖИМ (НЕПОДВИЖНАЯ АНТЕННА) ===
-			// =====================================================
+			// === ДИСПЕТЧЕРИЗАЦИЯ ПО РЕЖИМУ ===
 			if (state.antennaMode === 'cartesian_fixed') {
-				if (!hasProjection || isNaN(beacon.azimuthDeg)) {
-					return beacon;
-				}
-
-				// Система координат: X → вправо (East), Y → вперёд (North), Z → вниз (глубина)
-				const azmRad = deg2rad(beacon.azimuthDeg);
-				const distXY = projectionM;
-
-				const xM = distXY * Math.sin(azmRad);  // +X = вправо
-				const yM = distXY * Math.cos(azmRad);  // +Y = вперёд
-				const zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
-
-				if (!beacon.dhFilterXYZ && window.DHTrackFilterXYZ) {
-					beacon.dhFilterXYZ = new DHTrackFilterXYZ(
-						DEFAULT_USBL_DH_FIFO,
-						state.maxBeaconSpeedMps || 1.0,
-						DEFAULT_USBL_DH_THRESHOLD
-					);
-				}
-
-				if (beacon.dhFilterXYZ) {
-					// Адаптивные пороги по дистанции
-					if (!isNaN(distXY)) {
-						if (distXY > 3000) {
-							beacon.dhFilterXYZ.dstThreshold = DEFAULT_USBL_DH_THRESHOLD_FAR;
-							beacon.dhFilterXYZ.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
-						} else if (distXY > 1500) {
-							beacon.dhFilterXYZ.dstThreshold = DEFAULT_USBL_DH_THRESHOLD_MEDIUM;
-							beacon.dhFilterXYZ.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
-						} else if (distXY > 500) {
-							beacon.dhFilterXYZ.dstThreshold = DEFAULT_USBL_DH_THRESHOLD_NEAR;
-							beacon.dhFilterXYZ.setFifoSize(DEFAULT_USBL_DH_FIFO);
-						} else {
-							beacon.dhFilterXYZ.dstThreshold = DEFAULT_USBL_DH_THRESHOLD;
-							beacon.dhFilterXYZ.setFifoSize(DEFAULT_USBL_DH_FIFO);
-						}
-					}
-
-					if (beacon.dhFilterXYZ.maxSpeedMps !== state.maxBeaconSpeedMps) {
-						beacon.dhFilterXYZ.maxSpeedMps = state.maxBeaconSpeedMps;
-					}
-
-					const now = timeProvider();
-					const dhResult = beacon.dhFilterXYZ.process(xM, yM, zM, now);
-
-					if (dhResult.accepted) {
-						beacon.absoluteAzimuthDeg = beacon.azimuthDeg;
-						beacon.absoluteDistanceM = distXY;
-
-						// Сглаживатель (только до 1000 м)
-						if (distXY <= 1000.0) {
-							if (!beacon.smootherXYZ && window.TrackMedianFilterXYZ) {
-								beacon.smootherXYZ = new TrackMedianFilterXYZ(
-									DEFAULT_USBL_S_FIFO,
-									DEFAULT_USBL_S_THRESHOLD
-								);
-							}
-							if (beacon.smootherXYZ) {
-								const smoothResult = beacon.smootherXYZ.process(dhResult.x, dhResult.y, dhResult.z, now);
-								beacon.xM = smoothResult.x;
-								beacon.yM = smoothResult.y;
-								beacon.zM = smoothResult.z;
-							} else {
-								beacon.xM = dhResult.x;
-								beacon.yM = dhResult.y;
-								beacon.zM = dhResult.z;
-							}
-						} else {
-							beacon.xM = dhResult.x;
-							beacon.yM = dhResult.y;
-							beacon.zM = dhResult.z;
-						}
-
-						// Географические координаты — NaN
-						beacon.latitudeDeg = NaN;
-						beacon.longitudeDeg = NaN;
-
-					} else {
-						// Точка отвергнута
-						beacon.rejectedXM = xM;
-						beacon.rejectedYM = yM;
-						beacon.rejectedZM = zM;
-						beacon.rejectedDistanceM = distXY;
-						beacon.rejectedAzimuthDeg = beacon.azimuthDeg;
-					}
-				}
-
-				return beacon;
+				return strategyCartesianFixed(beacon, projectionM, hasProjection);
 			}
 
-			// =====================================================
-			// === ГЕОГРАФИЧЕСКИЙ РЕЖИМ (СУЩЕСТВУЮЩАЯ ЛОГИКА) ===
-			// =====================================================
-			if (hasProjection && !isNaN(beacon.azimuthDeg) &&
-				!isNaN(state.antennaLatDeg) && !isNaN(state.antennaLonDeg) &&
-				!isNaN(state.antennaHeadingDeg)) {
-
-				const polarResult = polarCS_ShiftRotate(
-					state.antennaHeadingDeg, state.phiDeg,
-					beacon.azimuthDeg, projectionM,
-					state.offsetXM, state.offsetYM
-				);
-				const absRange = polarResult.r_a;
-
-				if (!beacon.dhFilter && DHTrackFilter) {
-					const currentMaxSpeed = (state.maxBeaconSpeedMps > 0) ? state.maxBeaconSpeedMps : 1.0;
-					beacon.dhFilter = new DHTrackFilter(DEFAULT_USBL_DH_FIFO, currentMaxSpeed, DEFAULT_USBL_DH_THRESHOLD);
-				}
-
-				const latRad = deg2rad(state.antennaLatDeg);
-				const lonRad = deg2rad(state.antennaLonDeg);
-				const absAzmRad = deg2rad(polarResult.a_deg);
-				const geoResult = directGeodetic(latRad, lonRad, absAzmRad, absRange);
-
-				if (isNaN(geoResult.lat) || isNaN(geoResult.lon)) {
-					return beacon;
-				}
-
-				if (beacon.dhFilter) {
-					const distForThreshold = hasProjection ? projectionM : beacon.slantRangeM;
-					if (!isNaN(distForThreshold)) {
-						if (distForThreshold > 3000) {
-							beacon.dhFilter.dstThreshold = 150;
-							beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
-						} else if (distForThreshold > 1500) {
-							beacon.dhFilter.dstThreshold = 50;
-							beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
-						} else if (distForThreshold > 500) {
-							beacon.dhFilter.dstThreshold = 15;
-							beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO);
-						} else {
-							beacon.dhFilter.dstThreshold = DEFAULT_USBL_DH_THRESHOLD;
-							beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO);
-						}
-					}
-
-					if (beacon.dhFilter.maxSpeedMps !== state.maxBeaconSpeedMps) {
-						beacon.dhFilter.maxSpeedMps = state.maxBeaconSpeedMps;
-					}
-
-					const now = timeProvider();
-					const dhResult = beacon.dhFilter.process(geoResult.lat, geoResult.lon, !isNaN(beacon.depthM) ? beacon.depthM : 0, now);
-
-					if (dhResult.accepted) {
-						beacon.absoluteAzimuthDeg = polarResult.a_deg;
-						beacon.absoluteDistanceM = absRange;
-						beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
-
-						const distForSmoother = hasProjection ? projectionM : beacon.slantRangeM;
-						const useSmoother = !isNaN(distForSmoother) && distForSmoother <= 1000.0;
-
-						if (useSmoother) {
-							if (!beacon.smoother && TrackMovingAverageSmoother) {
-								if (isUseMedian == 1)
-									beacon.smoother = new TrackMedianFilter(DEFAULT_USBL_S_FIFO, DEFAULT_USBL_S_THRESHOLD);
-								else
-									beacon.smoother = new TrackMovingAverageSmoother(DEFAULT_USBL_S_FIFO, DEFAULT_USBL_S_THRESHOLD);
-							}
-							if (beacon.smoother) {
-								const smoothResult = beacon.smoother.process(geoResult.lat, geoResult.lon,
-									!isNaN(beacon.depthM) ? beacon.depthM : 0, now);
-								beacon.latitudeDeg = rad2deg(smoothResult.lat);
-								beacon.longitudeDeg = rad2deg(smoothResult.lon);
-							} else {
-								beacon.latitudeDeg = rad2deg(geoResult.lat);
-								beacon.longitudeDeg = rad2deg(geoResult.lon);
-							}
-						} else {
-							beacon.latitudeDeg = rad2deg(geoResult.lat);
-							beacon.longitudeDeg = rad2deg(geoResult.lon);
-						}
-					} else {
-						beacon.rejectedLatitudeDeg = rad2deg(geoResult.lat);
-						beacon.rejectedLongitudeDeg = rad2deg(geoResult.lon);
-						beacon.rejectedDistanceM = absRange;
-						beacon.rejectedAzimuthDeg = polarResult.a_deg;
-					}
-				} else {
-					beacon.absoluteAzimuthDeg = polarResult.a_deg;
-					beacon.absoluteDistanceM = absRange;
-					beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
-					beacon.latitudeDeg = rad2deg(geoResult.lat);
-					beacon.longitudeDeg = rad2deg(geoResult.lon);
-				}
-			}
-			// =====================================================
-			// === РЕЖИМ "ТОЛЬКО HEADING": координат нет, но heading есть ===
-			// =====================================================
-			else if (hasProjection && !isNaN(beacon.azimuthDeg) && !isNaN(state.antennaHeadingDeg)) {
-
-				const distForFilter = projectionM;
-
-				if (!beacon.achodFilter && window.ACHODBearingFilter) {
-					beacon.achodFilter = new ACHODBearingFilter(
-						DEFAULT_USBL_DH_FIFO,   // fifoSize
-						5.0,                     // maxAzimuthRateDps
-						8.0,                     // minSectorWidthDeg
-						3.0,                     // sensorNoiseFactor
-						10.0                     // maxRangeChangeM
-					);
-				}
-
-				if (beacon.achodFilter) {
-					const accepted = beacon.achodFilter.process(
-						state.antennaHeadingDeg,
-						beacon.azimuthDeg,
-						distForFilter,
-						timeProvider()
-					);
-
-					if (accepted) {
-						const f = beacon.achodFilter.lastFiltered;
-						// absoluteAzimuthDeg здесь — АБСОЛЮТНЫЙ азимут (heading + relative bearing)
-						beacon.absoluteAzimuthDeg = f.azimuthDeg;
-						beacon.absoluteDistanceM = f.rangeM;
-						beacon.reverseAzimuthDeg = wrap360(f.azimuthDeg + 180);
-
-						// Географических координат нет — позиция антенны неизвестна
-						beacon.latitudeDeg = NaN;
-						beacon.longitudeDeg = NaN;
-					} else {
-						beacon.rejectedAzimuthDeg = wrap360(state.antennaHeadingDeg + beacon.azimuthDeg);
-						beacon.rejectedDistanceM = distForFilter;
-					}
-				} else {
-					// Fallback: фильтр недоступен — просто абсолютный азимут
-					beacon.absoluteAzimuthDeg = wrap360(state.antennaHeadingDeg + beacon.azimuthDeg);
-					beacon.absoluteDistanceM = distForFilter;
-					beacon.reverseAzimuthDeg = wrap360(beacon.absoluteAzimuthDeg + 180);
-					beacon.latitudeDeg = NaN;
-					beacon.longitudeDeg = NaN;
-				}
-			}
-			else if (!isNaN(beacon.azimuthDeg)) {
-				beacon.reverseAzimuthDeg = wrap360(beacon.azimuthDeg + 180);
+			if (state.antennaMode === 'beacon_referenced') {
+				return strategyBeaconReferenced(beacon, projectionM, hasProjection);
 			}
 
-			return beacon;
+			// По умолчанию — географический (с внутренними fallback'ами)
+			return strategyGeographic(beacon, projectionM, hasProjection);
+
 		} catch (e) {
 			console.error('[AZM Manager] Ошибка:', e.message);
 			return null;
 		}
 	}
+
+	/**
+	 * Стратегия: декартов режим (неподвижная антенна).
+	 * X → вправо (East), Y → вперёд (North), Z → вниз (глубина).
+	 * Использует DHTrackFilterXYZ + TrackMedianFilterXYZ.
+	 */
+	function strategyCartesianFixed(beacon, projectionM, hasProjection) {
+		if (!hasProjection || isNaN(beacon.azimuthDeg)) {
+			return beacon;
+		}
+
+		const azmRad = deg2rad(beacon.azimuthDeg);
+		const distXY = projectionM;
+
+		const xM = distXY * Math.sin(azmRad);  // +X = вправо
+		const yM = distXY * Math.cos(azmRad);  // +Y = вперёд
+		const zM = !isNaN(beacon.depthM) ? beacon.depthM : 0;
+
+		if (!beacon.dhFilterXYZ && window.DHTrackFilterXYZ) {
+			beacon.dhFilterXYZ = new DHTrackFilterXYZ(
+				DEFAULT_USBL_DH_FIFO,
+				state.maxBeaconSpeedMps || 1.0,
+				DEFAULT_USBL_DH_THRESHOLD
+			);
+		}
+
+		if (beacon.dhFilterXYZ) {
+			// Адаптивные пороги по дистанции
+			if (!isNaN(distXY)) {
+				if (distXY > 3000) {
+					beacon.dhFilterXYZ.dstThreshold = DEFAULT_USBL_DH_THRESHOLD_FAR;
+					beacon.dhFilterXYZ.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
+				} else if (distXY > 1500) {
+					beacon.dhFilterXYZ.dstThreshold = DEFAULT_USBL_DH_THRESHOLD_MEDIUM;
+					beacon.dhFilterXYZ.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
+				} else if (distXY > 500) {
+					beacon.dhFilterXYZ.dstThreshold = DEFAULT_USBL_DH_THRESHOLD_NEAR;
+					beacon.dhFilterXYZ.setFifoSize(DEFAULT_USBL_DH_FIFO);
+				} else {
+					beacon.dhFilterXYZ.dstThreshold = DEFAULT_USBL_DH_THRESHOLD;
+					beacon.dhFilterXYZ.setFifoSize(DEFAULT_USBL_DH_FIFO);
+				}
+			}
+
+			if (beacon.dhFilterXYZ.maxSpeedMps !== state.maxBeaconSpeedMps) {
+				beacon.dhFilterXYZ.maxSpeedMps = state.maxBeaconSpeedMps;
+			}
+
+			const now = timeProvider();
+			const dhResult = beacon.dhFilterXYZ.process(xM, yM, zM, now);
+
+			if (dhResult.accepted) {
+				beacon.absoluteAzimuthDeg = beacon.azimuthDeg;
+				beacon.absoluteDistanceM = distXY;
+
+				// Сглаживатель (только до 1000 м)
+				if (distXY <= 1000.0) {
+					if (!beacon.smootherXYZ && window.TrackMedianFilterXYZ) {
+						beacon.smootherXYZ = new TrackMedianFilterXYZ(
+							DEFAULT_USBL_S_FIFO,
+							DEFAULT_USBL_S_THRESHOLD
+						);
+					}
+					if (beacon.smootherXYZ) {
+						const smoothResult = beacon.smootherXYZ.process(dhResult.x, dhResult.y, dhResult.z, now);
+						beacon.xM = smoothResult.x;
+						beacon.yM = smoothResult.y;
+						beacon.zM = smoothResult.z;
+					} else {
+						beacon.xM = dhResult.x;
+						beacon.yM = dhResult.y;
+						beacon.zM = dhResult.z;
+					}
+				} else {
+					beacon.xM = dhResult.x;
+					beacon.yM = dhResult.y;
+					beacon.zM = dhResult.z;
+				}
+
+				// Географические координаты — NaN
+				beacon.latitudeDeg = NaN;
+				beacon.longitudeDeg = NaN;
+
+			} else {
+				// Точка отвергнута
+				beacon.rejectedXM = xM;
+				beacon.rejectedYM = yM;
+				beacon.rejectedZM = zM;
+				beacon.rejectedDistanceM = distXY;
+				beacon.rejectedAzimuthDeg = beacon.azimuthDeg;
+			}
+		}
+
+		return beacon;
+	}
+
+	/**
+	 * Стратегия: географический режим.
+	 * Основная логика — если есть координаты антенны (lat/lon/heading).
+	 * Fallback 1 — "только heading" (ACHOD-фильтр), если координат антенны нет.
+	 * Fallback 2 — только reverseAzimuthDeg, если нет и heading.
+	 */
+	function strategyGeographic(beacon, projectionM, hasProjection) {
+		// === ОСНОВНАЯ ЛОГИКА: есть координаты антенны ===
+		if (hasProjection && !isNaN(beacon.azimuthDeg) &&
+			!isNaN(state.antennaLatDeg) && !isNaN(state.antennaLonDeg) &&
+			!isNaN(state.antennaHeadingDeg)) {
+
+			const polarResult = polarCS_ShiftRotate(
+				state.antennaHeadingDeg, state.phiDeg,
+				beacon.azimuthDeg, projectionM,
+				state.offsetXM, state.offsetYM
+			);
+			const absRange = polarResult.r_a;
+
+			if (!beacon.dhFilter && DHTrackFilter) {
+				const currentMaxSpeed = (state.maxBeaconSpeedMps > 0) ? state.maxBeaconSpeedMps : 1.0;
+				beacon.dhFilter = new DHTrackFilter(DEFAULT_USBL_DH_FIFO, currentMaxSpeed, DEFAULT_USBL_DH_THRESHOLD);
+			}
+
+			const latRad = deg2rad(state.antennaLatDeg);
+			const lonRad = deg2rad(state.antennaLonDeg);
+			const absAzmRad = deg2rad(polarResult.a_deg);
+			const geoResult = directGeodetic(latRad, lonRad, absAzmRad, absRange);
+
+			if (isNaN(geoResult.lat) || isNaN(geoResult.lon)) {
+				return beacon;
+			}
+
+			if (beacon.dhFilter) {
+				const distForThreshold = hasProjection ? projectionM : beacon.slantRangeM;
+				if (!isNaN(distForThreshold)) {
+					if (distForThreshold > 3000) {
+						beacon.dhFilter.dstThreshold = 150;
+						beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
+					} else if (distForThreshold > 1500) {
+						beacon.dhFilter.dstThreshold = 50;
+						beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
+					} else if (distForThreshold > 500) {
+						beacon.dhFilter.dstThreshold = 15;
+						beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO);
+					} else {
+						beacon.dhFilter.dstThreshold = DEFAULT_USBL_DH_THRESHOLD;
+						beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO);
+					}
+				}
+
+				if (beacon.dhFilter.maxSpeedMps !== state.maxBeaconSpeedMps) {
+					beacon.dhFilter.maxSpeedMps = state.maxBeaconSpeedMps;
+				}
+
+				const now = timeProvider();
+				const dhResult = beacon.dhFilter.process(geoResult.lat, geoResult.lon, !isNaN(beacon.depthM) ? beacon.depthM : 0, now);
+
+				if (dhResult.accepted) {
+					beacon.absoluteAzimuthDeg = polarResult.a_deg;
+					beacon.absoluteDistanceM = absRange;
+					beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
+
+					const distForSmoother = hasProjection ? projectionM : beacon.slantRangeM;
+					const useSmoother = !isNaN(distForSmoother) && distForSmoother <= 1000.0;
+
+					if (useSmoother) {
+						if (!beacon.smoother && TrackMovingAverageSmoother) {
+							if (isUseMedian == 1)
+								beacon.smoother = new TrackMedianFilter(DEFAULT_USBL_S_FIFO, DEFAULT_USBL_S_THRESHOLD);
+							else
+								beacon.smoother = new TrackMovingAverageSmoother(DEFAULT_USBL_S_FIFO, DEFAULT_USBL_S_THRESHOLD);
+						}
+						if (beacon.smoother) {
+							const smoothResult = beacon.smoother.process(geoResult.lat, geoResult.lon,
+								!isNaN(beacon.depthM) ? beacon.depthM : 0, now);
+							beacon.latitudeDeg = rad2deg(smoothResult.lat);
+							beacon.longitudeDeg = rad2deg(smoothResult.lon);
+						} else {
+							beacon.latitudeDeg = rad2deg(geoResult.lat);
+							beacon.longitudeDeg = rad2deg(geoResult.lon);
+						}
+					} else {
+						beacon.latitudeDeg = rad2deg(geoResult.lat);
+						beacon.longitudeDeg = rad2deg(geoResult.lon);
+					}
+				} else {
+					beacon.rejectedLatitudeDeg = rad2deg(geoResult.lat);
+					beacon.rejectedLongitudeDeg = rad2deg(geoResult.lon);
+					beacon.rejectedDistanceM = absRange;
+					beacon.rejectedAzimuthDeg = polarResult.a_deg;
+				}
+			} else {
+				beacon.absoluteAzimuthDeg = polarResult.a_deg;
+				beacon.absoluteDistanceM = absRange;
+				beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
+				beacon.latitudeDeg = rad2deg(geoResult.lat);
+				beacon.longitudeDeg = rad2deg(geoResult.lon);
+			}
+
+			return beacon;
+		}
+
+		// === FALLBACK 1: "только heading" (координат антенны нет, но heading есть) ===
+		if (hasProjection && !isNaN(beacon.azimuthDeg) && !isNaN(state.antennaHeadingDeg)) {
+
+			const distForFilter = projectionM;
+
+			if (!beacon.achodFilter && window.ACHODBearingFilter) {
+				beacon.achodFilter = new ACHODBearingFilter(
+					DEFAULT_USBL_DH_FIFO,   // fifoSize
+					5.0,                     // maxAzimuthRateDps
+					8.0,                     // minSectorWidthDeg
+					3.0,                     // sensorNoiseFactor
+					10.0                     // maxRangeChangeM
+				);
+			}
+
+			if (beacon.achodFilter) {
+				const accepted = beacon.achodFilter.process(
+					state.antennaHeadingDeg,
+					beacon.azimuthDeg,
+					distForFilter,
+					timeProvider()
+				);
+
+				if (accepted) {
+					const f = beacon.achodFilter.lastFiltered;
+					// absoluteAzimuthDeg здесь — АБСОЛЮТНЫЙ азимут (heading + relative bearing)
+					beacon.absoluteAzimuthDeg = f.azimuthDeg;
+					beacon.absoluteDistanceM = f.rangeM;
+					beacon.reverseAzimuthDeg = wrap360(f.azimuthDeg + 180);
+
+					// Географических координат нет — позиция антенны неизвестна
+					beacon.latitudeDeg = NaN;
+					beacon.longitudeDeg = NaN;
+				} else {
+					beacon.rejectedAzimuthDeg = wrap360(state.antennaHeadingDeg + beacon.azimuthDeg);
+					beacon.rejectedDistanceM = distForFilter;
+				}
+			} else {
+				// Fallback: фильтр недоступен — просто абсолютный азимут
+				beacon.absoluteAzimuthDeg = wrap360(state.antennaHeadingDeg + beacon.azimuthDeg);
+				beacon.absoluteDistanceM = distForFilter;
+				beacon.reverseAzimuthDeg = wrap360(beacon.absoluteAzimuthDeg + 180);
+				beacon.latitudeDeg = NaN;
+				beacon.longitudeDeg = NaN;
+			}
+
+			return beacon;
+		}
+
+		// === FALLBACK 2: только reverseAzimuthDeg ===
+		if (!isNaN(beacon.azimuthDeg)) {
+			beacon.reverseAzimuthDeg = wrap360(beacon.azimuthDeg + 180);
+		}
+
+		return beacon;
+	}
+	
+	/**
+	 * Стратегия: режим опорных маяков.
+	 * Опорный маяк (address ∈ state.referenceBeacons) → вычисляем позицию судна.
+	 * Искомый маяк → вычисляем координаты от позиции судна.
+	 * 
+	 * offsets (offsetX/offsetY) НЕ применяем — только phi.
+	 * antennaDepthM НЕ трогаем — свой датчик давления.
+	 */
+	function strategyBeaconReferenced(beacon, projectionM, hasProjection) {
+		if (!hasProjection || isNaN(beacon.azimuthDeg) || isNaN(state.antennaHeadingDeg)) {
+			return beacon;
+		}
+
+		// Абсолютный азимут и дальность — БЕЗ offsets, только phi
+		const polarResult = polarCS_Rotate(
+			state.antennaHeadingDeg, state.phiDeg,
+			beacon.azimuthDeg, projectionM
+		);
+		const absRange = polarResult.r_a;
+
+		// === СЛУЧАЙ 1: это опорный маяк → вычисляем позицию судна ===
+		if (state.referenceBeacons[beacon.address]) {
+			const ref = state.referenceBeacons[beacon.address];
+
+			// Обратная задача: от опорного маяка к судну
+			const reverseAzmRad = deg2rad(wrap360(polarResult.a_deg + 180));
+			const shipGeo = directGeodetic(
+				deg2rad(ref.lat),
+				deg2rad(ref.lon),
+				reverseAzmRad,
+				absRange
+			);
+
+			if (isNaN(shipGeo.lat) || isNaN(shipGeo.lon)) {
+				return beacon;
+			}
+
+			const now = timeProvider().getTime ? timeProvider().getTime() : Date.now();
+			
+			// ВАЖНО: DHTrackFilter работает в РАДИАНАХ.
+			// shipGeo.lat/lon — уже радианы (возврат directGeodetic).
+			// Для буфера и rejected используем ГРАДУСЫ.
+			const shipLatRad = shipGeo.lat;
+			const shipLonRad = shipGeo.lon;
+			const shipLatDeg = rad2deg(shipGeo.lat);
+			const shipLonDeg = rad2deg(shipGeo.lon);
+
+			// === DH-ФИЛЬТР позиции судна (один на все опорные маяки) ===
+			if (!state.shipDHFilter && DHTrackFilter) {
+				state.shipDHFilter = new DHTrackFilter(
+					DEFAULT_USBL_DH_FIFO,
+					state.maxShipSpeedMps || DEFAULT_MAX_SHIP_SPEED_MPS,
+					DEFAULT_SHIP_DH_THRESHOLD
+				);
+			}
+
+			let acceptedLatRad = shipLatRad;
+			let acceptedLonRad = shipLonRad;
+
+			if (state.shipDHFilter) {
+				// Синхронизируем maxSpeed с настройками
+				if (state.shipDHFilter.maxSpeedMps !== state.maxShipSpeedMps) {
+					state.shipDHFilter.maxSpeedMps = state.maxShipSpeedMps;
+				}
+
+				// Передаём РАДИАНЫ
+				const dhResult = state.shipDHFilter.process(shipLatRad, shipLonRad, 0, now);
+
+				if (dhResult.accepted) {
+					acceptedLatRad = dhResult.lat;
+					acceptedLonRad = dhResult.lon;
+					state.rejectedShipPosition = null;
+				} else {
+					// Отвергнуто — сохраняем в ГРАДУСАХ для отрисовки
+					state.rejectedShipPosition = { lat: shipLatDeg, lon: shipLonDeg, ts: now };
+					// Координаты опорного маяка всё равно обновим
+					beacon.latitudeDeg = ref.lat;
+					beacon.longitudeDeg = ref.lon;
+					beacon.absoluteAzimuthDeg = polarResult.a_deg;
+					beacon.absoluteDistanceM = absRange;
+					beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
+					return beacon;
+				}
+			}
+
+			// Пишем в буфер — переводим РАДИАНЫ → ГРАДУСЫ
+			state.shipPositionsBuffer[beacon.address] = {
+				lat: rad2deg(acceptedLatRad),
+				lon: rad2deg(acceptedLonRad),
+				ts: now,
+			};
+
+			// Пересчёт средней позиции
+			recalculateShipPosition();
+
+			// Обновляем виртуальную позицию антенны (только lat/lon, без depth)
+			if (state.shipPosition) {
+				state.antennaLatDeg = state.shipPosition.lat;
+				state.antennaLonDeg = state.shipPosition.lon;
+			}
+
+			// Координаты опорного маяка = известные
+			beacon.latitudeDeg = ref.lat;
+			beacon.longitudeDeg = ref.lon;
+			beacon.absoluteAzimuthDeg = polarResult.a_deg;
+			beacon.absoluteDistanceM = absRange;
+			beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
+
+			return beacon;
+		}
+
+		// === СЛУЧАЙ 2: искомый маяк, позиция судна известна ===
+		if (!isNaN(state.antennaLatDeg) && !isNaN(state.antennaLonDeg)) {
+			const absAzmRad = deg2rad(polarResult.a_deg);
+			const geoResult = directGeodetic(
+				deg2rad(state.antennaLatDeg),
+				deg2rad(state.antennaLonDeg),
+				absAzmRad,
+				absRange
+			);
+
+			if (isNaN(geoResult.lat) || isNaN(geoResult.lon)) {
+				return beacon;
+			}
+
+			// DH-фильтр на координаты маяка
+			if (!beacon.dhFilter && DHTrackFilter) {
+				const currentMaxSpeed = (state.maxBeaconSpeedMps > 0) ? state.maxBeaconSpeedMps : 1.0;
+				beacon.dhFilter = new DHTrackFilter(DEFAULT_USBL_DH_FIFO, currentMaxSpeed, DEFAULT_USBL_DH_THRESHOLD);
+			}
+
+			if (beacon.dhFilter) {
+				const distForThreshold = hasProjection ? projectionM : beacon.slantRangeM;
+				if (!isNaN(distForThreshold)) {
+					if (distForThreshold > 3000) {
+						beacon.dhFilter.dstThreshold = 150;
+						beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
+					} else if (distForThreshold > 1500) {
+						beacon.dhFilter.dstThreshold = 50;
+						beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO_FAR);
+					} else if (distForThreshold > 500) {
+						beacon.dhFilter.dstThreshold = 15;
+						beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO);
+					} else {
+						beacon.dhFilter.dstThreshold = DEFAULT_USBL_DH_THRESHOLD;
+						beacon.dhFilter.setFifoSize(DEFAULT_USBL_DH_FIFO);
+					}
+				}
+
+				if (beacon.dhFilter.maxSpeedMps !== state.maxBeaconSpeedMps) {
+					beacon.dhFilter.maxSpeedMps = state.maxBeaconSpeedMps;
+				}
+
+				const now = timeProvider();
+				const dhResult = beacon.dhFilter.process(
+					geoResult.lat, geoResult.lon,
+					!isNaN(beacon.depthM) ? beacon.depthM : 0,
+					now
+				);
+
+				if (dhResult.accepted) {
+					beacon.absoluteAzimuthDeg = polarResult.a_deg;
+					beacon.absoluteDistanceM = absRange;
+					beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
+
+					const distForSmoother = hasProjection ? projectionM : beacon.slantRangeM;
+					const useSmoother = !isNaN(distForSmoother) && distForSmoother <= 1000.0;
+
+					if (useSmoother) {
+						if (!beacon.smoother && TrackMovingAverageSmoother) {
+							if (isUseMedian == 1)
+								beacon.smoother = new TrackMedianFilter(DEFAULT_USBL_S_FIFO, DEFAULT_USBL_S_THRESHOLD);
+							else
+								beacon.smoother = new TrackMovingAverageSmoother(DEFAULT_USBL_S_FIFO, DEFAULT_USBL_S_THRESHOLD);
+						}
+						if (beacon.smoother) {
+							const smoothResult = beacon.smoother.process(
+								geoResult.lat, geoResult.lon,
+								!isNaN(beacon.depthM) ? beacon.depthM : 0,
+								now
+							);
+							beacon.latitudeDeg = rad2deg(smoothResult.lat);
+							beacon.longitudeDeg = rad2deg(smoothResult.lon);
+						} else {
+							beacon.latitudeDeg = rad2deg(geoResult.lat);
+							beacon.longitudeDeg = rad2deg(geoResult.lon);
+						}
+					} else {
+						beacon.latitudeDeg = rad2deg(geoResult.lat);
+						beacon.longitudeDeg = rad2deg(geoResult.lon);
+					}
+				} else {
+					beacon.rejectedLatitudeDeg = rad2deg(geoResult.lat);
+					beacon.rejectedLongitudeDeg = rad2deg(geoResult.lon);
+					beacon.rejectedDistanceM = absRange;
+					beacon.rejectedAzimuthDeg = polarResult.a_deg;
+				}
+			} else {
+				beacon.absoluteAzimuthDeg = polarResult.a_deg;
+				beacon.absoluteDistanceM = absRange;
+				beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
+				beacon.latitudeDeg = rad2deg(geoResult.lat);
+				beacon.longitudeDeg = rad2deg(geoResult.lon);
+			}
+
+			return beacon;
+		}
+
+		// === СЛУЧАЙ 3: искомый маяк, позиции судна ещё нет ===
+		beacon.absoluteAzimuthDeg = polarResult.a_deg;
+		beacon.absoluteDistanceM = absRange;
+		beacon.reverseAzimuthDeg = wrap360(polarResult.a_deg + 180);
+		beacon.latitudeDeg = NaN;
+		beacon.longitudeDeg = NaN;
+		return beacon;
+	}
+
+	/**
+	 * Пересчёт средней позиции судна по буферу опорных маяков.
+	 * Вызывается при каждом новом измерении опорного.
+	 * 
+	 * Логика:
+	 * - Отбрасываем записи старше refShipMaxAgeMs
+	 * - Если 1 источник — берём его
+	 * - Если >1 — считаем медиану по lat/lon и разброс
+	 * - Если разброс > refMaxSpreadM — берём последнюю запись
+	 */
+	function recalculateShipPosition() {
+		const now = timeProvider().getTime ? timeProvider().getTime() : Date.now();
+		const maxAge = state.refShipMaxAgeMs;
+		const valid = [];
+
+		for (const addr in state.shipPositionsBuffer) {
+			const p = state.shipPositionsBuffer[addr];
+			if (now - p.ts < maxAge) {
+				valid.push(p);
+			}
+		}
+
+		if (valid.length === 0) {
+			state.shipPosition = null;
+			return;
+		}
+
+		if (valid.length === 1) {
+			state.shipPosition = {
+				lat: valid[0].lat,
+				lon: valid[0].lon,
+				ts: now,
+				updatedAt: Date.now(),
+				count: 1,
+				spread: 0,
+			};
+			return;
+		}
+
+		// Разброс — максимальное попарное расстояние
+		// valid[i].lat/lon — в ГРАДУСАХ, haversineInverse ждёт РАДИАНЫ
+		let spread = 0;
+		for (let i = 0; i < valid.length; i++) {
+			for (let j = i + 1; j < valid.length; j++) {
+				const d = Haversine.haversineInverse(
+					deg2rad(valid[i].lat), deg2rad(valid[i].lon),
+					deg2rad(valid[j].lat), deg2rad(valid[j].lon)
+				);
+				if (d > spread) spread = d;
+			}
+		}
+
+		if (spread > state.refMaxSpreadM) {
+			// Слишком большой разброс — берём последнюю
+			const last = valid[valid.length - 1];
+			state.shipPosition = {
+				lat: last.lat,
+				lon: last.lon,
+				ts: now,
+				updatedAt: Date.now(), 
+				count: valid.length,
+				spread: spread,
+			};
+			return;
+		}
+
+		// Медиана по lat/lon
+		const lat = median(valid.map(p => p.lat));
+		const lon = median(valid.map(p => p.lon));
+
+		state.shipPosition = {
+			lat, lon,
+			ts: now,
+			updatedAt: Date.now(), 
+			count: valid.length,
+			spread,
+		};
+	}
+
+	/**
+	 * Медиана массива чисел.
+	 */
+	function median(arr) {
+		if (arr.length === 0) return NaN;
+		const sorted = arr.slice().sort((a, b) => a - b);
+		const mid = Math.floor(sorted.length / 2);
+		return sorted.length % 2
+			? sorted[mid]
+			: (sorted[mid - 1] + sorted[mid]) / 2;
+	}	
+	
+	
+	
+	
+	
+	function resetShipTracking() {
+		state.shipPosition = null;
+		state.shipPositionsBuffer = {};
+		state.shipDHFilter = null;
+		state.rejectedShipPosition = null;
+	}
+		
 
     function processBeaconTimeout(address) {
         const beacon = getOrCreateBeacon(address);
@@ -432,7 +803,7 @@ const AZMManager = (() => {
         return beacon;
     }
 
-	 function processNDTA(ndata) {
+	function processNDTA(ndata) {
 		processStationData(ndata);
 		let beacon = null;
 		if (ndata.status === 1) {
@@ -456,6 +827,21 @@ const AZMManager = (() => {
         a_r += deg2rad(hdg); a_r = wrap2PI(a_r);
         return { a_deg: rad2deg(a_r), r_a: Math.sqrt(xr * xr + yr * yr) };
     }
+
+	/**
+	 * Упрощённая полярная коррекция — без смещений (offsetX/offsetY).
+	 * Используется в режиме beacon_referenced: только phi и heading.
+	 */
+	function polarCS_Rotate(hdg, phi, bng, rM) {
+		const teta = wrap2PI(deg2rad(bng + phi));
+		const xr = rM * Math.sin(teta);
+		const yr = rM * Math.cos(teta);
+		let a_r = Math.atan2(xr, yr);
+		if (a_r < 0) a_r += 2 * Math.PI;
+		a_r += deg2rad(hdg);
+		a_r = wrap2PI(a_r);
+		return { a_deg: rad2deg(a_r), r_a: rM };
+	}
 
     function directGeodetic(latRad, lonRad, azmRad, distM) {
         const v = vincentyDirect(latRad, lonRad, azmRad, distM);
@@ -537,14 +923,103 @@ const AZMManager = (() => {
     }
 }
 	function setAntennaMode(mode) {
-		if (mode === 'geographic' || mode === 'cartesian_fixed') {
-			state.antennaMode = mode;
+		if (mode !== 'geographic' && mode !== 'cartesian_fixed' && mode !== 'beacon_referenced') {
+			return;
+		}
+		if (state.antennaMode === mode) return;
+		
+		state.antennaMode = mode;
+		
+		// При выходе из beacon_referenced — сбрасываем виртуальную позицию, фильтр и отвергнутую
+		if (mode !== 'beacon_referenced') {
+			state.shipPosition = null;
+			state.shipPositionsBuffer = {};
+			state.shipDHFilter = null;
+			state.rejectedShipPosition = null;
 		}
 	}
 
+	/**
+	 * Устанавливает GNSS-позицию (справочно).
+	 * НЕ влияет на antennaLatDeg/LonDeg — только для диагностики и сравнения.
+	 */
+	function setGnssPosition(latDeg, lonDeg) {
+		if (!isNaN(latDeg) && !isNaN(lonDeg)) {
+			state.gnssLatDeg = latDeg;
+			state.gnssLonDeg = lonDeg;
+			state.gnssTimestamp = Date.now();
+		}
+	}
+	
+	/**
+	 * Устанавливает максимальную скорость судна (м/с).
+	 * Используется в DH-фильтре позиции судна.
+	 */
+	function setMaxShipSpeed(mps) {
+		if (!isNaN(mps) && mps >= 0.5 && mps <= 50) {
+			state.maxShipSpeedMps = mps;
+			if (state.shipDHFilter) {
+				state.shipDHFilter.maxSpeedMps = mps;
+			}
+		}
+	}
+
+
+	// === НОВОЕ: опорные маяки ===
+	function setReferenceBeacon(addr, lat, lon, depth) {
+		if (isNaN(addr) || isNaN(lat) || isNaN(lon)) return;
+		state.referenceBeacons[addr] = {
+			lat: lat,
+			lon: lon,
+			depth: isNaN(depth) ? 0 : depth
+		};
+	}
+
+	function removeReferenceBeacon(addr) {
+		delete state.referenceBeacons[addr];
+		delete state.shipPositionsBuffer[addr];
+		recalculateShipPosition();
+	}
+
+	function clearReferenceBeacons() {
+		state.referenceBeacons = {};
+		state.shipPositionsBuffer = {};
+		state.shipPosition = null;
+	}
+
+	function setRefShipMaxAge(ms) {
+		if (!isNaN(ms) && ms > 0) state.refShipMaxAgeMs = ms;
+	}
+
+	function setRefMaxSpread(m) {
+		if (!isNaN(m) && m > 0) state.refMaxSpreadM = m;
+	}
+
+
+
+
+
     function recalcAllBeacons() {
-        for (const addr in state.beacons) {
-            if (state.beacons[addr].lastNDTA) processBeaconData(state.beacons[addr].lastNDTA);
+        if (state.antennaMode === 'beacon_referenced') {
+            // Проход 1: опорные маяки - обновляем позицию судна
+            for (const addr in state.beacons) {
+                if (!state.referenceBeacons[addr]) continue;
+                if (state.beacons[addr].lastNDTA) {
+                    processBeaconData(state.beacons[addr].lastNDTA);
+                }
+            }
+            // Проход 2: остальные маяки - вычисляем координаты от позиции судна
+            for (const addr in state.beacons) {
+                if (state.referenceBeacons[addr]) continue;
+                if (state.beacons[addr].lastNDTA) {
+                    processBeaconData(state.beacons[addr].lastNDTA);
+                }
+            }
+        } else {
+            // Старое поведение для geographic / cartesian_fixed
+            for (const addr in state.beacons) {
+                if (state.beacons[addr].lastNDTA) processBeaconData(state.beacons[addr].lastNDTA);
+            }
         }
     }
 
@@ -564,7 +1039,8 @@ const AZMManager = (() => {
     return {
         processRawLine, processParsedMessage, processNDTA,
         getDINFOCommand, getStartCommand, getStopCommand,
-        setAntennaPosition, setAntennaHeading, setSalinity, setMaxDistance, setSoundSpeed,
+        setAntennaPosition, setAntennaHeading, setSalinity, setMaxDistance, setSoundSpeed, 
+		setGnssPosition,
 		setSoundSpeedAuto,
         setAddressMask, setAntennaOffsets, setMaxBeaconSpeed,
 		setAntennaMode,
@@ -576,6 +1052,14 @@ const AZMManager = (() => {
 		resetAntennaCalibration,
 		isAntennaCalibrated,
 		setTimeProvider: (fn) => { timeProvider = fn; },
+		// === НОВОЕ: опорные маяки ===
+		setReferenceBeacon,
+		removeReferenceBeacon,
+		clearReferenceBeacons,
+		setRefShipMaxAge,
+		setRefMaxSpread,
+		setMaxShipSpeed,
+		resetShipTracking,
     };
 })();
 

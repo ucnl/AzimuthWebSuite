@@ -41,6 +41,57 @@ const UIWizard = (() => {
                 return { moving: el ? el.value === 'moving' : false };
             }
         },
+		{
+            id: 'reference_mode',
+            title: 'Опорные маяки',
+            render: (state) => `
+                <p style="text-align:center; color:var(--text-primary); margin-bottom:12px;">
+                    Есть ли маяк с известными координатами?
+                </p>
+                <p style="text-align:center; color:var(--text-secondary); font-size:11px; margin-bottom:16px;">
+                    Такой маяк может использоваться как <b>опорный</b> — 
+                    координаты судна будут вычисляться по нему без GNSS.
+                </p>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <label style="display:flex; align-items:center; padding:12px; border:2px solid ${!state.useReferenceBeacons ? 'var(--border-accent)' : 'var(--border-primary)'}; border-radius:8px; cursor:pointer; background:${!state.useReferenceBeacons ? 'var(--bg-tertiary)' : 'transparent'};">
+                        <input type="radio" name="wiz-use-ref" value="no" ${!state.useReferenceBeacons ? 'checked' : ''} style="margin-right:10px;">
+                        <div>
+                            <strong>Нет</strong><br>
+                            <small style="color:var(--text-secondary);">Обычный режим (GNSS или топопривязка)</small>
+                        </div>
+                    </label>
+                    <label style="display:flex; align-items:center; padding:12px; border:2px solid ${state.useReferenceBeacons ? 'var(--border-accent)' : 'var(--border-primary)'}; border-radius:8px; cursor:pointer; background:${state.useReferenceBeacons ? 'var(--bg-tertiary)' : 'transparent'};">
+                        <input type="radio" name="wiz-use-ref" value="yes" ${state.useReferenceBeacons ? 'checked' : ''} style="margin-right:10px;">
+                        <div>
+                            <strong>Да, буду использовать ⚓</strong><br>
+                            <small style="color:var(--text-secondary);">Координаты судна по опорному маяку</small>
+                        </div>
+                    </label>
+                </div>
+            `,
+            buttons: (state, stepIdx, totalSteps) => `
+                <button class="wiz-btn wiz-btn-back" data-action="back">← Назад</button>
+                <span style="color:var(--text-secondary);font-size:11px;">${stepIdx + 1}/${totalSteps}</span>
+                ${state.useReferenceBeacons 
+                    ? `<button class="wiz-btn wiz-btn-finish" data-action="finish">Готово ✓</button>`
+                    : `<button class="wiz-btn wiz-btn-next" data-action="next">Далее →</button>`
+                }
+            `,
+            getState: () => {
+                const el = document.querySelector('input[name="wiz-use-ref"]:checked');
+                return { useReferenceBeacons: el ? el.value === 'yes' : false };
+            },
+            onRender: () => {
+                // Обновляем кнопки при изменении radio
+                document.querySelectorAll('input[name="wiz-use-ref"]').forEach(radio => {
+                    radio.onchange = () => {
+                        const state = document.querySelector('input[name="wiz-use-ref"]:checked')?.value === 'yes';
+                        wizardState.useReferenceBeacons = state;
+                        renderStep();  // перерисовать кнопки
+                    };
+                });
+            }
+        },
         {
             id: 'topo',
             title: 'Координаты антенны',
@@ -200,10 +251,10 @@ const UIWizard = (() => {
         }
     }
 
-    function show() {
+	function show() {
         if (!overlay) return;
         currentStepIndex = 0;
-        wizardState = { moving: false, hasTopo: false, gnssBaud: 38400 };
+        wizardState = { moving: false, hasTopo: false, gnssBaud: 38400, useReferenceBeacons: false };
         overlay.style.display = 'flex';
         
         // Определяем активные шаги на основе начального состояния
@@ -227,10 +278,19 @@ const UIWizard = (() => {
     function getActiveStepsForState() {
         const active = [STEPS[0]]; // antenna_mode всегда первый
         
+        // Всегда показываем вопрос про опорные маяки
+        active.push(STEPS[1]); // reference_mode
+        
+        // Если выбрали опорные маяки — заканчиваем на этом шаге
+        if (wizardState.useReferenceBeacons) {
+            return active;
+        }
+        
+        // Иначе — идём по старой логике
         if (!wizardState.moving) {
-            active.push(STEPS[1]); // topo
+            active.push(STEPS[2]); // topo
         } else {
-            active.push(STEPS[2]); // gnss
+            active.push(STEPS[3]); // gnss
         }
         
         return active;
