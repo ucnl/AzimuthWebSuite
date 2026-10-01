@@ -5,6 +5,7 @@ const UIWizard = (() => {
     let currentStepIndex = 0;
     let wizardState = {};
     let onComplete = null;
+	let isFinishing = false;
 
     const STEPS = [
         {
@@ -82,20 +83,29 @@ const UIWizard = (() => {
                 return { useReferenceBeacons: el ? el.value === 'yes' : false };
             },
             onRender: () => {
-                // Обновляем кнопки при изменении radio
-                document.querySelectorAll('input[name="wiz-use-ref"]').forEach(radio => {
-                    radio.onchange = () => {
-                        const state = document.querySelector('input[name="wiz-use-ref"]:checked')?.value === 'yes';
-                        wizardState.useReferenceBeacons = state;
-                        renderStep();  // перерисовать кнопки
-                    };
-                });
-            }
+				document.querySelectorAll('input[name="wiz-use-ref"]').forEach(radio => {
+					radio.onchange = () => {
+						const state = document.querySelector('input[name="wiz-use-ref"]:checked')?.value === 'yes';
+						wizardState.useReferenceBeacons = state;
+						
+						// Запоминаем состояние чекбокса "больше не показывать"
+						const dontShowEl = document.getElementById('wizard-dont-show');
+						const dontShowChecked = dontShowEl ? dontShowEl.checked : false;
+						
+						renderStep();
+						
+						// Восстанавливаем
+						const newDontShowEl = document.getElementById('wizard-dont-show');
+						if (newDontShowEl && dontShowChecked) {
+							newDontShowEl.checked = true;
+						}
+					};
+				});
+			}
         },
         {
             id: 'topo',
             title: 'Координаты антенны',
-            showCondition: (state) => !state.moving,
             render: (state) => `
                 <p style="text-align:center; color:var(--text-primary); margin-bottom:16px;">
                     Знаете координаты и курс антенны?
@@ -129,8 +139,7 @@ const UIWizard = (() => {
         },
         {
             id: 'gnss',
-            title: 'Подключение GNSS-компаса',
-            showCondition: (state) => state.moving,
+            title: 'Подключение GNSS-компаса',            
             render: (state) => {
                 const saved = localStorage.getItem('zima2_settings');
                 let gnssBaud = 38400;
@@ -212,27 +221,6 @@ const UIWizard = (() => {
         }
     ];
 
-    function getActiveSteps() {
-        const steps = [];
-        let state = {};
-        
-        // Проходим по шагам и собираем активные
-        for (const step of STEPS) {
-            if (step.id === 'antenna_mode') {
-                steps.push(step);
-                continue;
-            }
-            if (step.showCondition && step.showCondition(wizardState)) {
-                steps.push(step);
-            }
-            if (step.id === 'antenna_mode') {
-                state = { ...state, ...step.getState() };
-            }
-        }
-        
-        return steps;
-    }
-
     function init(callbacks) {
         overlay = document.getElementById('wizard-overlay');
         modal = document.getElementById('wizard-modal');
@@ -252,14 +240,14 @@ const UIWizard = (() => {
     }
 
 	function show() {
-        if (!overlay) return;
-        currentStepIndex = 0;
-        wizardState = { moving: false, hasTopo: false, gnssBaud: 38400, useReferenceBeacons: false };
-        overlay.style.display = 'flex';
-        
-        // Определяем активные шаги на основе начального состояния
-        renderStep();
-    }
+		if (!overlay) return;
+		currentStepIndex = 0;
+		isFinishing = false;   // ← сброс флага
+		wizardState = { moving: false, hasTopo: false, useReferenceBeacons: false };
+		overlay.style.display = 'flex';
+		
+		renderStep();
+	}
 
     function hide() {
         if (!overlay) return;
@@ -369,17 +357,20 @@ const UIWizard = (() => {
         renderStep();
     }
 
-    function finish() {
-        const activeSteps = getActiveStepsForState();
-        const step = activeSteps[currentStepIndex];
-        
-        // Сохраняем состояние последнего шага
-        if (step && step.getState) {
-            wizardState = { ...wizardState, ...step.getState() };
-        }
-        
-        hide();
-    }
+	function finish() {
+		if (isFinishing) return;   // ← защита
+		isFinishing = true;
+		
+		const activeSteps = getActiveStepsForState();
+		const step = activeSteps[currentStepIndex];
+		
+		// Сохраняем состояние последнего шага
+		if (step && step.getState) {
+			wizardState = { ...wizardState, ...step.getState() };
+		}
+		
+		hide();
+	}
 
     function resetWizard() {
         localStorage.removeItem('wizard_skip');

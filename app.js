@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.4.0';
+    const APP_VERSION = '1.4.1';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -286,10 +286,22 @@ const App = (() => {
 		UITopo.init('topo-panel', {
 			setStatus: (msg) => setStatus(msg),
 			getGnssConnected: () => isGnssConnected,
+			getAntennaMode: () => AZMManager.getState().antennaMode,
 			setAntennaPosition: (lat, lon, hdg) => AZMManager.setAntennaPosition(lat, lon, hdg),
+			setAntennaHeading: (hdg) => AZMManager.setAntennaHeading(hdg),
 			recalcAllBeacons: () => AZMManager.recalcAllBeacons(),
 			updateAntennaInfoUI: () => updateAntennaInfoUI(),
-			updateAllButtons: () => updateAllButtons()
+			updateAllButtons: () => updateAllButtons(),
+			onHeadingApplied: () => {
+				// Если применён курс для ⚓-режима — вернуть пользователя к панели опорных маяков
+				const st = AZMManager.getState();
+				if (st.antennaMode === 'beacon_referenced') {
+					const refPanel = document.getElementById('reference-panel');
+					if (refPanel && refPanel.style.display !== 'block') {
+						App.toggleReferencePanel();
+					}
+				}
+			}
 		});
 		
 		// Загружаем сохранённую привязку
@@ -336,8 +348,8 @@ const App = (() => {
 					AZMManager.setAntennaPosition(NaN, NaN, 0);
 				}
 				
-				// Сохраняем скорость GNSS
-				if (state.gnssBaud) {
+				// Сохраняем скорость GNSS — только если пользователь реально задал её в мастере
+				if (state.gnssBaud !== undefined && state.gnssBaud !== null) {
 					try {
 						const saved = localStorage.getItem('zima2_settings');
 						const data = saved ? JSON.parse(saved) : {};
@@ -349,9 +361,9 @@ const App = (() => {
 				// Открываем панель опорных маяков при выборе режима ⚓
 				if (mode === 'beacon_referenced') {
 					setTimeout(() => App.toggleReferencePanel(), 300);
-					setStatus('Режим опорных маяков. Добавьте опорный маяк с известными координатами.');
+					setStatus('Режим опорных маяков. Нажмите 🧭 в панели ⚓, чтобы задать курс, и добавьте опорный маяк.');
 				}
-				
+								
 				// Если нужно ввести топопривязку — открываем панель
 				if (!state.moving && state.hasTopo && mode === 'geographic') {
 					setTimeout(() => UITopo.toggle(), 300);
@@ -1187,8 +1199,17 @@ const App = (() => {
 			document.getElementById('ai-hdg').textContent = '0.0';
 			document.getElementById('ai-dpt').textContent = isNaN(st.antennaDepthM) ? '--' : st.antennaDepthM.toFixed(1);
 		} else {
-			document.getElementById('ai-lat').textContent = isNaN(st.antennaLatDeg) ? '--' : st.antennaLatDeg.toFixed(6);
-			document.getElementById('ai-lon').textContent = isNaN(st.antennaLonDeg) ? '--' : st.antennaLonDeg.toFixed(6);
+			const isRefMode = st.antennaMode === 'beacon_referenced';
+			const noPos = isNaN(st.antennaLatDeg) || isNaN(st.antennaLonDeg);
+			
+			if (isRefMode && noPos) {
+				document.getElementById('ai-lat').textContent = '⚓ ожидание...';
+				document.getElementById('ai-lon').textContent = '⚓';
+			} else {
+				document.getElementById('ai-lat').textContent = isNaN(st.antennaLatDeg) ? '--' : st.antennaLatDeg.toFixed(6);
+				document.getElementById('ai-lon').textContent = isNaN(st.antennaLonDeg) ? '--' : st.antennaLonDeg.toFixed(6);
+			}
+			
 			document.getElementById('ai-hdg').textContent = isNaN(st.antennaHeadingDeg) ? '--' : st.antennaHeadingDeg.toFixed(1);
 			document.getElementById('ai-dpt').textContent = isNaN(st.antennaDepthM) ? '--' : st.antennaDepthM.toFixed(1);
 		}
@@ -2336,6 +2357,11 @@ const App = (() => {
 		TrackManager.setMaxPoints(maxPoints);
 		TrackManager.setMinDistance(minDist);
 		
+		// Синхронизируем режим топопанели с режимом антенны
+		if (newAntennaMode && newAntennaMode !== oldAntennaMode) {
+			UITopo.autoSelectMode();
+		}
+		
 		// === ВОССТАНАВЛИВАЕМ ТОПОПРИВЯЗКУ ПОСЛЕ СМЕНЫ РЕЖИМА ===
 		if (newAntennaMode === 'geographic' && newAntennaMode !== oldAntennaMode) {
 			const saved = localStorage.getItem('topo_binding');
@@ -2559,6 +2585,15 @@ const App = (() => {
 		addReferenceBeacon,
 		removeReferenceBeacon,
 		toggleReferenceMode,
+		openTopoHeadingOnly: () => {
+			// Закрываем reference-панель, чтобы не было наложения модалок
+			const refPanel = document.getElementById('reference-panel');
+			if (refPanel && refPanel.style.display === 'block') {
+				App.toggleReferencePanel();
+			}
+			UITopo.setTopoMode('heading_only');
+			if (!UITopo.isOpen()) App.toggleTopoPanel();
+		},
 	};
 
 })();

@@ -1622,6 +1622,27 @@ body {
 }
 
 
+/* ========== ПОДСКАЗКА В ТОПОПАНЕЛИ ========== */
+.topo-hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-input);
+    border-left: 3px solid var(--border-accent);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+/* Отключённые поля топопривязки */
+.topo-row input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--bg-primary);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
 
 /* ========== АДАПТИВНОСТЬ ========== */
 @media (max-width: 768px) {
