@@ -8,9 +8,20 @@ const TrackManager = (() => {
     let stationTrack = [];     // [{ x, y, lat, lon, ts }]    
 	const MAX_STORED_POINTS = 50000;      // для маяков
     const MAX_STORED_STATION = 50000;     // для станции
+	
+	const GLOW_TAIL_POINTS = 100;
 
     // Якорь — первая точка станции с GNSS
     let anchorLat = NaN, anchorLon = NaN;
+
+	// Блочная обрезка вместо shift() — амортизированно O(1)
+	const TRIM_CHUNK = 5000;
+	function trimArray(arr, maxLen, chunk) {
+		if (arr.length > maxLen + chunk) {
+			arr.splice(0, arr.length - maxLen);
+		}
+	}
+
 
     // ========== НАСТРОЙКИ ==========
     let settings = {
@@ -63,7 +74,9 @@ const TrackManager = (() => {
 			ts: Date.now(),
 			heading: (!isNaN(headingDeg) ? headingDeg : null)
 		});
-		while (stationTrack.length > MAX_STORED_STATION) stationTrack.shift();
+		
+		//while (stationTrack.length > MAX_STORED_STATION) stationTrack.shift();
+		trimArray(stationTrack, MAX_STORED_STATION, TRIM_CHUNK);
 	}
 
     function clearStationTrack() {
@@ -75,43 +88,68 @@ const TrackManager = (() => {
 	function drawStationTrack(ctx, offsetX, offsetY, scale) {
 		if (stationTrack.length < 2) return;
 
-		const rootStyles = getComputedStyle(document.documentElement);
-		const stationGlow = rootStyles.getPropertyValue('--track-station-glow').trim() || 'rgba(0, 255, 255, 0.2)';
-		const stationLine = rootStyles.getPropertyValue('--track-station-line').trim() || 'rgba(0, 255, 255, 0.7)';
+		const stationLine = ColorCache.get().trackStationLine;
 
 		const drawCount = settings.maxPointsPerTrack;
 		const startIdx = Math.max(0, stationTrack.length - drawCount);
+		const MIN_PIXEL_DIST_SQ = 1.5 * 1.5;
 
-		// Свечение
+		// === Основная линия ===
 		ctx.beginPath();
 		let first = true;
+		let lastX = 0, lastY = 0;
+
 		for (let i = startIdx; i < stationTrack.length; i++) {
 			const point = stationTrack[i];
 			const x = offsetX + point.x * scale;
 			const y = offsetY - point.y * scale;
-			if (first) { ctx.moveTo(x, y); first = false; }
-			else { ctx.lineTo(x, y); }
-		}
-		if (!first) {
-			ctx.strokeStyle = stationGlow;
-			ctx.lineWidth = 6;
-			ctx.stroke();
+
+			if (first) {
+				ctx.moveTo(x, y);
+				lastX = x; lastY = y;
+				first = false;
+				continue;
+			}
+
+			const dx = x - lastX, dy = y - lastY;
+			if (dx * dx + dy * dy < MIN_PIXEL_DIST_SQ) continue;
+
+			ctx.lineTo(x, y);
+			lastX = x; lastY = y;
 		}
 
-		// Основная линия
-		ctx.beginPath();
-		first = true;
-		for (let i = startIdx; i < stationTrack.length; i++) {
-			const point = stationTrack[i];
-			const x = offsetX + point.x * scale;
-			const y = offsetY - point.y * scale;
-			if (first) { ctx.moveTo(x, y); first = false; }
-			else { ctx.lineTo(x, y); }
-		}
 		if (!first) {
 			ctx.strokeStyle = stationLine;
 			ctx.lineWidth = 2.5;
 			ctx.stroke();
+		}
+
+		// === Свечение на хвосте (последние GLOW_TAIL_POINTS точек) ===
+		const glowStart = Math.max(startIdx, stationTrack.length - GLOW_TAIL_POINTS);
+		if (stationTrack.length - glowStart >= 2) {
+			ctx.beginPath();
+			let gFirst = true;
+			for (let i = glowStart; i < stationTrack.length; i++) {
+				const point = stationTrack[i];
+				const x = offsetX + point.x * scale;
+				const y = offsetY - point.y * scale;
+
+				if (gFirst) {
+					ctx.moveTo(x, y);
+					gFirst = false;
+				} else {
+					ctx.lineTo(x, y);
+				}
+			}
+			if (!gFirst) {
+				ctx.strokeStyle = stationLine;
+				ctx.lineWidth = 7;
+				ctx.globalAlpha = 0.35;
+				ctx.lineCap = 'round';
+				ctx.lineJoin = 'round';
+				ctx.stroke();
+				ctx.globalAlpha = 1.0;
+			}
 		}
 	}
 
@@ -171,7 +209,8 @@ const TrackManager = (() => {
 			zM: !isNaN(zM) ? zM : (!isNaN(dpt) ? dpt : null),
 		});
 
-		while (track.length > MAX_STORED_POINTS) track.shift();
+		//while (track.length > MAX_STORED_POINTS) track.shift();
+		trimArray(track, MAX_STORED_POINTS, TRIM_CHUNK);
 	}
 
     // ========== ОЧИСТКА ==========
@@ -192,12 +231,11 @@ const TrackManager = (() => {
 
     // ========== НАСТРОЙКИ ==========
 
-    function setMaxPoints(n) {
-        settings.maxPointsPerTrack = Math.max(10, Math.min(100000, n));
-        for (const addr in tracks) {
-            while (tracks[addr].length > settings.maxPointsPerTrack) tracks[addr].shift();
-        }
-    }
+	function setMaxPoints(n) {
+		// Окно отрисовки. Хранилище (MAX_STORED_POINTS = 50000) не трогаем —
+		// данные для экспорта не должны зависеть от UI-настройки.
+		settings.maxPointsPerTrack = Math.max(10, Math.min(MAX_STORED_POINTS, n));
+	}
 
     function setMinDistance(m) { settings.minPointDistanceM = Math.max(0, Math.min(100, m)); }
     function setShowTracks(show) { settings.showTracks = !!show; }
@@ -206,19 +244,91 @@ const TrackManager = (() => {
 
     // ========== ОТРИСОВКА ТРЕКОВ МАЯКОВ ==========
 
+	// ========== СВЕЧЕНИЕ ХВОСТА ТРЕКА ==========
+
+	/**
+	 * Рисует «свечение» на последних GLOW_TAIL_POINTS валидных точках трека.
+	 * Пропускает isTimeout. Используется и для маяков, и (при желании) для станции.
+	 *
+	 * @param ctx        — CanvasRenderingContext2D
+	 * @param track      — массив точек трека
+	 * @param hue        — оттенок цвета маяка (0..360), для hsl(...)
+	 * @param isCartesian — режим декартовых координат (xM/yM vs x/y vs dist/azm)
+	 * @param offsetX, offsetY, scale — параметры карты
+	 * @param startIdx   — начало окна отрисовки (ниже которого точки не рисуем)
+	 */
+	function drawTrackGlowTail(ctx, track, hue, isCartesian, offsetX, offsetY, scale, startIdx) {
+		// 1. Находим индекс последней GLOW_TAIL_POINTS валидной точки.
+		//    Идём с конца, пропуская isTimeout.
+		let glowStartIdx = -1;
+		let validCount = 0;
+
+		for (let i = track.length - 1; i >= startIdx; i--) {
+			const p = track[i];
+			if (p.isTimeout) continue;
+			validCount++;
+			if (validCount === GLOW_TAIL_POINTS) {
+				glowStartIdx = i;
+				break;
+			}
+		}
+
+		// Если валидных меньше 2 — рисовать нечего
+		if (glowStartIdx < 0 || track.length - glowStartIdx < 2) return;
+
+		// 2. Строим путь по найденным точкам (только последние N валидных).
+		ctx.beginPath();
+		let gFirst = true;
+
+		for (let i = glowStartIdx; i < track.length; i++) {
+			const p = track[i];
+			if (p.isTimeout) continue;
+
+			let x, y;
+			if (isCartesian && p.xM === p.xM && p.yM === p.yM) {
+				x = offsetX + p.xM * scale;
+				y = offsetY - p.yM * scale;
+			} else if (p.x === p.x) {
+				x = offsetX + p.x * scale;
+				y = offsetY - p.y * scale;
+			} else {
+				const ang = p.azm * Math.PI / 180;
+				x = offsetX + p.dist * Math.sin(ang) * scale;
+				y = offsetY - p.dist * Math.cos(ang) * scale;
+			}
+
+			if (gFirst) {
+				ctx.moveTo(x, y);
+				gFirst = false;
+			} else {
+				ctx.lineTo(x, y);
+			}
+		}
+
+		if (!gFirst) {
+			// Цвет — тот же hue, но чуть ярче, с встроенной альфой 0.35.
+			// globalAlpha НЕ трогаем — иначе он перемножится с hsla(...) и получится слишком бледно.
+			ctx.strokeStyle = `hsla(${hue}, 80%, 65%, 0.35)`;
+			ctx.lineWidth = 8;
+			ctx.lineCap = 'round';
+			ctx.lineJoin = 'round';
+			ctx.stroke();
+		}
+	}
+
+
 	function drawTracks(ctx, offsetX, offsetY, scale) {
 		if (!settings.showTracks) return;
-		
+
 		let isCartesian = false;
 		try {
 			if (typeof AZMManager !== 'undefined' && AZMManager.getState) {
 				isCartesian = AZMManager.getState().antennaMode === 'cartesian_fixed';
 			}
-		} catch(e) {}
+		} catch (e) {}
 
-		const rootStyles = getComputedStyle(document.documentElement);
-		const trackGlowAlpha = parseFloat(rootStyles.getPropertyValue('--track-beacon-glow-alpha').trim()) || 0.2;
-		const trackLineAlpha = parseFloat(rootStyles.getPropertyValue('--track-beacon-line-alpha').trim()) || 0.8;
+		const trackLineAlpha = ColorCache.get().trackBeaconLineAlpha;
+		const MIN_PIXEL_DIST_SQ = 1.5 * 1.5;
 
 		for (const addr in tracks) {
 			const track = tracks[addr];
@@ -228,18 +338,20 @@ const TrackManager = (() => {
 			const drawCount = settings.maxPointsPerTrack;
 			const startIdx = Math.max(0, track.length - drawCount);
 
-			// Свечение
+			// === Основная линия с decimation ===
 			ctx.beginPath();
 			let first = true;
+			let lastX = 0, lastY = 0;
+
 			for (let i = startIdx; i < track.length; i++) {
 				const point = track[i];
 				if (point.isTimeout) continue;
 
 				let x, y;
-				if (isCartesian && !isNaN(point.xM) && !isNaN(point.yM)) {
+				if (isCartesian && point.xM === point.xM && point.yM === point.yM) {
 					x = offsetX + point.xM * scale;
 					y = offsetY - point.yM * scale;
-				} else if (!isNaN(point.x)) {
+				} else if (point.x === point.x) {
 					x = offsetX + point.x * scale;
 					y = offsetY - point.y * scale;
 				} else {
@@ -248,43 +360,30 @@ const TrackManager = (() => {
 					y = offsetY - point.dist * Math.cos(ang) * scale;
 				}
 
-				if (first) { ctx.moveTo(x, y); first = false; }
-				else { ctx.lineTo(x, y); }
-			}
-			if (!first) {
-				ctx.strokeStyle = `hsla(${hue}, 80%, 65%, ${trackGlowAlpha})`;
-				ctx.lineWidth = 7;
-				ctx.stroke();
-			}
-
-			// Основная линия
-			ctx.beginPath();
-			first = true;
-			for (let i = startIdx; i < track.length; i++) {
-				const point = track[i];
-				if (point.isTimeout) continue;
-
-				let x, y;
-				if (isCartesian && !isNaN(point.xM) && !isNaN(point.yM)) {
-					x = offsetX + point.xM * scale;
-					y = offsetY - point.yM * scale;
-				} else if (!isNaN(point.x)) {
-					x = offsetX + point.x * scale;
-					y = offsetY - point.y * scale;
-				} else {
-					const ang = point.azm * Math.PI / 180;
-					x = offsetX + point.dist * Math.sin(ang) * scale;
-					y = offsetY - point.dist * Math.cos(ang) * scale;
+				if (first) {
+					ctx.moveTo(x, y);
+					lastX = x; lastY = y;
+					first = false;
+					continue;
 				}
 
-				if (first) { ctx.moveTo(x, y); first = false; }
-				else { ctx.lineTo(x, y); }
+				const dx = x - lastX, dy = y - lastY;
+				if (dx * dx + dy * dy < MIN_PIXEL_DIST_SQ) continue;
+
+				ctx.lineTo(x, y);
+				lastX = x; lastY = y;
 			}
+
 			if (!first) {
 				ctx.strokeStyle = `hsla(${hue}, 70%, 60%, ${trackLineAlpha})`;
 				ctx.lineWidth = 3;
+				ctx.lineCap = 'round';
+				ctx.lineJoin = 'round';
 				ctx.stroke();
 			}
+
+			// === Свечение на хвосте ===
+			drawTrackGlowTail(ctx, track, hue, isCartesian, offsetX, offsetY, scale, startIdx);
 		}
 	}
 
