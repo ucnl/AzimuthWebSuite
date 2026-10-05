@@ -11,7 +11,7 @@ const Themes = (() => {
         currentTheme = savedTheme;
         if (currentTheme > 0) {
             document.documentElement.classList.add(THEMES[currentTheme]);
-        }
+        }		
     }
     
     function cycleTheme() {
@@ -21,6 +21,9 @@ const Themes = (() => {
             document.documentElement.classList.add(THEMES[currentTheme]);
         }
         localStorage.setItem('theme', currentTheme);
+		
+		if (typeof ColorCache !== 'undefined') ColorCache.invalidate();
+		
         return THEME_NAMES[currentTheme];
     }
     
