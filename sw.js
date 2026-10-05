@@ -1,4 +1,4 @@
-const CACHE = 'aws-v7';
+const CACHE = 'aws-v8';
 
 const ASSETS = [
   './',
@@ -11,6 +11,7 @@ const ASSETS = [
   './log-storage.js',
   './log-analyzer.js',
   './geo-utils.js',
+  './color-cache.js',
   './vincenty.js',
   './haversine.js',
   './achod-bearing-filter.js',

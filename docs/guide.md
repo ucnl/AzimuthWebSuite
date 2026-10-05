@@ -1,10 +1,8 @@
 # Руководство пользователя AzimuthWebSuite
 
-Версия: 1.4.1
+Версия: [1.4.2](CHANGELOG)
 
 ---
-
-## Содержание
 
 ## Содержание
 
@@ -861,6 +859,4 @@ Beacon,Points,DRMS_m,2DRMS_m,3DRMS_m,SigmaX_m,SigmaY_m,CentroidLat,CentroidLon
 - Проверьте **`TrackManager.getAnchor()`** — если координаты остались от опорного маяка, они **сбросятся** при следующем GNSS-обновлении
 - Если **не сбрасываются** — обновите страницу или переключитесь в `geographic` принудительно
 
-© 2026 UC&NL
-
-© 2026 UC&NL
+© 2026 [UC&NL](https://unavlab.com)

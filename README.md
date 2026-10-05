@@ -94,4 +94,4 @@
 
 ---
 
-&copy; 2026 UC&NL
+&copy; 2026 [UC&NL](https://unavlab.com)
