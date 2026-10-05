@@ -1,4 +1,4 @@
-const CACHE = 'aws-v8';
+const CACHE = 'aws-v9';
 
 const ASSETS = [
   './',
