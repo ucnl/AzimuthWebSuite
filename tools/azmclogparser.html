@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zima2 Log Parser</title>
+<link rel="manifest" href="data:application/manifest+json,{&quot;name&quot;:&quot;Zima2%20Log%20Parser&quot;,&quot;short_name&quot;:&quot;Zima2&quot;,&quot;start_url&quot;:&quot;.&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%231a1a2e&quot;,&quot;theme_color&quot;:&quot;%23e83e8c&quot;}">
+<meta name="theme-color" content="#e83e8c">
+<style>
+:root {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-tertiary: #0f3460;
+    --bg-input: #0a0a1a;
+    --border-primary: #0f3460;
+    --border-accent: #e83e8c;
+    --text-primary: #e0e0e0;
+    --text-secondary: #aaa;
+    --text-muted: #666;
+    --text-accent: #4ec9b0;
+    --text-info: #569cd6;
+    --radius: 8px;
+    --radius-sm: 6px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    padding: 20px;
+    min-height: 100vh;
+}
+.container { max-width: 1200px; margin: 0 auto; }
+h1 { font-size: 1.4em; margin-bottom: 5px; color: var(--text-accent); }
+.subtitle { color: var(--text-secondary); margin-bottom: 20px; font-size: 0.9em; }
+
+.step-card { background: var(--bg-secondary); border-radius: var(--radius); padding: 18px; border: 1px solid var(--border-primary); margin-bottom: 16px; }
+.step-card h3 { font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 12px; }
+
+textarea {
+    width: 100%; min-height: 120px; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.75em;
+    padding: 10px; border: 1px solid var(--border-primary); border-radius: var(--radius-sm);
+    background: var(--bg-input); color: var(--text-primary); resize: vertical;
+}
+textarea:focus { outline: none; border-color: var(--border-accent); }
+
+.file-upload-area {
+    border: 2px dashed var(--border-accent); border-radius: var(--radius); padding: 16px;
+    text-align: center; cursor: pointer; background: rgba(232,62,140,0.05); margin-bottom: 10px;
+}
+.file-upload-area:hover { background: rgba(232,62,140,0.1); }
+.file-upload-area input[type="file"] { display: none; }
+.file-name { color: var(--border-accent); font-weight: 600; display: block; margin-top: 4px; }
+
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.summary-item { background: var(--bg-tertiary); padding: 10px 12px; border-radius: var(--radius-sm); border-left: 3px solid var(--border-accent); }
+.summary-item .label { font-size: 0.7em; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.5px; }
+.summary-item .value { font-size: 1.2em; font-weight: 600; color: var(--text-accent); margin-top: 2px; }
+
+.tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+.tab { padding: 6px 14px; font-size: 0.8em; cursor: pointer; background: var(--bg-tertiary); border: 1px solid var(--border-primary); border-radius: var(--radius-sm); color: var(--text-secondary); }
+.tab.active { background: var(--border-accent); color: #fff; border-color: var(--border-accent); }
+.tab:hover:not(.active) { background: #1a4a80; }
+
+.table-wrapper { max-height: 400px; overflow: auto; border: 1px solid var(--border-primary); border-radius: var(--radius-sm); }
+table { width: 100%; border-collapse: collapse; font-size: 0.72em; }
+table th { background: var(--border-accent); color: #fff; padding: 6px 8px; text-align: left; position: sticky; top: 0; z-index: 2; font-weight: 500; white-space: nowrap; }
+table td { padding: 4px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); white-space: nowrap; }
+table tr:hover td { background: var(--bg-tertiary); }
+
+.status { margin-top: 15px; padding: 10px 15px; border-radius: var(--radius-sm); font-size: 0.85em; display: none; }
+.status.success { background: #1a3a1a; color: #4caf50; display: block; }
+.status.error { background: #3a1a1a; color: #f44336; display: block; }
+.status.info { background: #1a2a3a; color: #64b5f6; display: block; }
+
+.btn-row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+button { padding: 9px 18px; font-size: 0.85em; border: none; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; }
+.btn-primary { background: var(--border-accent); color: #fff; }
+.btn-primary:hover { background: #c03070; }
+.btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); }
+.btn-secondary:hover { background: #1a4a80; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.legend { display: flex; gap: 16px; margin: 10px 0; font-size: 0.78em; flex-wrap: wrap; }
+.legend span { display: flex; align-items: center; gap: 5px; }
+.legend .dot { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+
+.settings-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.setting-group { flex: 1; min-width: 140px; }
+.setting-group label { display: block; font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 4px; }
+.setting-group select,
+.setting-group input[type="text"] {
+    width: 100%; padding: 7px 10px; border: 1px solid var(--border-primary); border-radius: var(--radius-sm);
+    background: var(--bg-input); color: var(--text-primary); font-size: 0.85em;
+}
+.setting-group select:focus,
+.setting-group input[type="text"]:focus { outline: none; border-color: var(--border-accent); }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>📡 Zima2 Log Parser</h1>
+    <p class="subtitle">Парсинг логов USBL Zima2: GNSS-трек станции + треки маяков (AZMREM / PSIMSSB / IUDP)</p>
+
+    <div class="step-card">
+        <h3>📥 Шаг 1. Загрузите лог</h3>
+        <div class="file-upload-area" onclick="document.getElementById('logFileInput').click()">
+            <span>📁 Нажмите для выбора .log / .txt</span>
+            <span class="file-name" id="logFileName"></span>
+            <input type="file" id="logFileInput" accept=".log,.txt,.csv" onchange="handleLogFile(event)">
+        </div>
+        <textarea id="logInput" placeholder="Или вставьте содержимое лога сюда..."></textarea>
+    </div>
+
+    <div class="step-card">
+        <h3>📊 Сводка</h3>
+        <div class="summary-grid" id="summaryGrid">
+            <div class="summary-item"><div class="label">Строк</div><div class="value" id="sumLines">0</div></div>
+            <div class="summary-item"><div class="label">GNSS точек</div><div class="value" id="sumGnss">0</div></div>
+            <div class="summary-item"><div class="label">Маяков</div><div class="value" id="sumBeacons">0</div></div>
+            <div class="summary-item"><div class="label">AZMREM</div><div class="value" id="sumAzmrem">0</div></div>
+            <div class="summary-item"><div class="label">PSIMSSB</div><div class="value" id="sumPsimssb">0</div></div>
+            <div class="summary-item"><div class="label">IUDP</div><div class="value" id="sumIudp">0</div></div>
+        </div>
+    </div>
+	
+	<div class="step-card">
+		<h3>⚙️ Настройки экспорта</h3>
+		<div class="settings-row">
+			<div class="setting-group">
+				<label>Разделитель CSV</label>
+				<select id="csvSep">
+					<option value=";" selected>; (точка с запятой)</option>
+					<option value=",">, (запятая)</option>
+					<option value="\t">\t (табуляция)</option>
+				</select>
+			</div>
+			<div class="setting-group">
+				<label>DXF формат</label>
+				<select id="dxfMode">
+					<option value="3d" selected>3D (с глубиной в Z)</option>
+					<option value="2d">2D (плоский)</option>
+				</select>
+			</div>
+			<div class="setting-group">
+				<label>UTM зона (авто)</label>
+				<input type="text" id="utmZoneInput" placeholder="Авто">
+			</div>
+			<div class="setting-group">
+				<label>Полушарие UTM</label>
+				<select id="utmHemiInput">
+					<option value="auto" selected>Авто</option>
+					<option value="N">N (север)</option>
+					<option value="S">S (юг)</option>
+				</select>
+			</div>
+		</div>
+		<div class="settings-row">
+			<div class="setting-group">
+				<label>Ref Lat (авто — центроид GNSS)</label>
+				<input type="text" id="refLatInput" placeholder="Авто">
+			</div>
+			<div class="setting-group">
+				<label>Ref Lon (авто — центроид GNSS)</label>
+				<input type="text" id="refLonInput" placeholder="Авто">
+			</div>
+			<div class="setting-group">
+				<label>&nbsp;</label>
+				<button class="btn-secondary" onclick="resetRef()">Сбросить Ref</button>
+			</div>
+		</div>
+	</div>
+
+    <div class="step-card">
+        <h3>👁️ Предпросмотр</h3>
+        <div class="tabs" id="previewTabs"></div>
+        <div class="table-wrapper">
+            <table id="previewTable">
+                <thead id="previewHead"></thead>
+                <tbody id="previewBody"></tbody>
+            </table>
+        </div>
+    </div>
+	
+	<div class="step-card">
+		<h3>🗺️ Карта (локальные метры от опорной точки)</h3>
+		<canvas id="mapCanvas" width="1100" height="500" style="width:100%;max-width:1100px;height:auto;background:var(--bg-input);border:1px solid var(--border-primary);border-radius:var(--radius-sm);"></canvas>
+		<div class="legend" id="mapLegend" style="display:flex;gap:16px;margin-top:8px;font-size:0.78em;flex-wrap:wrap;">
+			<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#f44336;"></span> Ref</span>
+			<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#ffeb3b;"></span> Station</span>
+			<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#4caf50;"></span> Beacons</span>
+		</div>
+	</div>
+
+    <div class="step-card">
+		<h3>💾 Экспорт</h3>
+		<div class="btn-row">
+			<button class="btn-primary" onclick="exportCSV()" id="btnCsv" disabled>📄 CSV</button>
+			<button class="btn-primary" onclick="exportKML()" id="btnKml" disabled>🗺️ KML</button>
+			<button class="btn-primary" onclick="exportDXF()" id="btnDxf" disabled>📐 DXF</button>
+		</div>
+	</div>
+
+    <div id="status" class="status"></div>
+</div>
+
+<script>
+// ============================================================
+// UTM (Karney / Snyder)
+// ============================================================
+
+const UTM = (() => {
+    const WGS84_A = 6378137.0;
+    const WGS84_F = 1 / 298.257223563;
+    const WGS84_E2 = WGS84_F * (2 - WGS84_F); // эксцентриситет в квадрате
+    const K0 = 0.9996;
+    const E0 = 500000.0; // false easting
+
+    function deg2rad(d) { return d * Math.PI / 180; }
+    function rad2deg(r) { return r * 180 / Math.PI; }
+
+    // Зона UTM по долготе
+    function zoneFromLon(lonDeg) {
+        return Math.floor((lonDeg + 180) / 6) + 1;
+    }
+
+    // Central meridian для зоны
+    function centralMeridian(zone) {
+        return (zone - 1) * 6 - 180 + 3;
+    }
+
+    // UTM → Lat/Lon (Snyder, точность ~1 мм)
+    function toLatLon(easting, northing, zone, isNorth) {
+        const a = WGS84_A;
+        const e2 = WGS84_E2;
+        const e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+
+        const x = easting - E0;
+        const y = isNorth ? northing : northing - 10000000.0;
+
+        const M = y / K0;
+        const mu = M / (a * (1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256));
+
+        const phi1 = mu
+            + (3*e1/2 - 27*e1*e1*e1/32) * Math.sin(2*mu)
+            + (21*e1*e1/16 - 55*e1*e1*e1*e1/32) * Math.sin(4*mu)
+            + (151*e1*e1*e1/96) * Math.sin(6*mu);
+
+        const sinPhi1 = Math.sin(phi1);
+        const cosPhi1 = Math.cos(phi1);
+        const tanPhi1 = Math.tan(phi1);
+
+        const N1 = a / Math.sqrt(1 - e2 * sinPhi1 * sinPhi1);
+        const T1 = tanPhi1 * tanPhi1;
+        const C1 = e2 / (1 - e2) * cosPhi1 * cosPhi1;
+        const R1 = a * (1 - e2) / Math.pow(1 - e2 * sinPhi1 * sinPhi1, 1.5);
+        const D = x / (N1 * K0);
+
+        const lat = phi1 - (N1 * tanPhi1 / R1) * (
+            D*D/2
+            - (5 + 3*T1 + 10*C1 - 4*C1*C1 - 9*e2/(1-e2)) * D*D*D*D/24
+            + (61 + 90*T1 + 298*C1 + 45*T1*T1 - 252*e2/(1-e2) - 3*C1*C1) * D*D*D*D*D*D/720
+        );
+
+        const lon = deg2rad(centralMeridian(zone)) + (
+            D
+            - (1 + 2*T1 + C1) * D*D*D/6
+            + (5 - 2*C1 + 28*T1 - 3*C1*C1 + 8*e2/(1-e2) + 24*T1*T1) * D*D*D*D*D/120
+        ) / cosPhi1;
+
+        return { lat: rad2deg(lat), lon: rad2deg(lon) };
+    }
+
+    return { toLatLon, zoneFromLon, centralMeridian };
+})();
+
+// ============================================================
+// PARSER
+// ============================================================
+const Parser = (() => {
+
+    // --- Утилиты ---
+    function num(s) {
+        if (s === undefined || s === null) return null;
+        const t = String(s).trim();
+        if (t === '') return null;
+        const v = parseFloat(t.replace(',', '.'));
+        return isNaN(v) ? null : v;
+    }
+
+    function bool(s) {
+        const t = String(s).trim().toLowerCase();
+        return t === 'true' || t === '1';
+    }
+
+    // --- Регулярка строки лога ---
+    // Примеры:
+    // "16:21:51.359: INFO: 192.168.12.100:28128 (UDP_OUT) << @AZMREM,..."
+    // "16:21:52.208: << @AZMLOC,..."
+    // "INFO: 255.255.255.255:28128 (IUDP_REM_ADDR_1) << $GNRMC,..."
+    // "/dev/ttyUSB1 (GNSS) >> $GPRMC,..."
+    const LOG_RE = /^(?:(\d{2}:\d{2}:\d{2}\.\d{3}):\s*)?(?:INFO:\s*)?(?:(\S+)\s+)?(?:\(([^)]+)\)\s*)?(<<|>>)\s*(.*)$/;
+
+    function parseLogLine(line) {
+        const m = line.match(LOG_RE);
+        if (!m) return null;
+        return {
+            time: m[1] || null,        // "16:21:51.359"
+            source: m[2] || null,      // "192.168.12.100:28128" или "/dev/ttyUSB1"
+            channel: m[3] || null,     // "UDP_OUT", "GNSS", "IUDP_REM_ADDR_1"
+            direction: m[4],           // "<<" или ">>"
+            payload: m[5].trim()       // "@AZMREM,..." или "$GPRMC,..."
+        };
+    }
+
+    // --- NMEA checksum ---
+    function nmeaChecksumOk(payload) {
+        const star = payload.lastIndexOf('*');
+        if (star < 0) return true; // нет checksum — не проверяем
+        const body = payload.substring(1, star); // без $ и без *
+        const given = payload.substring(star + 1).trim().toUpperCase();
+        let cs = 0;
+        for (let i = 0; i < body.length; i++) cs ^= body.charCodeAt(i);
+        return cs.toString(16).toUpperCase().padStart(2, '0') === given;
+    }
+
+    // --- NMEA парсер ---
+    function parseNmea(payload) {
+        if (!payload.startsWith('$')) return null;
+        const star = payload.lastIndexOf('*');
+        const body = star >= 0 ? payload.substring(1, star) : payload.substring(1);
+        const fields = body.split(',');
+        const type = fields[0]; // "GPRMC", "GPGGA", ...
+        return { type, fields: fields.slice(1), raw: payload };
+    }
+
+    // --- NMEA $--RMC ---
+    // $GPRMC,020658.800,V,,,,,0.00,0.00,060180,,,N*43
+    // Поля: time, status, lat, N/S, lon, E/W, speed(kn), course, date, magvar, magvar_dir, mode
+    function parseRmc(nmea) {
+        const f = nmea.fields;
+        const status = f[1]; // A = valid, V = void
+        const lat = parseLat(f[2], f[3]);
+        const lon = parseLat(f[4], f[5]);
+        return {
+            timeNmea: f[0] || null,      // "020658.800"
+            valid: status === 'A',
+            lat, lon,
+            speedKn: num(f[6]),
+            courseDeg: num(f[7]),
+            dateNmea: f[8] || null       // "060180" = 06.01.1980
+        };
+    }
+
+    // --- NMEA $--GGA ---
+    // $GPGGA,020658.800,,,,,0,0,,,M,,M,,*49
+    function parseGga(nmea) {
+        const f = nmea.fields;
+        const quality = parseInt(f[5]) || 0;
+        return {
+            timeNmea: f[0] || null,
+            lat: parseLat(f[1], f[2]),
+            lon: parseLat(f[3], f[4]),
+            quality,
+            valid: quality > 0,
+            satellites: parseInt(f[6]) || 0,
+            hdop: num(f[7]),
+            alt: num(f[8])
+        };
+    }
+
+    // --- NMEA $--VTG ---
+    // $GPVTG,0.00,T,,M,0.00,N,0.00,K,N*32
+    function parseVtg(nmea) {
+        const f = nmea.fields;
+        return {
+            courseTrue: num(f[0]),
+            speedKn: num(f[4]),
+            speedKmh: num(f[6])
+        };
+    }
+
+    // --- NMEA $--HDG ---
+    // $HCHDG,284.5,,,,*49
+    function parseHdg(nmea) {
+        const f = nmea.fields;
+        return {
+            heading: num(f[0]),
+            deviation: num(f[1]),
+            variation: num(f[3])
+        };
+    }
+
+    // "4637.2125" + "N" → 46.6202083
+    function parseLat(v, hemi) {
+        if (!v) return null;
+        const f = parseFloat(v);
+        if (isNaN(f)) return null;
+        const deg = Math.floor(f / 100);
+        const min = f - deg * 100;
+        const d = deg + min / 60;
+        return (hemi === 'S' || hemi === 'W') ? -d : d;
+    }
+
+    // --- @AZMREM ---
+    // @AZMREM,0,16.8,191.4,0.0114,22.8,0.0,2.4,0.0,16.7,0.0,,,,,-5.1,0.0,,,,,,,,11.4,0.0,,,False,
+    function parseAzmrem(payload) {
+        const body = payload.replace(/^@AZMREM,/, '');
+        const f = body.split(',');
+        // f[0] = rem_addr (0-based)
+        return {
+            addrRaw: parseInt(f[0]),          // 0..15
+            sRange: num(f[1]),
+            azimuth: num(f[2]),
+            pTime: num(f[3]),
+            msr: num(f[4]),
+            ageMsr: num(f[5]),
+            depth: num(f[6]),
+            ageDepth: num(f[7]),
+            sRangeProjection: num(f[8]),
+            ageSrProj: num(f[9]),
+            aDistance: num(f[10]),
+            ageADist: num(f[11]),
+            aAzimuth: num(f[12]),
+            ageAAzm: num(f[13]),
+            elevation: num(f[14]),
+            ageElev: num(f[15]),
+            vcc: num(f[16]),
+            ageVcc: num(f[17]),
+            waterTemp: num(f[18]),
+            ageWaterTemp: num(f[19]),
+            lat: num(f[20]),
+            lon: num(f[21]),
+            ageLatLon: num(f[22]),
+            rAzimuth: num(f[23]),
+            ageRAzm: num(f[24]),
+            message: (f[25] || '').trim(),
+            ageMessage: num(f[26]),
+            x: num(f[27]),
+            y: num(f[28]),
+            z: num(f[29]),
+            isTimeout: bool(f[30])
+        };
+    }
+
+    // --- $PSIMSSB ---
+    // $PSIMSSB,111955,B01,A,,C,E,M,630400.69,5166402.87,22.80,0.0,N,,*71
+    function parsePsimssb(payload) {
+        const body = payload.replace(/^\$PSIMSSB,/, '');
+        const f = body.split(',');
+        // f[0] = time "111955"
+        // f[1] = btpId "B01"
+        // f[2] = status "A"
+        // f[3] = ""
+        // f[4] = "C"
+        // f[5] = "E" (Easting) или "H" (локальный)
+        // f[6] = "M"
+        // f[7] = easting
+        // f[8] = northing
+        // f[9] = depth
+        const btpId = f[1] || '';
+        const addrRaw = parseInt(btpId.replace(/^B/, ''), 10) - 1; // B01 → 0
+        const isAbsolute = f[5] === 'E';
+        return {
+            addrRaw,
+            btpId,
+            timeNmea: f[0],
+            valid: f[2] === 'A',
+            isAbsolute,
+            easting: num(f[7]),
+            northing: num(f[8]),
+            depth: num(f[9]),
+            raw: payload
+        };
+    }
+
+    // --- IUDP ---
+    // INFO: 255.255.255.255:28128 (IUDP_REM_ADDR_1) << $GNRMC,045717.438,A,...
+    function parseIudpAddr(channel) {
+        const m = channel.match(/IUDP_REM_ADDR_(\d+)/);
+        return m ? parseInt(m[1]) - 1 : null; // _1 → 0
+    }
+
+    // ============================================================
+    // ГЛАВНЫЙ ПАРСЕР ЛОГА
+    // ============================================================
+    function parseLog(text) {
+        const lines = text.split(/\r?\n/);
+        const result = {
+            gnss: [],         // трек станции
+            beacons: {},      // { addrRaw: [records] }
+            stats: {
+                lines: 0,
+                gnss: 0,
+                azmrem: 0,
+                psimssb: 0,
+                iudp: 0,
+                ignored: 0,
+                errors: 0
+            },
+            dateNmea: null,   // "060180"
+            sessionDate: null // Date
+        };
+
+        // Временный буфер для GNSS: накапливаем RMC/GGA/VTG/HDG, 
+        // потом склеиваем по времени. Упрощённо: пишем RMC и GGA отдельно,
+        // а VTG/HDG — как отдельные записи? 
+        // Лучше: RMC — основная точка (есть lat/lon/valid), GGA — доп. (alt, quality),
+        // VTG — speed/course, HDG — heading.
+        // Склеиваем по timeNmea (округлённому до 0.1 сек).
+        const gnssByTime = new Map();
+
+        for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line) continue;
+            result.stats.lines++;
+
+            const log = parseLogLine(line);
+            if (!log || !log.payload) { result.stats.ignored++; continue; }
+
+            const p = log.payload;
+            const ch = log.channel || '';
+
+            try {
+                // --- @AZMREM ---
+                if (p.startsWith('@AZMREM,')) {
+                    const rec = parseAzmrem(p);
+                    if (rec.addrRaw == null || isNaN(rec.addrRaw)) { result.stats.errors++; continue; }
+                    if (rec.isTimeout) { result.stats.ignored++; continue; }
+                    rec.time = log.time;
+                    rec.source = 'AZMREM';
+                    if (!result.beacons[rec.addrRaw]) result.beacons[rec.addrRaw] = [];
+                    result.beacons[rec.addrRaw].push(rec);
+                    result.stats.azmrem++;
+                    continue;
+                }
+
+                // --- @AZMLOC (игнор) ---
+                if (p.startsWith('@AZMLOC,')) { result.stats.ignored++; continue; }
+
+                // --- $PSIMSSB ---
+                if (p.startsWith('$PSIMSSB,')) {
+                    if (!nmeaChecksumOk(p)) { result.stats.errors++; continue; }
+                    const rec = parsePsimssb(p);
+                    if (!rec.isAbsolute) { result.stats.ignored++; continue; } // только абс. режим
+                    rec.time = log.time;
+                    rec.source = 'PSIMSSB';
+                    if (!result.beacons[rec.addrRaw]) result.beacons[rec.addrRaw] = [];
+                    result.beacons[rec.addrRaw].push(rec);
+                    result.stats.psimssb++;
+                    continue;
+                }
+
+                // --- $PAZM3 (игнор) ---
+                if (p.startsWith('$PAZM3,')) { result.stats.ignored++; continue; }
+
+                // --- NMEA ---
+                if (p.startsWith('$')) {
+                    if (!nmeaChecksumOk(p)) { result.stats.errors++; continue; }
+                    const nmea = parseNmea(p);
+                    if (!nmea) { result.stats.errors++; continue; }
+                    const t = nmea.type;
+
+                    // IUDP: канал IUDP_REM_ADDR_N
+                    if (ch.startsWith('IUDP_REM_ADDR_')) {
+                        const addrRaw = parseIudpAddr(ch);
+                        if (addrRaw == null) { result.stats.errors++; continue; }
+                        let rec = null;
+                        if (t === 'GNRMC' || t === 'GPRMC') rec = parseRmc(nmea);
+                        else if (t === 'GNGGA' || t === 'GPGGA') rec = parseGga(nmea);
+                        if (!rec) { result.stats.ignored++; continue; }
+                        if (rec.lat == null || rec.lon == null) { result.stats.ignored++; continue; }
+                        rec.time = log.time;
+                        rec.source = 'IUDP';
+                        if (!result.beacons[addrRaw]) result.beacons[addrRaw] = [];
+                        result.beacons[addrRaw].push(rec);
+                        result.stats.iudp++;
+                        continue;
+                    }
+
+                    // GNSS станции
+                    if (ch === 'GNSS' || ch === '') {
+                        // Склеиваем по timeNmea
+                        if (t === 'GPRMC' || t === 'GNRMC') {
+                            const r = parseRmc(nmea);
+                            r.time = log.time;
+                            r.source = 'GNSS';
+                            if (r.dateNmea && !result.dateNmea) {
+                                result.dateNmea = r.dateNmea;
+                            }
+                            const key = r.timeNmea || log.time;
+                            if (!gnssByTime.has(key)) gnssByTime.set(key, { time: log.time, source: 'GNSS' });
+                            Object.assign(gnssByTime.get(key), r);
+                        } else if (t === 'GPGGA' || t === 'GNGGA') {
+                            const g = parseGga(nmea);
+                            const key = g.timeNmea || log.time;
+                            if (!gnssByTime.has(key)) gnssByTime.set(key, { time: log.time, source: 'GNSS' });
+                            Object.assign(gnssByTime.get(key), g);
+                        } else if (t === 'GPVTG') {
+                            const v = parseVtg(nmea);
+                            // VTG без времени — приклеим к последней RMC-точке
+                            const keys = Array.from(gnssByTime.keys());
+                            if (keys.length) {
+                                const last = gnssByTime.get(keys[keys.length - 1]);
+                                if (last.speedKn == null) last.speedKn = v.speedKn;
+                                if (last.courseDeg == null) last.courseDeg = v.courseTrue;
+                            }
+                        }
+                        // HCHDG — игнор для трека станции (это компас, не позиция)
+                        continue;
+                    }
+
+                    // HDM — компас, игнор
+                    result.stats.ignored++;
+                    continue;
+                }
+
+                // Всё остальное — игнор
+                result.stats.ignored++;
+            } catch (e) {
+                result.stats.errors++;
+            }
+        }
+
+        // Собираем GNSS-трек
+        result.gnss = Array.from(gnssByTime.values())
+            .filter(p => p.lat != null && p.lon != null)
+            .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+        result.stats.gnss = result.gnss.length;
+
+        // Дата сессии
+        if (result.dateNmea && result.dateNmea.length === 6) {
+            const dd = parseInt(result.dateNmea.substring(0, 2));
+            const mm = parseInt(result.dateNmea.substring(2, 4));
+            const yy = parseInt(result.dateNmea.substring(4, 6));
+            const year = yy < 70 ? 2000 + yy : 1900 + yy;
+            result.sessionDate = new Date(Date.UTC(year, mm - 1, dd));
+        }
+
+        // Сортируем записи маяков по времени
+        for (const addr in result.beacons) {
+            result.beacons[addr].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+        }
+
+        return result;
+    }
+
+    return { parseLog, parseLogLine, parseNmea, parseAzmrem, parsePsimssb, num, parseLat };
+})();
+
+// ============================================================
+// MODEL — дедупликация, объединение, локальные координаты
+// ============================================================
+
+const Model = (() => {
+
+    // Опорная точка (ref) — центроид GNSS-трека
+    function computeRefPoint(gnssTrack) {
+        if (!gnssTrack || gnssTrack.length === 0) return null;
+        let sLat = 0, sLon = 0, n = 0;
+        for (const p of gnssTrack) {
+            if (p.lat != null && p.lon != null && !isNaN(p.lat) && !isNaN(p.lon)) {
+                sLat += p.lat; sLon += p.lon; n++;
+            }
+        }
+        if (n === 0) return null;
+        return { lat: sLat / n, lon: sLon / n };
+    }
+
+    // Локальные метры от опорной точки (плоская аппроксимация)
+    function localXY(lat, lon, refLat, refLon) {
+        if (lat == null || lon == null || refLat == null || refLon == null) return { x: null, y: null };
+        const mLat = (lat + refLat) / 2 * Math.PI / 180;
+        const mPerDegLat = 111132.92 - 559.82 * Math.cos(2 * mLat) + 1.175 * Math.cos(4 * mLat);
+        const mPerDegLon = 111412.84 * Math.cos(mLat) - 93.5 * Math.cos(3 * mLat);
+        return {
+            x: (lon - refLon) * mPerDegLon,
+            y: (lat - refLat) * mPerDegLat
+        };
+    }
+
+    // Дедупликация: одна запись на (addr, time)
+    // Если в один момент времени есть несколько источников — берём первый (по приоритету AZMREM > PSIMSSB > IUDP)
+    function dedupeBeacon(records) {
+        const byTime = new Map();
+        const priority = { AZMREM: 3, PSIMSSB: 2, IUDP: 1 };
+        for (const r of records) {
+            const key = r.time || '';
+            const existing = byTime.get(key);
+            if (!existing) {
+                byTime.set(key, r);
+            } else {
+                const pNew = priority[r.source] || 0;
+                const pOld = priority[existing.source] || 0;
+                if (pNew > pOld) byTime.set(key, r);
+            }
+        }
+        return Array.from(byTime.values()).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    }
+
+    // Главная функция: превращает результат Parser.parseLog в модель
+    function build(parsed) {
+        const model = {
+            refPoint: computeRefPoint(parsed.gnss),
+            sessionDate: parsed.sessionDate,
+            dateNmea: parsed.dateNmea,
+            utmZone: null,
+            utmNorth: true,
+            gnss: [],
+            beacons: {},
+            stats: { ...parsed.stats }
+        };
+
+        // Определяем зону UTM по первой валидной позиции станции
+        for (const p of parsed.gnss) {
+            if (p.lat != null && p.lon != null && !isNaN(p.lat) && !isNaN(p.lon)) {
+                model.utmZone = UTM.zoneFromLon(p.lon);
+                model.utmNorth = p.lat >= 0;
+                break;
+            }
+        }
+
+        // GNSS-трек + локальные координаты
+        if (model.refPoint) {
+            model.gnss = parsed.gnss.map(p => {
+                const xy = localXY(p.lat, p.lon, model.refPoint.lat, model.refPoint.lon);
+                return { ...p, x: xy.x, y: xy.y };
+            });
+        } else {
+            model.gnss = parsed.gnss.slice();
+        }
+
+        // Маяки
+        for (const addr in parsed.beacons) {
+            const recs = parsed.beacons[addr];
+            const deduped = dedupeBeacon(recs);
+
+            // Конвертируем PSIMSSB в Lat/Lon, если есть зона UTM
+            const converted = deduped.map(r => {
+                const copy = { ...r };
+                if (r.source === 'PSIMSSB' && r.easting != null && r.northing != null && model.utmZone) {
+                    const ll = UTM.toLatLon(r.easting, r.northing, model.utmZone, model.utmNorth);
+                    copy.lat = ll.lat;
+                    copy.lon = ll.lon;
+                }
+                // Локальные координаты
+                if (copy.lat != null && copy.lon != null && model.refPoint) {
+                    const xy = localXY(copy.lat, copy.lon, model.refPoint.lat, model.refPoint.lon);
+                    copy.x = xy.x;
+                    copy.y = xy.y;
+                }
+                return copy;
+            });
+
+            model.beacons[addr] = converted;
+        }
+
+        return model;
+    }
+
+    return { build, computeRefPoint, localXY, dedupeBeacon };
+})();
+
+// ============================================================
+// CANVAS MAP
+// ============================================================
+
+const CanvasMap = (() => {
+
+    // Палитра для маяков (до 16)
+    const BEACON_COLORS = [
+        '#4caf50', '#2196f3', '#ff9800', '#9c27b0',
+        '#00bcd4', '#e91e63', '#8bc34a', '#ff5722',
+        '#3f51b5', '#009688', '#cddc39', '#795548',
+        '#607d8b', '#ffc107', '#673ab7', '#f44336'
+    ];
+
+    function beaconColor(addr) {
+        return BEACON_COLORS[addr % BEACON_COLORS.length];
+    }
+
+    // Собираем все точки (станция + маяки) для расчёта границ
+    function collectPoints(model) {
+        const pts = [];
+        for (const p of model.gnss) {
+            if (p.x != null && p.y != null && !isNaN(p.x) && !isNaN(p.y)) {
+                pts.push({ x: p.x, y: p.y, kind: 'station' });
+            }
+        }
+        for (const addr in model.beacons) {
+            for (const r of model.beacons[addr]) {
+                if (r.x != null && r.y != null && !isNaN(r.x) && !isNaN(r.y)) {
+                    pts.push({ x: r.x, y: r.y, kind: 'beacon', addr: parseInt(addr) });
+                }
+            }
+        }
+        return pts;
+    }
+
+    function niceScale(rangeX, rangeY, w, h) {
+        const raw = Math.max(rangeX, rangeY) / Math.max(w, h) * 80;
+        const nice = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
+        return nice.find(n => n >= raw) || 10000;
+    }
+
+    function draw(model) {
+        const canvas = document.getElementById('mapCanvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        if (!model || (!model.gnss.length && !Object.keys(model.beacons).length)) {
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Нет данных для отображения', w / 2, h / 2);
+            return;
+        }
+
+        const pts = collectPoints(model);
+        if (pts.length === 0) {
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Нет точек с локальными координатами', w / 2, h / 2);
+            return;
+        }
+
+        // Границы
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const p of pts) {
+            minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+            minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+        }
+        // Включаем опорную точку (0,0)
+        minX = Math.min(minX, 0); maxX = Math.max(maxX, 0);
+        minY = Math.min(minY, 0); maxY = Math.max(maxY, 0);
+
+        const pad = 50;
+        const rangeX = Math.max(maxX - minX, 1);
+        const rangeY = Math.max(maxY - minY, 1);
+        const sc = Math.min((w - pad * 2) / rangeX, (h - pad * 2) / rangeY);
+        const cx = w / 2 - (minX + maxX) / 2 * sc;
+        const cy = h / 2 + (minY + maxY) / 2 * sc;
+
+        const ts = (wx, wy) => ({ x: cx + wx * sc, y: cy - wy * sc });
+
+        // Сетка
+        const gridStep = niceScale(rangeX, rangeY, w, h) / 5;
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        ctx.lineWidth = 1;
+        const gx0 = Math.floor(minX / gridStep) * gridStep;
+        const gy0 = Math.floor(minY / gridStep) * gridStep;
+        for (let wx = gx0; wx <= maxX; wx += gridStep) {
+            const s = ts(wx, 0);
+            ctx.beginPath(); ctx.moveTo(s.x, 0); ctx.lineTo(s.x, h); ctx.stroke();
+        }
+        for (let wy = gy0; wy <= maxY; wy += gridStep) {
+            const s = ts(0, wy);
+            ctx.beginPath(); ctx.moveTo(0, s.y); ctx.lineTo(w, s.y); ctx.stroke();
+        }
+
+        // Оси
+        const o = ts(0, 0);
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(o.x, 0); ctx.lineTo(o.x, h); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, o.y); ctx.lineTo(w, o.y); ctx.stroke();
+
+        // Трек станции
+        if (model.gnss.length >= 2) {
+            ctx.strokeStyle = '#ffeb3b';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            let started = false;
+            for (const p of model.gnss) {
+                if (p.x == null || p.y == null || isNaN(p.x) || isNaN(p.y)) continue;
+                const s = ts(p.x, p.y);
+                if (!started) { ctx.moveTo(s.x, s.y); started = true; }
+                else ctx.lineTo(s.x, s.y);
+            }
+            ctx.stroke();
+        }
+
+        // Точки станции
+        for (const p of model.gnss) {
+            if (p.x == null || p.y == null || isNaN(p.x) || isNaN(p.y)) continue;
+            const s = ts(p.x, p.y);
+            ctx.fillStyle = '#ffeb3b';
+            ctx.beginPath(); ctx.arc(s.x, s.y, 2, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Треки маяков
+        for (const addr in model.beacons) {
+            const recs = model.beacons[addr];
+            const color = beaconColor(parseInt(addr));
+            const valid = recs.filter(r => r.x != null && r.y != null && !isNaN(r.x) && !isNaN(r.y));
+            if (valid.length >= 2) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                let started = false;
+                for (const r of valid) {
+                    const s = ts(r.x, r.y);
+                    if (!started) { ctx.moveTo(s.x, s.y); started = true; }
+                    else ctx.lineTo(s.x, s.y);
+                }
+                ctx.stroke();
+            }
+            // Точки маяка
+            for (const r of valid) {
+                const s = ts(r.x, r.y);
+                ctx.fillStyle = color;
+                ctx.beginPath(); ctx.arc(s.x, s.y, 3, 0, Math.PI * 2); ctx.fill();
+            }
+            // Подпись с номером маяка (по последней точке)
+            if (valid.length > 0) {
+                const last = valid[valid.length - 1];
+                const s = ts(last.x, last.y);
+                ctx.fillStyle = color;
+                ctx.font = 'bold 11px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText('B' + (parseInt(addr) + 1), s.x + 6, s.y - 6);
+            }
+        }
+
+        // Опорная точка
+        ctx.fillStyle = '#f44336';
+        ctx.beginPath(); ctx.arc(o.x, o.y, 6, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText('Ref', o.x + 10, o.y - 6);
+
+        // Подписи осей
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'right';
+        ctx.fillText('N↑', o.x - 5, 15);
+        ctx.textAlign = 'left';
+        ctx.fillText('E→', w - 30, o.y - 5);
+
+        // Масштабная линейка
+        const barM = niceScale(rangeX, rangeY, w, h);
+        const barPx = barM * sc;
+        const bx = w - barPx - 20;
+        const by = h - 20;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + barPx, by); ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(barM >= 1000 ? `${(barM / 1000).toFixed(1)} км` : `${Math.round(barM)} м`, bx + barPx / 2, by - 8);
+    }
+
+    return { draw, beaconColor };
+})();
+
+// ============================================================
+// EXPORTER
+// ============================================================
+
+const Exporter = (() => {
+
+    function getTimestamp() {
+        return new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
+    }
+
+    function downloadBlob(content, mimeType, filename) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function escXml(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
+    }
+
+    function fmt(v, d) {
+        if (v == null || isNaN(v)) return '';
+        return Number(v).toFixed(d);
+    }
+
+    // ---------- CSV ----------
+
+    function buildCSV(model, sep) {
+        const cols = [
+            'time', 'type', 'address', 'source',
+            'latitude', 'longitude', 'depth_m',
+            'easting', 'northing', 'utm_zone',
+            'x_m', 'y_m', 'z_m',
+            'distance_m', 'azimuth_deg', 'msr_db',
+            'vcc_v', 'water_temp_c', 'message',
+            'speed_kn', 'course_deg', 'valid'
+        ];
+        const lines = [cols.join(sep)];
+
+        // Станция
+        for (const p of model.gnss) {
+            const row = [
+                p.time || '',
+                'STATION',
+                '',
+                'GNSS',
+                fmt(p.lat, 8), fmt(p.lon, 8), '',
+                '', '', model.utmZone || '',
+                fmt(p.x, 2), fmt(p.y, 2), '',
+                '', '', '',
+                '', '', '',
+                fmt(p.speedKn, 2), fmt(p.courseDeg, 1),
+                p.valid ? 'A' : 'V'
+            ];
+            lines.push(row.join(sep));
+        }
+
+        // Маяки
+        const addrs = Object.keys(model.beacons).map(Number).sort((a, b) => a - b);
+        for (const addr of addrs) {
+            for (const r of model.beacons[addr]) {
+                const row = [
+                    r.time || '',
+                    'BEACON',
+                    String(addr + 1),  // 1-based
+                    r.source || '',
+                    fmt(r.lat, 8), fmt(r.lon, 8), fmt(r.depth, 2),
+                    fmt(r.easting, 2), fmt(r.northing, 2),
+                    (r.source === 'PSIMSSB' ? (model.utmZone || '') : ''),
+                    fmt(r.x, 2), fmt(r.y, 2),
+                    (r.z != null ? fmt(r.z, 2) : (r.depth != null ? fmt(-r.depth, 2) : '')),
+                    fmt(r.sRange, 2), fmt(r.azimuth, 1), fmt(r.msr, 1),
+                    fmt(r.vcc, 2), fmt(r.waterTemp, 1), r.message || '',
+                    fmt(r.speedKn, 2), fmt(r.courseDeg, 1),
+                    r.valid === false ? 'V' : (r.valid === true ? 'A' : '')
+                ];
+                lines.push(row.join(sep));
+            }
+        }
+
+        return '\uFEFF' + lines.join('\r\n') + '\r\n';
+    }
+
+    // ---------- KML ----------
+
+    function buildKML(model) {
+        const parts = [];
+        parts.push('<?xml version="1.0" encoding="UTF-8"?>');
+        parts.push('<kml xmlns="http://www.opengis.net/kml/2.2">');
+        parts.push('<Document>');
+        parts.push('<name>Zima2 Tracks</name>');
+
+        // Стили
+        parts.push(`
+<Style id="stationStyle">
+  <LineStyle><color>ff00d7ff</color><width>3</width></LineStyle>
+</Style>`);
+        const colors = CanvasMap ? null : null; // палитра ниже
+        // Стили для маяков (до 16)
+        const beaconColors = [
+            'ff50af4c', 'fff39621', 'ff0098ff', 'ffb0279c',
+            'ffd4bc00', 'ff6338e9', 'ff4b8bc3', 'ff2255ff',
+            'ffb5513f', 'ff889600', 'ff3acdcd', 'ff483d79',
+            'ff8b7d60', 'ff07c1ff', 'ffb73ab6', 'ff3643f4'
+        ];
+        for (let i = 0; i < 16; i++) {
+            parts.push(`
+<Style id="beaconStyle${i + 1}">
+  <LineStyle><color>${beaconColors[i]}</color><width>2</width></LineStyle>
+</Style>`);
+        }
+
+        // Трек станции
+        const stValid = model.gnss.filter(p => p.lat != null && p.lon != null && !isNaN(p.lat) && !isNaN(p.lon));
+        if (stValid.length >= 2) {
+            let coords = '';
+            for (const p of stValid) {
+                const alt = (p.alt != null && !isNaN(p.alt)) ? p.alt : 0;
+                coords += `${p.lon.toFixed(8)},${p.lat.toFixed(8)},${alt.toFixed(1)} `;
+            }
+            parts.push(`
+<Placemark>
+  <name>Station Track</name>
+  <description>Точек: ${stValid.length}</description>
+  <styleUrl>#stationStyle</styleUrl>
+  <LineString>
+    <coordinates>${coords.trim()}</coordinates>
+  </LineString>
+</Placemark>`);
+        }
+
+        // Треки маяков
+        const addrs = Object.keys(model.beacons).map(Number).sort((a, b) => a - b);
+        for (const addr of addrs) {
+            const recs = model.beacons[addr];
+            const valid = recs.filter(r => r.lat != null && r.lon != null && !isNaN(r.lat) && !isNaN(r.lon));
+            if (valid.length < 2) continue;
+
+            let coords = '';
+            for (const r of valid) {
+                // Глубина в KML: отрицательная altitude
+                const depth = (r.depth != null && !isNaN(r.depth)) ? r.depth : 0;
+                const alt = -depth;
+                coords += `${r.lon.toFixed(8)},${r.lat.toFixed(8)},${alt.toFixed(1)} `;
+            }
+            const src = valid[0].source || '';
+            const avgDepth = valid.reduce((s, r) => s + (r.depth || 0), 0) / valid.length;
+            parts.push(`
+<Placemark>
+  <name>Beacon ${addr + 1}</name>
+  <description>Источник: ${src}\nТочек: ${valid.length}\nСредняя глубина: ${avgDepth.toFixed(1)} м</description>
+  <styleUrl>#beaconStyle${(addr % 16) + 1}</styleUrl>
+  <LineString>
+    <coordinates>${coords.trim()}</coordinates>
+  </LineString>
+</Placemark>`);
+        }
+
+        parts.push('</Document>');
+        parts.push('</kml>');
+        return parts.join('\n');
+    }
+
+    // ---------- DXF ----------
+
+    function buildDXF(model, is3D) {
+        const dxf = [];
+        const P = (code, val) => { dxf.push(String(code)); dxf.push(String(val)); };
+
+        // HEADER
+        P(0, 'SECTION'); P(2, 'HEADER');
+        P(9, '$ACADVER'); P(1, 'AC1009'); // R12
+        P(9, '$INSUNITS'); P(70, '6');    // метры
+        P(0, 'ENDSEC');
+
+        // TABLES (пустые, но обязательные)
+        P(0, 'SECTION'); P(2, 'TABLES'); P(0, 'ENDSEC');
+
+        // BLOCKS (пустые)
+        P(0, 'SECTION'); P(2, 'BLOCKS'); P(0, 'ENDSEC');
+
+        // ENTITIES
+        P(0, 'SECTION'); P(2, 'ENTITIES');
+
+        // --- Трек станции ---
+        const stValid = model.gnss.filter(p => p.x != null && p.y != null && !isNaN(p.x) && !isNaN(p.y));
+        if (stValid.length >= 2) {
+            write3DPolyline(P, 'STATION', stValid.map(p => ({
+                x: p.x, y: p.y, z: 0
+            })));
+        }
+
+        // --- Треки маяков ---
+        const addrs = Object.keys(model.beacons).map(Number).sort((a, b) => a - b);
+        for (const addr of addrs) {
+            const recs = model.beacons[addr].filter(r => r.x != null && r.y != null && !isNaN(r.x) && !isNaN(r.y));
+            if (recs.length < 2) continue;
+            const layer = 'BEACON_' + (addr + 1);
+            write3DPolyline(P, layer, recs.map(r => {
+                const depth = (r.depth != null && !isNaN(r.depth)) ? r.depth : 0;
+                return {
+                    x: r.x, y: r.y,
+                    z: is3D ? -depth : 0
+                };
+            }));
+        }
+
+        P(0, 'ENDSEC');
+        P(0, 'EOF');
+
+        return dxf.join('\r\n') + '\r\n';
+    }
+
+    function write3DPolyline(P, layer, pts) {
+        // POLYLINE, 3D polyline (70=8), флаг 66=1 (есть вершины)
+        P(0, 'POLYLINE');
+        P(8, layer);
+        P(66, '1');
+        P(70, '8'); // 3D polyline
+        P(10, '0.0'); P(20, '0.0'); P(30, '0.0');
+        for (const pt of pts) {
+            P(0, 'VERTEX');
+            P(8, layer);
+            P(10, pt.x.toFixed(3));
+            P(20, pt.y.toFixed(3));
+            P(30, pt.z.toFixed(3));
+            P(70, '32'); // 3D polyline vertex
+        }
+        P(0, 'SEQEND');
+        P(8, layer);
+    }
+
+    return { buildCSV, buildKML, buildDXF, downloadBlob, getTimestamp };
+})();
+
+
+// ============================================================
+// UI
+// ============================================================
+
+function handleLogFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    document.getElementById('logFileName').textContent = '📄 ' + file.name;
+    const reader = new FileReader();
+    reader.onload = e => {
+        document.getElementById('logInput').value = e.target.result;
+        runParse();
+    };
+    reader.readAsText(file);
+}
+
+document.getElementById('logInput').addEventListener('input', runParse);
+
+let parsed = null;
+let model = null;
+let currentTab = 'gnss';
+
+function runParse() {
+    const text = document.getElementById('logInput').value;
+    if (!text.trim()) {
+        parsed = null; model = null;
+        updateSummary(); updateTabs(); updateTable();
+        CanvasMap.draw(null);
+        setExportButtons(false);
+        return;
+    }
+    parsed = Parser.parseLog(text);
+    model = Model.build(parsed);
+    applyUserOverrides();
+    updateSummary(); updateTabs(); updateTable();
+    CanvasMap.draw(model);
+    setExportButtons(true);
+    showStatus(
+        `✅ Строк: ${parsed.stats.lines}. GNSS: ${parsed.stats.gnss}, AZMREM: ${parsed.stats.azmrem}, PSIMSSB: ${parsed.stats.psimssb}, IUDP: ${parsed.stats.iudp}. ` +
+        `Маяков: ${Object.keys(model.beacons).length}. ` +
+        `Ref: ${model.refPoint ? model.refPoint.lat.toFixed(6) + ', ' + model.refPoint.lon.toFixed(6) : '—'}. ` +
+        `UTM зона: ${model.utmZone || '—'}. Ошибок: ${parsed.stats.errors}.`,
+        'success'
+    );
+}
+
+function setExportButtons(enabled) {
+    ['btnCsv', 'btnKml', 'btnDxf'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.disabled = !enabled;
+    });
+}
+function updateSummary() {
+    if (!parsed) {
+        ['sumLines','sumGnss','sumBeacons','sumAzmrem','sumPsimssb','sumIudp'].forEach(id => document.getElementById(id).textContent = '0');
+        return;
+    }
+    const beaconCount = Object.keys(parsed.beacons).length;
+    document.getElementById('sumLines').textContent = parsed.stats.lines;
+    document.getElementById('sumGnss').textContent = parsed.stats.gnss;
+    document.getElementById('sumBeacons').textContent = beaconCount;
+    document.getElementById('sumAzmrem').textContent = parsed.stats.azmrem;
+    document.getElementById('sumPsimssb').textContent = parsed.stats.psimssb;
+    document.getElementById('sumIudp').textContent = parsed.stats.iudp;
+}
+
+function updateTabs() {
+    const tabs = document.getElementById('previewTabs');
+    tabs.innerHTML = '';
+    if (!parsed) return;
+
+    // GNSS
+    if (parsed.gnss.length > 0) {
+        addTab(tabs, 'gnss', `🛰️ GNSS (${parsed.gnss.length})`);
+    }
+    // Маяки
+    const addrs = Object.keys(parsed.beacons).map(Number).sort((a,b) => a-b);
+    for (const addr of addrs) {
+        const n = parsed.beacons[addr].length;
+        const src = parsed.beacons[addr][0].source;
+        addTab(tabs, 'beacon_' + addr, `📡 Beacon ${addr + 1} (${n}) [${src}]`);
+    }
+}
+
+function addTab(container, id, label) {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (currentTab === id ? ' active' : '');
+    btn.textContent = label;
+    btn.onclick = () => { currentTab = id; updateTabs(); updateTable(); };
+    container.appendChild(btn);
+}
+
+function updateTable() {
+    const head = document.getElementById('previewHead');
+    const body = document.getElementById('previewBody');
+    if (!parsed) { head.innerHTML = ''; body.innerHTML = '<tr><td style="text-align:center;color:var(--text-muted);padding:20px;">Загрузите лог</td></tr>'; return; }
+
+    if (currentTab === 'gnss') {
+		head.innerHTML = '<tr><th>#</th><th>time</th><th>lat</th><th>lon</th><th>x, м</th><th>y, м</th><th>alt</th><th>speedKn</th><th>courseDeg</th><th>valid</th><th>quality</th><th>sat</th></tr>';
+		const rows = model.gnss.slice(0, 500).map((p, i) => `<tr>
+			<td>${i+1}</td><td>${p.time || ''}</td>
+			<td>${fmt(p.lat, 7)}</td><td>${fmt(p.lon, 7)}</td>
+			<td>${fmt(p.x, 1)}</td><td>${fmt(p.y, 1)}</td>
+			<td>${fmt(p.alt, 1)}</td>
+			<td>${fmt(p.speedKn, 2)}</td><td>${fmt(p.courseDeg, 1)}</td>
+			<td>${p.valid ? '✓' : '✗'}</td><td>${p.quality ?? ''}</td><td>${p.satellites ?? ''}</td>
+		</tr>`).join('');
+		body.innerHTML = rows || '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:20px;">Нет данных GNSS</td></tr>';
+		return;
+	}
+
+    if (currentTab.startsWith('beacon_')) {
+        const addr = parseInt(currentTab.replace('beacon_', ''));
+        const recs = model.beacons[addr] || [];
+        const src = recs[0]?.source;
+
+		if (src === 'AZMREM') {
+			head.innerHTML = '<tr><th>#</th><th>time</th><th>lat</th><th>lon</th><th>x, м</th><th>y, м</th><th>depth</th><th>sRange</th><th>azimuth</th><th>msr</th><th>pTime</th><th>elev</th><th>vcc</th><th>temp</th><th>msg</th></tr>';
+			body.innerHTML = recs.slice(0, 500).map((r, i) => `<tr>
+				<td>${i+1}</td><td>${r.time || ''}</td>
+				<td>${fmt(r.lat, 7)}</td><td>${fmt(r.lon, 7)}</td>
+				<td>${fmt(r.x, 1)}</td><td>${fmt(r.y, 1)}</td>
+				<td>${fmt(r.depth, 1)}</td>
+				<td>${fmt(r.sRange, 2)}</td><td>${fmt(r.azimuth, 1)}</td><td>${fmt(r.msr, 1)}</td>
+				<td>${fmt(r.pTime, 4)}</td><td>${fmt(r.elevation, 1)}</td><td>${fmt(r.vcc, 2)}</td>
+				<td>${fmt(r.waterTemp, 1)}</td><td>${esc(r.message || '')}</td>
+			</tr>`).join('') || '<tr><td colspan="15" style="text-align:center;color:var(--text-muted);padding:20px;">Нет записей</td></tr>';
+		} else if (src === 'PSIMSSB') {
+			head.innerHTML = '<tr><th>#</th><th>time</th><th>easting</th><th>northing</th><th>lat</th><th>lon</th><th>depth</th><th>valid</th></tr>';
+			body.innerHTML = recs.slice(0, 500).map((r, i) => `<tr>
+				<td>${i+1}</td><td>${r.time || ''}</td>
+				<td>${fmt(r.easting, 2)}</td><td>${fmt(r.northing, 2)}</td>
+				<td>${fmt(r.lat, 7)}</td><td>${fmt(r.lon, 7)}</td>
+				<td>${fmt(r.depth, 2)}</td>
+				<td>${r.valid ? '✓' : '✗'}</td>
+			</tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;">Нет записей</td></tr>';
+		} else if (src === 'IUDP') {
+			head.innerHTML = '<tr><th>#</th><th>time</th><th>lat</th><th>lon</th><th>x, м</th><th>y, м</th><th>valid</th><th>speedKn</th><th>courseDeg</th></tr>';
+			body.innerHTML = recs.slice(0, 500).map((r, i) => `<tr>
+				<td>${i+1}</td><td>${r.time || ''}</td>
+				<td>${fmt(r.lat, 7)}</td><td>${fmt(r.lon, 7)}</td>
+				<td>${fmt(r.x, 1)}</td><td>${fmt(r.y, 1)}</td>
+				<td>${r.valid ? '✓' : '✗'}</td>
+				<td>${fmt(r.speedKn, 2)}</td><td>${fmt(r.courseDeg, 1)}</td>
+			</tr>`).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px;">Нет записей</td></tr>';
+		}
+    }
+}
+
+function fmt(v, digits) {
+    if (v == null || isNaN(v)) return '';
+    return Number(v).toFixed(digits);
+}
+
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+function showStatus(msg, type) {
+    const s = document.getElementById('status');
+    s.className = 'status ' + type;
+    s.textContent = msg;
+}
+
+// ============================================================
+// EXPORT UI
+// ============================================================
+
+function getCsvSep() {
+    const v = document.getElementById('csvSep').value;
+    return v === '\\t' ? '\t' : v;
+}
+
+function exportCSV() {
+    if (!model) { showStatus('❌ Нет данных', 'error'); return; }
+    const sep = getCsvSep();
+    const csv = Exporter.buildCSV(model, sep);
+    Exporter.downloadBlob(csv, 'text/csv;charset=utf-8', `zima2_export_${Exporter.getTimestamp()}.csv`);
+    showStatus('✅ CSV сохранён', 'success');
+}
+
+function exportKML() {
+    if (!model) { showStatus('❌ Нет данных', 'error'); return; }
+    const kml = Exporter.buildKML(model);
+    Exporter.downloadBlob(kml, 'application/vnd.google-earth.kml+xml', `zima2_tracks_${Exporter.getTimestamp()}.kml`);
+    showStatus('✅ KML сохранён', 'success');
+}
+
+function exportDXF() {
+    if (!model) { showStatus('❌ Нет данных', 'error'); return; }
+    const is3D = document.getElementById('dxfMode').value === '3d';
+    const dxf = Exporter.buildDXF(model, is3D);
+    Exporter.downloadBlob(dxf, 'application/octet-stream', `zima2_tracks_${Exporter.getTimestamp()}.dxf`);
+    showStatus(`✅ DXF сохранён (${is3D ? '3D' : '2D'})`, 'success');
+}
+
+function resetRef() {
+    document.getElementById('refLatInput').value = '';
+    document.getElementById('refLonInput').value = '';
+    if (parsed) {
+        model = Model.build(parsed);
+        applyUserOverrides();
+        CanvasMap.draw(model);
+        updateTable();
+    }
+}
+
+// Применение пользовательских переопределений (UTM зона, полушарие, ref)
+function applyUserOverrides() {
+    if (!model) return;
+
+    // UTM зона
+    const zoneInput = document.getElementById('utmZoneInput').value.trim();
+    if (zoneInput && !isNaN(parseInt(zoneInput))) {
+        model.utmZone = parseInt(zoneInput);
+    }
+    // Полушарие
+    const hemi = document.getElementById('utmHemiInput').value;
+    if (hemi === 'N') model.utmNorth = true;
+    else if (hemi === 'S') model.utmNorth = false;
+
+    // Ref точка
+    const refLat = parseFloat(document.getElementById('refLatInput').value);
+    const refLon = parseFloat(document.getElementById('refLonInput').value);
+    if (!isNaN(refLat) && !isNaN(refLon)) {
+        model.refPoint = { lat: refLat, lon: refLon };
+    }
+
+    // Пересчитываем локальные координаты
+    if (model.refPoint) {
+        for (const p of model.gnss) {
+            const xy = Model.localXY(p.lat, p.lon, model.refPoint.lat, model.refPoint.lon);
+            p.x = xy.x; p.y = xy.y;
+        }
+        for (const addr in model.beacons) {
+            for (const r of model.beacons[addr]) {
+                if (r.lat != null && r.lon != null) {
+                    const xy = Model.localXY(r.lat, r.lon, model.refPoint.lat, model.refPoint.lon);
+                    r.x = xy.x; r.y = xy.y;
+                }
+            }
+        }
+    }
+
+    // Пересчитываем PSIMSSB → Lat/Lon, если зона изменилась
+    if (model.utmZone && parsed) {
+        for (const addr in model.beacons) {
+            for (const r of model.beacons[addr]) {
+                if (r.source === 'PSIMSSB' && r.easting != null && r.northing != null) {
+                    const ll = UTM.toLatLon(r.easting, r.northing, model.utmZone, model.utmNorth);
+                    r.lat = ll.lat; r.lon = ll.lon;
+                    if (model.refPoint) {
+                        const xy = Model.localXY(r.lat, r.lon, model.refPoint.lat, model.refPoint.lon);
+                        r.x = xy.x; r.y = xy.y;
+                    }
+                }
+            }
+        }
+    }
+}
+
+['utmZoneInput', 'utmHemiInput', 'refLatInput', 'refLonInput'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => {
+        if (model) {
+            applyUserOverrides();
+            CanvasMap.draw(model);
+            updateTable();
+        }
+    });
+});
+
+// ============================================================
+// PWA (inline service worker)
+// ============================================================
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        const swCode = `
+            const C = 'zima2-parser-v1';
+            self.addEventListener('install', e => e.waitUntil(caches.open(C).then(c => c.addAll(['/']))));
+            self.addEventListener('fetch', e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))));
+        `;
+        const blob = new Blob([swCode], { type: 'application/javascript' });
+        navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(() => {});
+    });
+}
+</script>
+</body>
+</html>

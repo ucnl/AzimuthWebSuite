@@ -1,4 +1,4 @@
-const CACHE = 'aws-v9';
+const CACHE = 'aws-v10';
 
 const ASSETS = [
   './',
@@ -41,7 +41,9 @@ const ASSETS = [
   './modules/ui-wizard.js',
   './README.html',
   './CHANGELOG.html',
-  './docs/guide.html'
+  './docs/guide.html',
+  './tools/azmclogparser.html',
+  './coord-converter.html'
   
 ];
 

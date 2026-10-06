@@ -3,6 +3,11 @@
 ---
 # Changelog
 
+## [1.4.3] - 2026-10-06
+
+### Added
+- добавлена утилита конвертации логов AzimuthConsole в CSV/KML/DXF (Инструменты > Парсер логов AzimuthConsole)
+
 ## [1.4.2] - 2026-10-05
 
 ### Changed
