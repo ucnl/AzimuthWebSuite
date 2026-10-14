@@ -777,7 +777,7 @@ body {
     justify-content: center;
 }
 #beacons-bar.empty::after {
-    content: 'Нет данных маяков';
+    content: attr(data-empty-label);
     color: var(--text-muted);
     font-size: 13px;
 }
@@ -1237,6 +1237,27 @@ body {
     width: 90%;
     backdrop-filter: blur(10px);
     box-shadow: var(--shadow);
+}
+
+.language-selector {
+    max-width: 125px;
+    min-height: 32px;
+    padding: 4px 7px;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.language-selector:focus-visible {
+    outline: 2px solid var(--border-accent);
+    outline-offset: 2px;
+}
+@media (max-width: 480px) {
+    #top-bar .language-selector { max-width: 100px; }
+    #wizard-modal { max-height: 92dvh; overflow-y: auto; }
 }
 
 

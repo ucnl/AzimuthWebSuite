@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'aws-';
-const CACHE = CACHE_PREFIX + 'v11';
+const CACHE = CACHE_PREFIX + 'v12';
 
 const ASSETS = [
   './',
@@ -45,8 +45,9 @@ const ASSETS = [
   './CHANGELOG.html',
   './docs/guide.html',
   './tools/azmclogparser.html',
-  './coord-converter.html'
-  
+  './tools/coord-converter.html',
+  './localization/i18n.js',
+  './localization/languages.js'  
 ];
 
 self.addEventListener('install', (event) => {
