@@ -117,11 +117,18 @@
 		var originalClick = HTMLAnchorElement.prototype.click;
 		var blobUrls = new Map();
 		var originalCreateObjectURL = URL.createObjectURL;
+		var originalRevokeObjectURL = URL.revokeObjectURL;
 		
 		URL.createObjectURL = function(blob) {
 			var url = originalCreateObjectURL.call(URL, blob);
 			blobUrls.set(url, blob);
 			return url;
+		};
+		
+		URL.revokeObjectURL = function(url) {
+			// Чистим приватный Map, иначе Blob удерживается навсегда.
+			blobUrls.delete(url);
+			return originalRevokeObjectURL.call(URL, url);
 		};
 		
 		HTMLAnchorElement.prototype.click = function() {

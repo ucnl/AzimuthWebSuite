@@ -6,26 +6,35 @@ const Themes = (() => {
     const THEME_NAMES = ['Indoor', 'Light', 'Dark', 'Jack Black', 'Jack White', 'VAX'];
     let currentTheme = 0;
     
-    function init() {
-        const savedTheme = parseInt(localStorage.getItem('theme') || '0');
-        currentTheme = savedTheme;
-        if (currentTheme > 0) {
-            document.documentElement.classList.add(THEMES[currentTheme]);
-        }		
-    }
-    
-    function cycleTheme() {
-        document.documentElement.classList.remove(...THEMES);
-        currentTheme = (currentTheme + 1) % THEMES.length;
-        if (currentTheme > 0) {
-            document.documentElement.classList.add(THEMES[currentTheme]);
-        }
-        localStorage.setItem('theme', currentTheme);
+	function safeGetItem(key) {
+		try { return localStorage.getItem(key); } catch (e) { return null; }
+	}
+
+	function safeSetItem(key, value) {
+		try { localStorage.setItem(key, value); return true; } catch (e) { return false; }
+	}
+
+	function init() {
+		const savedTheme = parseInt(safeGetItem('theme') || '0');
+		currentTheme = Number.isFinite(savedTheme) ? savedTheme : 0;
+		if (currentTheme < 0 || currentTheme >= THEMES.length) currentTheme = 0;
+		if (currentTheme > 0) {
+			document.documentElement.classList.add(THEMES[currentTheme]);
+		}
+	}
+
+	function cycleTheme() {
+		document.documentElement.classList.remove(...THEMES);
+		currentTheme = (currentTheme + 1) % THEMES.length;
+		if (currentTheme > 0) {
+			document.documentElement.classList.add(THEMES[currentTheme]);
+		}
+		safeSetItem('theme', currentTheme);
 		
 		if (typeof ColorCache !== 'undefined') ColorCache.invalidate();
 		
-        return THEME_NAMES[currentTheme];
-    }
+		return THEME_NAMES[currentTheme];
+	}
     
     function getCurrentThemeName() {
         return THEME_NAMES[currentTheme];

@@ -28,9 +28,18 @@ const ACHODBearingFilter = (() => {
             }
         }
 
-        static angularDifference(deg1, deg2) {
+		static angularDifference(deg1, deg2) {
             let diff = Math.abs(deg1 - deg2) % 360.0;
             return diff > 180.0 ? 360.0 - diff : diff;
+        }
+
+        /**
+         * Signed кратчайшая разность: результат в [-180, 180).
+         * Используется для оценки ЗНАКА угловой скорости.
+         * Пример: signed(10, 350) = +20; signed(350, 10) = -20.
+         */
+        static angularDifferenceSigned(deg1, deg2) {
+            return ((deg1 - deg2 + 540) % 360) - 180;
         }
     }
 
@@ -85,12 +94,13 @@ const ACHODBearingFilter = (() => {
                 return;
             }
 
-            const nPts = Math.min(4, side.length);
+			const nPts = Math.min(4, side.length);
             const rates = [];
             for (let k = side.length - nPts + 1; k < side.length; k++) {
                 const dt = (side[k].ts - side[k - 1].ts) / 1000;
                 if (dt > 0) {
-                    const rate = BearingPoint3DTd.angularDifference(
+                    // Signed rate — сохраняем направление вращения
+                    const rate = BearingPoint3DTd.angularDifferenceSigned(
                         side[k].azimuthDeg, side[k - 1].azimuthDeg) / dt;
                     rates.push(rate);
                 }
@@ -100,14 +110,17 @@ const ACHODBearingFilter = (() => {
             if (rates.length > 0) {
                 rates.sort((a, b) => a - b);
                 estRate = rates[Math.floor(rates.length / 2)];
-                estRate = Math.min(estRate, this.maxAzimuthRateDps);
+                // Ограничиваем по МОДУЛЮ, сохраняя знак
+                if (estRate > this.maxAzimuthRateDps) estRate = this.maxAzimuthRateDps;
+                if (estRate < -this.maxAzimuthRateDps) estRate = -this.maxAzimuthRateDps;
             }
 
             const dt2Pred = (currentTime - side[side.length - 1].ts) / 1000;
             let centerDeg = (side[side.length - 1].azimuthDeg + estRate * dt2Pred) % 360.0;
             if (centerDeg < 0) centerDeg += 360.0;
 
-            const dynamicWidth = estRate * dt2Pred * 1.5;
+            // Ширина сектора — по модулю скорости
+            const dynamicWidth = Math.abs(estRate) * dt2Pred * 1.5;
             const noiseWidth = this.sensorNoiseFactor;
             const halfWidthDeg = Math.max(this.minSectorWidthDeg, dynamicWidth + noiseWidth);
 
@@ -174,8 +187,11 @@ const ACHODBearingFilter = (() => {
             let azimuthDeg = (heading_deg + relativeBearing_deg) % 360.0;
             if (azimuthDeg < 0) azimuthDeg += 360.0;
 
-            const activeSide = this.pSideIdx === 1 ? this.primarySide : this.secondarySide;
+            // Активная очередь определяется pSideIdx (1 → primary, 2 → secondary)
+            const activeIsPrimary = (this.pSideIdx === 1);
+            const activeSide = activeIsPrimary ? this.primarySide : this.secondarySide;
 
+            // Первая точка активной очереди — всегда принимается
             if (activeSide.length === 0) {
                 const newPoint = new BearingPoint3DTd(azimuthDeg, range_m, timestamp);
                 this._addPoint(activeSide, newPoint);
@@ -204,29 +220,27 @@ const ACHODBearingFilter = (() => {
                 shouldAccept = azimuthDev < sector.halfWidthDeg * 1.5;
             }
 
-            if (shouldAccept) {
-                let newPoint;
-                if (this.primarySide.length > 0) {
-                    const lastPrimary = this.primarySide[this.primarySide.length - 1];
-                    newPoint = new BearingPoint3DTd(azimuthDeg, range_m, timestamp, lastPrimary);
-                } else {
-                    newPoint = new BearingPoint3DTd(azimuthDeg, range_m, timestamp);
-                }
-                this._addPoint(this.primarySide, newPoint);
-                this.lastFiltered = { accepted: true, azimuthDeg, rangeM: range_m };
-            } else {
-                let newPoint;
-                if (this.secondarySide.length > 0) {
-                    const lastSecondary = this.secondarySide[this.secondarySide.length - 1];
-                    newPoint = new BearingPoint3DTd(azimuthDeg, range_m, timestamp, lastSecondary);
-                } else {
-                    newPoint = new BearingPoint3DTd(azimuthDeg, range_m, timestamp);
-                }
-                this._addPoint(this.secondarySide, newPoint);
-                this.lastFiltered = { accepted: false, azimuthDeg: NaN, rangeM: NaN };
-            }
+            // Целевая очередь:
+            //   принята   → активная (обновляем активную гипотезу)
+            //   отклонена → неактивная (накапливаем данные для конкурента)
+            const targetSide = shouldAccept
+                ? activeSide
+                : (activeIsPrimary ? this.secondarySide : this.primarySide);
 
-            // Переключение активной стороны, если накопилось достаточно данных
+            let newPoint;
+            if (targetSide.length > 0) {
+                const lastTarget = targetSide[targetSide.length - 1];
+                newPoint = new BearingPoint3DTd(azimuthDeg, range_m, timestamp, lastTarget);
+            } else {
+                newPoint = new BearingPoint3DTd(azimuthDeg, range_m, timestamp);
+            }
+            this._addPoint(targetSide, newPoint);
+
+            this.lastFiltered = shouldAccept
+                ? { accepted: true, azimuthDeg, rangeM: range_m }
+                : { accepted: false, azimuthDeg: NaN, rangeM: NaN };
+
+            // Переключение активной стороны, когда обе очереди набрали fifoSize
             if (this.primarySide.length === this.fifoSize && this.secondarySide.length === this.fifoSize) {
                 const sigmaPrimary = this._calculateSigma(this.primarySide);
                 const sigmaSecondary = this._calculateSigma(this.secondarySide);
@@ -240,7 +254,7 @@ const ACHODBearingFilter = (() => {
 
             return shouldAccept;
         }
-    }
+	}
 
     // Экспорт в глобальную область
     window.ACHODBearingFilter = ACHODBearingFilter;

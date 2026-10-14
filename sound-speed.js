@@ -11,7 +11,7 @@ const SoundSpeed = (() => {
      */
     function calc(t, s, depthM = 0) {
         if (isNaN(t) || isNaN(s)) return NaN;
-        const p = depthM; // децибары ≈ метры
+        const p = depthM / 10; // m -> bar
         const sr = Math.sqrt(Math.abs(s));
 
         const c0 = ((((3.1464e-9  * t - 1.47800e-6) * t + 3.3420e-4) * t - 5.80852e-2) * t + 5.03711) * t + 1402.388;

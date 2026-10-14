@@ -513,7 +513,10 @@ const AZMManager = (() => {
 				return beacon;
 			}
 
-			const now = timeProvider().getTime ? timeProvider().getTime() : Date.now();
+			// timeProvider в реальном режиме возвращает Date, при воспроизведении — число (мс).
+			// Приводим к единому контракту: timestamp в миллисекундах.
+			const tp = timeProvider();
+			const now = (tp instanceof Date) ? tp.getTime() : tp;
 			
 			// ВАЖНО: DHTrackFilter работает в РАДИАНАХ.
 			// shipGeo.lat/lon — уже радианы (возврат directGeodetic).
@@ -588,7 +591,14 @@ const AZMManager = (() => {
 		}
 
 		// === СЛУЧАЙ 2: искомый маяк, позиция судна известна ===
-		if (!isNaN(state.antennaLatDeg) && !isNaN(state.antennaLonDeg)) {
+		// Проверяем, не устарела ли позиция судна (D07).
+		const nowTp = timeProvider();
+		const nowMs = (nowTp instanceof Date) ? nowTp.getTime() : nowTp;
+		const shipPosFresh = state.shipPosition &&
+			state.shipPosition.ts &&
+			(nowMs - state.shipPosition.ts < state.refShipMaxAgeMs);
+
+		if (shipPosFresh && !isNaN(state.antennaLatDeg) && !isNaN(state.antennaLonDeg)) {
 			const absAzmRad = deg2rad(polarResult.a_deg);
 			const geoResult = directGeodetic(
 				deg2rad(state.antennaLatDeg),
@@ -746,8 +756,10 @@ const AZMManager = (() => {
 		}
 
 		if (spread > state.refMaxSpreadM) {
-			// Слишком большой разброс — берём последнюю
-			const last = valid[valid.length - 1];
+			// Слишком большой разброс — берём последнюю ПО ВРЕМЕНИ запись.
+			// valid[valid.length - 1] — не обязательно последняя по времени:
+			// порядок ключей в объекте задаётся адресами, а не временем обновления.
+			const last = valid.reduce((a, b) => (b.ts > a.ts ? b : a));
 			state.shipPosition = {
 				lat: last.lat,
 				lon: last.lon,
@@ -793,6 +805,12 @@ const AZMManager = (() => {
 		state.shipPositionsBuffer = {};
 		state.shipDHFilter = null;
 		state.rejectedShipPosition = null;
+		// Сбрасываем виртуальную позицию антенны, чтобы target-маяки
+		// не считались от старой позиции судна (D07)
+		if (state.antennaMode === 'beacon_referenced') {
+			state.antennaLatDeg = NaN;
+			state.antennaLonDeg = NaN;
+		}
 	}
 		
 

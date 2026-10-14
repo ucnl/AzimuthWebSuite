@@ -482,20 +482,49 @@
             return points;
         }
 
-        function buildColumnSelectors(headers, latId, lonId, depthId) {
-            const latSel = document.getElementById(latId), lonSel = document.getElementById(lonId), depthSel = document.getElementById(depthId);
-            latSel.innerHTML = ''; lonSel.innerHTML = '';
-            if (depthSel) depthSel.innerHTML = '<option value="-1">— Не использовать —</option>';
-            headers.forEach((h, i) => {
-                const t = `${i}: ${escHtml(h)}`;
-                latSel.add(new Option(t, i)); lonSel.add(new Option(t, i));
-                if (depthSel) depthSel.add(new Option(t, i));
-            });
-            const findCol = (keys) => { for (const k of keys) { const idx = headers.findIndex(h => h.toLowerCase().includes(k)); if (idx >= 0) return String(idx); } return '-1'; };
-            latSel.value = findCol(['lat','latitude','широта','north','northing','n','шир','y']) || '0';
-            lonSel.value = findCol(['lon','long','longitude','долгота','east','easting','e','долг','x']) || (headers.length > 1 ? '1' : '0');
-            if (depthSel) depthSel.value = findCol(['alt','altitude','height','depth','высота','глубина','z','elev','dpt']);
-        }
+		function buildColumnSelectors(headers, latId, lonId, depthId, aliases) {
+			const latSel = document.getElementById(latId), lonSel = document.getElementById(lonId), depthSel = document.getElementById(depthId);
+			latSel.innerHTML = ''; lonSel.innerHTML = '';
+			if (depthSel) depthSel.innerHTML = '<option value="-1">— Не использовать —</option>';
+			headers.forEach((h, i) => {
+				const t = `${i}: ${escHtml(h)}`;
+				latSel.add(new Option(t, i)); lonSel.add(new Option(t, i));
+				if (depthSel) depthSel.add(new Option(t, i));
+			});
+
+			// Точное совпадение сначала, потом — подстрока с границами слова
+			function findCol(keys) {
+				const lower = headers.map(h => h.toLowerCase().trim());
+
+				// 1. Точное совпадение
+				for (const k of keys) {
+					const idx = lower.findIndex(h => h === k);
+					if (idx >= 0) return String(idx);
+				}
+
+				// 2. Совпадение подстроки, но только если это отдельное слово
+				for (const k of keys) {
+					if (k.length < 3) continue;  // однобуквенные не ищем как подстроку
+					const idx = lower.findIndex(h => h.includes(k));
+					if (idx >= 0) return String(idx);
+				}
+
+				return '-1';
+			}
+
+			const latAliases = aliases && aliases.lat ? aliases.lat
+				: ['lat','latitude','широта','north','northing','n','шир','y'];
+			const lonAliases = aliases && aliases.lon ? aliases.lon
+				: ['lon','long','longitude','долгота','east','easting','e','долг','x'];
+			const depthAliases = aliases && aliases.depth ? aliases.depth
+				: ['alt','altitude','height','depth','высота','глубина','z','elev','dpt'];
+
+			latSel.value = findCol(latAliases);
+			if (latSel.value === '-1') latSel.value = '0';
+			lonSel.value = findCol(lonAliases);
+			if (lonSel.value === '-1') lonSel.value = headers.length > 1 ? '1' : '0';
+			if (depthSel) depthSel.value = findCol(depthAliases);
+		}
 
         // ======== Geo → XYZ ========
         function handleGeoFile(event) {
@@ -671,7 +700,11 @@
 				document.getElementById('xyzHeadingValue').textContent = Math.round(meta.heading) % 360 + '°';
 			}
 
-			buildColumnSelectors(xyzHeaders, 'xyzXCol', 'xyzYCol', 'xyzZCol');
+			buildColumnSelectors(xyzHeaders, 'xyzXCol', 'xyzYCol', 'xyzZCol', {
+				lat: ['x', 'x_m', 'east', 'easting', 'e', 'xм'],
+				lon: ['y', 'y_m', 'north', 'northing', 'n', 'yм'],
+				depth: ['z', 'z_m', 'depth', 'dpt', 'глубина']
+			});
 			updateXyzPreview();
 			updateXyzPreviewData();
 		}

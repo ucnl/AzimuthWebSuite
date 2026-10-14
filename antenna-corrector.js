@@ -34,15 +34,20 @@ const AntennaCorrector = (() => {
             // Сортировка по углу
             this._calibrationTable.sort((a, b) => a.encoderAngle - b.encoderAngle);
 
-            // Виртуальная точка в конце (360° = 0°)
+            // Периодичность: добавляем виртуальные точки в начале и конце,
+            // чтобы интерполяция около 0/360° была корректной, даже если
+            // таблица не содержит узел на 0°.
+            const first = this._calibrationTable[0];
             const last = this._calibrationTable[this._calibrationTable.length - 1];
-            if (Math.abs(last.encoderAngle - 360.0) > 0.01) {
-                const firstError = this._calibrationTable[0].error;
-                this._calibrationTable.push({
-                    encoderAngle: 360.0,
-                    error: firstError
-                });
-            }
+
+            this._calibrationTable.unshift({
+                encoderAngle: last.encoderAngle - 360.0,
+                error: last.error
+            });
+            this._calibrationTable.push({
+                encoderAngle: first.encoderAngle + 360.0,
+                error: first.error
+            });
         }
 
         /**

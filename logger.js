@@ -8,6 +8,7 @@ const Logger = (() => {
     let isRecording = false;
     let startTime = null;
     const MAX_MEMORY_ENTRIES = 10000;
+	let isImportedLog = false;
 
     // Playback
     let playbackTimer = null;
@@ -98,10 +99,11 @@ const Logger = (() => {
 
     // ========== ЗАПИСЬ ==========
 
-    async function startRecording() {
+	async function startRecording() {
         entries = [];
         startTime = new Date();
         isRecording = true;
+        isImportedLog = false;
 
         try { await LogStorage.clear(); } catch (e) {}
 
@@ -169,12 +171,16 @@ const Logger = (() => {
 
     // ========== ЭКСПОРТ ==========
 
-    async function exportLog() {
-        try {
-            const lines = await LogStorage.readAll();
-            if (lines.length > 0) return lines.join('\n');
-        } catch (e) {
-            console.warn('[Logger] Ошибка чтения из IndexedDB:', e);
+	async function exportLog() {
+        // После импорта лога IndexedDB содержит старые записи от предыдущей сессии.
+        // Экспортируем импортированное из памяти, а не из хранилища.
+        if (!isImportedLog) {
+            try {
+                const lines = await LogStorage.readAll();
+                if (lines.length > 0) return lines.join('\n');
+            } catch (e) {
+                console.warn('[Logger] Ошибка чтения из IndexedDB:', e);
+            }
         }
         return entries.map(e => e.formatted || e.text || '').join('\n');
     }
@@ -237,44 +243,43 @@ const Logger = (() => {
         };
     }
 
-    function importLog(text) {
+	function importLog(text) {
         stopPlayback();
         entries = [];
+        isImportedLog = true;
 
         const lines = text.split('\n');
-        let baseSeconds = 0;
         let prevSeconds = 0;
         let cumulativeTime = 0;
+        let hasPrev = false;
 
         for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed) continue;
 
             if (trimmed.startsWith('<Log started at')) {
-                const dateMatch = trimmed.match(/<Log started at (\d{2})-(\d{2})-(\d{4}),/);
-                if (dateMatch) {
-                    const day = parseInt(dateMatch[1]);
-                    const month = parseInt(dateMatch[2]) - 1;
-                    const year = parseInt(dateMatch[3]);
-                    baseSeconds = new Date(year, month, day).getTime() / 1000;
-                }
                 entries.push({
                     type: 'header', text: trimmed,
                     timestamp: 0, formatted: trimmed,
                 });
                 prevSeconds = 0;
                 cumulativeTime = 0;
+                hasPrev = false;
                 continue;
             }
 
             const parsed = parseLogLine(trimmed);
             if (parsed) {
-                if (entries.length <= 1) {
+                if (!hasPrev) {
                     cumulativeTime = 0;
                     prevSeconds = parsed.timestamp;
+                    hasPrev = true;
                 } else {
-                    const diff = parsed.timestamp - prevSeconds;
-                    if (diff >= 0) cumulativeTime += diff;
+                    let diff = parsed.timestamp - prevSeconds;
+                    // Переход через полночь: время суток сбрасывается на 0.
+                    // Записи хронологичны, разница < 24 ч, поэтому добавляем сутки.
+                    if (diff < 0) diff += 86400;
+                    cumulativeTime += diff;
                     prevSeconds = parsed.timestamp;
                 }
                 parsed.timestamp = cumulativeTime * 1000;

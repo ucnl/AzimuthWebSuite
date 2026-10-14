@@ -73,13 +73,15 @@ const UISettings = (() => {
         if (el) el.checked = checked;
     }
     
-    function getInt(id, defaultValue = 0) {
-        return parseInt(getValue(id, defaultValue)) || defaultValue;
-    }
-    
-    function getFloat(id, defaultValue = 0) {
-        return parseFloat(getValue(id, defaultValue)) || defaultValue;
-    }
+	function getInt(id, defaultValue = 0) {
+		const v = parseInt(getValue(id, defaultValue), 10);
+		return Number.isFinite(v) ? v : defaultValue;
+	}
+
+	function getFloat(id, defaultValue = 0) {
+		const v = parseFloat(getValue(id, defaultValue));
+		return Number.isFinite(v) ? v : defaultValue;
+	}
     
     // Функции для работы с маской адресов
     function buildAddressCheckboxes() {

@@ -18,28 +18,32 @@ const GNSSParser = (() => {
     function parseRMC(fields) {
         // $GPRMC,time,status,lat,N,lon,E,speed,course,date,mode*CS
         const status = fields[1] || '';
-        if (status === 'V' || status === 'Invalid') return null;
+        // Принимаем только 'A' (active). 'V' — void, '' — нет фикса, что угодно ещё — мусор.
+        if (status !== 'A') return null;
 
-        let lat = safeFloat(fields[2]);
-        let lon = safeFloat(fields[4]);
-        if (isNaN(lat) || isNaN(lon)) return null;
+        const latRaw = safeFloat(fields[2]);
+        const lonRaw = safeFloat(fields[4]);
+        if (isNaN(latRaw) || isNaN(lonRaw)) return null;
 
-        // Конвертация из ddmm.mmmm в градусы
-        if (lat > 0) {
-            const latDeg = Math.floor(lat / 100);
-            const latMin = lat - latDeg * 100;
-            lat = latDeg + latMin / 60;
-        }
-        if (lon > 0) {
-            const lonDeg = Math.floor(lon / 100);
-            const lonMin = lon - lonDeg * 100;
-            lon = lonDeg + lonMin / 60;
-        }
+        // ddmm.mmmm → градусы. Минуты должны быть < 60.
+        const latDeg = Math.floor(latRaw / 100);
+        const latMin = latRaw - latDeg * 100;
+        if (latMin >= 60) return null;
+        let lat = latDeg + latMin / 60;
+
+        const lonDeg = Math.floor(lonRaw / 100);
+        const lonMin = lonRaw - lonDeg * 100;
+        if (lonMin >= 60) return null;
+        let lon = lonDeg + lonMin / 60;
 
         const latHemi = fields[3] || '';
         const lonHemi = fields[5] || '';
         if (latHemi === 'S') lat = -lat;
         if (lonHemi === 'W') lon = -lon;
+
+        // Диапазоны
+        if (lat < -90 || lat > 90) return null;
+        if (lon < -180 || lon > 180) return null;
 
         const mode = fields[11] || '';
         if (mode === 'N') return null;
@@ -56,41 +60,43 @@ const GNSSParser = (() => {
         };
     }
 	
-	function parseGGA(fields) {
-		const quality = parseInt(fields[5]) || 0;
-		if (quality === 0) return null;
+    function parseGGA(fields) {
+        const quality = parseInt(fields[5], 10);
+        if (!Number.isFinite(quality) || quality === 0) return null;
 
-		let lat = safeFloat(fields[1]);
-		let lon = safeFloat(fields[3]);
-		if (isNaN(lat) || isNaN(lon)) return null;
+        const latRaw = safeFloat(fields[1]);
+        const lonRaw = safeFloat(fields[3]);
+        if (isNaN(latRaw) || isNaN(lonRaw)) return null;
 
-		if (lat > 0) {
-			const latDeg = Math.floor(lat / 100);
-			const latMin = lat - latDeg * 100;
-			lat = latDeg + latMin / 60;
-		}
-		if (lon > 0) {
-			const lonDeg = Math.floor(lon / 100);
-			const lonMin = lon - lonDeg * 100;
-			lon = lonDeg + lonMin / 60;
-		}
+        const latDeg = Math.floor(latRaw / 100);
+        const latMin = latRaw - latDeg * 100;
+        if (latMin >= 60) return null;
+        let lat = latDeg + latMin / 60;
 
-		const latHemi = fields[2] || '';
-		const lonHemi = fields[4] || '';
-		if (latHemi === 'S') lat = -lat;
-		if (lonHemi === 'W') lon = -lon;
+        const lonDeg = Math.floor(lonRaw / 100);
+        const lonMin = lonRaw - lonDeg * 100;
+        if (lonMin >= 60) return null;
+        let lon = lonDeg + lonMin / 60;
 
-		const alt = safeFloat(fields[8]);
+        const latHemi = fields[2] || '';
+        const lonHemi = fields[4] || '';
+        if (latHemi === 'S') lat = -lat;
+        if (lonHemi === 'W') lon = -lon;
 
-		return {
-			type: 'rmc',
-			latitude: lat,
-			longitude: lon,
-			altitude: !isNaN(alt) ? alt : NaN,
-			speedMps: NaN,
-			course: NaN,
-		};
-	}
+        if (lat < -90 || lat > 90) return null;
+        if (lon < -180 || lon > 180) return null;
+
+        const alt = safeFloat(fields[8]);
+
+        return {
+            type: 'rmc',
+            latitude: lat,
+            longitude: lon,
+            altitude: !isNaN(alt) ? alt : NaN,
+            speedMps: NaN,
+            course: NaN,
+        };
+    }
 
     function parseHDT(fields) {
         // $HEHDT,heading,T*CS

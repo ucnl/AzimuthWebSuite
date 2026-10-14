@@ -65,7 +65,8 @@ const GeoUtils = (() => {
         const sinDLon2 = Math.sin(dLon / 2);
         const cosLat1 = Math.cos(lat1 * Math.PI / 180);
         const cosLat2 = Math.cos(lat2 * Math.PI / 180);
-        const chord = sinDLat2 * sinDLat2 + cosLat1 * cosLat2 * sinDLon2 * sinDLon2;
+        const chordRaw = sinDLat2 * sinDLat2 + cosLat1 * cosLat2 * sinDLon2 * sinDLon2;
+        const chord = Math.min(1, Math.max(0, chordRaw));
         return 2 * WGS84_A * Math.atan2(Math.sqrt(chord), Math.sqrt(1 - chord));
     }
 

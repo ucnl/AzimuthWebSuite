@@ -73,6 +73,7 @@ const AngularCalibration = (() => {
     }
 
     function* getAngles(fromDeg, toDeg, stepDeg) {
+        if (!(stepDeg > 0) || !Number.isFinite(stepDeg)) return;
         fromDeg = ((fromDeg % 360) + 360) % 360;
         toDeg = ((toDeg % 360) + 360) % 360;
         if (toDeg <= fromDeg) toDeg += 360;
@@ -83,9 +84,10 @@ const AngularCalibration = (() => {
 
     function calibratePhi(fromAngleDeg, toAngleDeg, stepDeg) {
         if (points.length < 10) return NaN;
+        if (!(stepDeg > 0)) return NaN;
 
         let bestDrms = Infinity;
-        let bestPhi = fromAngleDeg;
+        let bestPhi = NaN;
 
         for (const phi of getAngles(fromAngleDeg, toAngleDeg, stepDeg)) {
             dhFilter.reset();

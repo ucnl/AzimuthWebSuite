@@ -38,6 +38,11 @@ const AntennaTableCalibration = (() => {
     function addPoint(headingDeg, measuredAzimuthDeg, slantRangeM, 
                       antennaLatDeg, antennaLonDeg, antennaDepthM, beaconDepthM) {
         
+        // Инвалидируем кэш центроида и старую таблицу: новые точки меняют оба.
+        centroidLat = NaN;
+        centroidLon = NaN;
+        calibrationTable = null;
+        
         const polarResult = polarCS_ShiftRotate(
             headingDeg, 0, measuredAzimuthDeg, slantRangeM, 0, 0
         );

@@ -7,6 +7,16 @@ const UIWizard = (() => {
     let onComplete = null;
 	let isFinishing = false;
 
+	function safeGetItem(key) {
+		try { return localStorage.getItem(key); } catch (e) { return null; }
+	}
+	function safeSetItem(key, value) {
+		try { localStorage.setItem(key, value); return true; } catch (e) { return false; }
+	}
+	function safeRemoveItem(key) {
+		try { localStorage.removeItem(key); return true; } catch (e) { return false; }
+	}
+
     const STEPS = [
         {
             id: 'antenna_mode',
@@ -141,7 +151,7 @@ const UIWizard = (() => {
             id: 'gnss',
             title: 'Подключение GNSS-компаса',            
             render: (state) => {
-                const saved = localStorage.getItem('zima2_settings');
+                const saved = safeGetItem('zima2_settings');
                 let gnssBaud = 38400;
                 if (saved) {
                     try { gnssBaud = JSON.parse(saved).gnssBaudrate || 38400; } catch (e) {}
@@ -233,7 +243,7 @@ const UIWizard = (() => {
         }
         
         // Проверяем, нужно ли показывать мастер
-        const skip = localStorage.getItem('wizard_skip');
+        const skip = safeGetItem('wizard_skip');
         if (!skip) {
             show();
         }
@@ -255,7 +265,7 @@ const UIWizard = (() => {
         
         const dontShow = document.getElementById('wizard-dont-show')?.checked;
         if (dontShow) {
-            localStorage.setItem('wizard_skip', '1');
+            if (dontShow) safeSetItem('wizard_skip', '1');
         }
         
         if (onComplete) {
@@ -373,7 +383,7 @@ const UIWizard = (() => {
 	}
 
     function resetWizard() {
-        localStorage.removeItem('wizard_skip');
+        safeRemoveItem('wizard_skip');
     }
 
     return {

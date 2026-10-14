@@ -6,6 +6,23 @@ const ExportManager = (() => {
     function getTimestamp() {
         return new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
     }
+	
+	/**
+     * Форматирует ddmm.mmmm для NMEA. Минуты — две цифры, при округлении до 60
+     * переносим градус.
+     * @param {number} deg — абсолютное значение градусов (например, 55.123456)
+     * @param {number} degWidth — ширина поля градусов (2 для широты, 3 для долготы)
+     * @returns {string} — например, "5507.4074"
+     */
+    function formatNmeaDdmm(deg, degWidth) {
+        const abs = Math.abs(deg);
+        let d = Math.floor(abs);
+        let m = (abs - d) * 60;
+        // Округляем до 4 знаков, как в toFixed(4)
+        m = Math.round(m * 10000) / 10000;
+        if (m >= 60) { m -= 60; d += 1; }
+        return String(d).padStart(degWidth, '0') + m.toFixed(4).padStart(7, '0');
+    }
     
     function downloadBlob(content, mimeType, filename) {
         const blob = new Blob([content], { type: mimeType });
@@ -66,7 +83,7 @@ const ExportManager = (() => {
                 const ts = new Date(point.ts).toISOString();
                 const lat = (point.lat != null && !isNaN(point.lat)) ? point.lat.toFixed(6) : '';
                 const lon = (point.lon != null && !isNaN(point.lon)) ? point.lon.toFixed(6) : '';
-                lines.push(`${ts},STATION,,${lat},${lon},,,,,,`);
+                lines.push(`${ts},STATION,,${lat},${lon},,,,,,,`);
             }
             
             // Треки маяков
@@ -114,19 +131,14 @@ const ExportManager = (() => {
                 const ms = String(Math.floor(ts.getUTCMilliseconds() / 10)).padStart(2, '0');
                 const timeStr = `${hh}${mm}${ss}.${ms}`;
                 
-                const lat = Math.abs(point.lat);
-                const latDeg = Math.floor(lat);
-                const latMin = (lat - latDeg) * 60;
-                const latHemi = point.lat >= 0 ? 'N' : 'S';
-                
-                const lon = Math.abs(point.lon);
-                const lonDeg = Math.floor(lon);
-                const lonMin = (lon - lonDeg) * 60;
+				const latHemi = point.lat >= 0 ? 'N' : 'S';
                 const lonHemi = point.lon >= 0 ? 'E' : 'W';
+                const latStr = formatNmeaDdmm(point.lat, 2);
+                const lonStr = formatNmeaDdmm(point.lon, 3);
                 
-                const depth = !isNaN(point.dpt) ? point.dpt : 0;
+                const depth = (point.dpt != null && !isNaN(point.dpt)) ? point.dpt : 0;
                 
-                const sentence = `B${hexAddr}GGA,${timeStr},${String(latDeg).padStart(2, '0')}${latMin.toFixed(4)},${latHemi},${String(lonDeg).padStart(3, '0')}${lonMin.toFixed(4)},${lonHemi},1,04,,${depth.toFixed(1)},M,,M,,`;
+                const sentence = `B${hexAddr}GGA,${timeStr},${latStr},${latHemi},${lonStr},${lonHemi},1,04,,${depth.toFixed(1)},M,,M,,`;
                 const nmeaLine = '$' + sentence;
                 let cs = 0;
                 for (let i = 1; i < nmeaLine.length; i++) cs ^= nmeaLine.charCodeAt(i);
@@ -175,17 +187,12 @@ const ExportManager = (() => {
             const ms = String(Math.floor(ts.getUTCMilliseconds() / 10)).padStart(2, '0');
             const timeStr = `${hh}${mm}${ss}.${ms}`;
             
-            const lat = Math.abs(point.lat);
-            const latDeg = Math.floor(lat);
-            const latMin = (lat - latDeg) * 60;
-            const latHemi = point.lat >= 0 ? 'N' : 'S';
-            
-            const lon = Math.abs(point.lon);
-            const lonDeg = Math.floor(lon);
-            const lonMin = (lon - lonDeg) * 60;
+			const latHemi = point.lat >= 0 ? 'N' : 'S';
             const lonHemi = point.lon >= 0 ? 'E' : 'W';
+            const latStr = formatNmeaDdmm(point.lat, 2);
+            const lonStr = formatNmeaDdmm(point.lon, 3);
             
-            const sentence = `GNGGA,${timeStr},${String(latDeg).padStart(2, '0')}${latMin.toFixed(4)},${latHemi},${String(lonDeg).padStart(3, '0')}${lonMin.toFixed(4)},${lonHemi},1,04,,,M,,M,,`;
+            const sentence = `GNGGA,${timeStr},${latStr},${latHemi},${lonStr},${lonHemi},1,04,,,M,,M,,`;
             const nmeaLine = '$' + sentence;
             let cs = 0;
             for (let i = 1; i < nmeaLine.length; i++) cs ^= nmeaLine.charCodeAt(i);

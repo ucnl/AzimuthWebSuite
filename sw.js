@@ -1,4 +1,5 @@
-const CACHE = 'aws-v10';
+const CACHE_PREFIX = 'aws-';
+const CACHE = CACHE_PREFIX + 'v11';
 
 const ASSETS = [
   './',
@@ -30,6 +31,7 @@ const ASSETS = [
   './utm.js',
   './tracks.js',
   './poi-manager.js',
+  './csv.js',
   './export.js',
   './modules/ui-themes.js',
   './modules/ui-settings.js',
@@ -59,7 +61,9 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((keys) =>
         Promise.all(
-          keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))
+          keys
+            .filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE)
+            .map((k) => caches.delete(k))
         )
       )
       .then(() => clients.claim())

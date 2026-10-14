@@ -156,6 +156,7 @@ async _drainStaleData() {
 			await this.writer.write(data);
 		} catch (err) {
 			console.error('[SerialBridge] Send error:', err);
+			throw err;   // пробрасываем, чтобы вызывающий код знал о сбое
 		}		
     }
 
@@ -194,7 +195,7 @@ async _drainStaleData() {
 				if (done) break;
 				if (!value || value.length === 0) continue;
 
-				const chunk = decoder.decode(value, {stram: true});
+				const chunk = decoder.decode(value, {stream: true});
 				this.lineBuffer += chunk;
 
 				let idx;
@@ -239,7 +240,9 @@ async _drainStaleData() {
 
 		console.log('[SerialBridge] Read loop ended');
 		this._reading = false;
-		this.isOpen = false;
+		// НЕ сбрасываем isOpen — это делает close().
+		// Освобождаем ресурсы, чтобы порт не остался занят.
+		try { await this.close(); } catch (e) {}
 		if (this.onClose) {
 			try {
 				this.onClose();
@@ -251,7 +254,7 @@ async _drainStaleData() {
      * Close the port and release all resources
      */
 	async close() {
-		// Добавляем флаг, чтобы не обрабатывать повторный вызов
+		// Защита от параллельного close
 		if (this._closing) {
 			console.log('[SerialBridge] Close already in progress, skipping');
 			return;
@@ -260,13 +263,8 @@ async _drainStaleData() {
 
 		console.log('[SerialBridge] Closing...');
 
-		if (!this.isOpen || !this.port) {
-			console.log('[SerialBridge] Already closed or no port, skipping');
-			this.isOpen = false;
-			this._closing = false;
-			return;
-		}
-
+		// НЕ выходим раньше времени по !isOpen. Если _readLoop упал и сбросил isOpen,
+		// но reader/writer/port остались — их всё равно надо освободить.
 		try {
 			if (this.reader) {
 				try { await this.reader.cancel(); } catch (err) { console.warn('Reader cancel error:', err.message); }
@@ -297,11 +295,11 @@ async _drainStaleData() {
 			this.isOpen = false;
 			this.lineBuffer = '';
 			this.readInProgress = false;
-			this._closing = false; // Сбрасываем флаг
+			this._reading = false;
+			this._closing = false;
 			console.log('[SerialBridge] Closed');
 		}
 	}
-
 
 
     get connected() {

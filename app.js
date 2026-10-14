@@ -33,6 +33,13 @@ const App = (() => {
 	let remoteCurrentAddr = null;
 	const RemoteAddr = AZMParser.RemoteAddr;
 
+	function safeGetItem(key) {
+		try { return localStorage.getItem(key); } catch (e) { return null; }
+	}
+	function safeSetItem(key, value) {
+		try { localStorage.setItem(key, value); return true; } catch (e) { return false; }
+	}
+
 	function getCurrentSpeedIndex() {
 		const current = Logger.getCurrentPlaybackSpeed();
 		return PLAYBACK_SPEEDS.indexOf(current);
@@ -351,7 +358,7 @@ const App = (() => {
 				// Сохраняем скорость GNSS — только если пользователь реально задал её в мастере
 				if (state.gnssBaud !== undefined && state.gnssBaud !== null) {
 					try {
-						const saved = localStorage.getItem('zima2_settings');
+						const saved = safeGetItem('zima2_settings');
 						const data = saved ? JSON.parse(saved) : {};
 						data.gnssBaudrate = state.gnssBaud;
 						localStorage.setItem('zima2_settings', JSON.stringify(data));
@@ -398,19 +405,24 @@ const App = (() => {
     function tickAll() { AZMManager.tickAge(); }
 
     // ========== ПОДКЛЮЧЕНИЕ К ПОРТУ ==========
-    async function connectSerial() {
+	async function connectSerial() {
         if (serialBridge) {
             console.log('[App] Закрываю предыдущее соединение...');
+            const prev = serialBridge;
+            serialBridge = null;
             try {
                 if (AZMManager.getState().isInterrogationActive) {
-                    await serialBridge.send(AZMManager.getStopCommand());
+                    await prev.send(AZMManager.getStopCommand());
                     await sleep(100);
                 }
-                await serialBridge.close();
+            } catch (e) {
+                console.warn('[App] Ошибка при отправке stop предыдущему:', e.message);
+            }
+            try {
+                await prev.close();
             } catch (e) {
                 console.warn('[App] Ошибка при закрытии предыдущего:', e.message);
             }
-            serialBridge = null;
         }
 
         try {
@@ -456,25 +468,33 @@ const App = (() => {
         }
     }
 
-    async function disconnectSerial() {
+	async function disconnectSerial() {
 		setStatus('Отключение...');		
 
 		// Останавливаем запись
 		Logger.stopRecording();
 
 		if (serialBridge) {
+			const b = serialBridge;
+			serialBridge = null;
+			// Отправка стопа может упасть — это не должно блокировать close().
 			try {
 				if (AZMManager.getState().isInterrogationActive) {
 					const cmd = AZMManager.getStopCommand();
 					Logger.logOutgoing('AZM', cmd.trim());
-					await serialBridge.send(cmd);
+					await b.send(cmd);
 					await sleep(200);
 				}
-				await serialBridge.close();
 			} catch (e) {
-				console.warn('[App] Ошибка при закрытии:', e.message);
+				console.warn('[App] Ошибка при отправке stop:', e.message);
+				Logger.logError('Stop on disconnect failed: ' + e.message);
 			}
-			serialBridge = null;
+			// close() всегда, даже если send упал.
+			try {
+				await b.close();
+			} catch (e) {
+				console.warn('[App] Ошибка при закрытии порта:', e.message);
+			}
 		}
 
 		onSerialClose();
@@ -541,7 +561,10 @@ const App = (() => {
 		if (serialBridge && isConnected) {
 			const cmd = AZMManager.getStartCommand();
 			Logger.logOutgoing('AZM', cmd.trim());
-			serialBridge.send(cmd);
+			serialBridge.send(cmd).catch(e => {
+				console.error('[App] Ошибка автостарта опроса:', e);
+				Logger.logError('Autostart failed: ' + e.message);
+			});
 			console.log('[Serial] → автостарт опроса');
 		}
 	}
@@ -781,10 +804,17 @@ const App = (() => {
 		setStatus('Ошибка порта: ' + error.message);
 	}
 
-    function onSerialClose() {
+	function onSerialClose() {
         console.log('[App] Соединение закрыто');
         isConnected = false;
-        serialBridge = null;
+        // Если _readLoop сам вызвал close(), serialBridge уже освободил ресурсы.
+        // Здесь только обнуляем ссылку.
+        if (serialBridge) {
+            const b = serialBridge;
+            serialBridge = null;
+            // close() идемпотентен — повторный вызов безопасен.
+            b.close().catch(e => console.warn('[App] close on onSerialClose:', e.message));
+        }
 
         connectionIndicator.className = '';
         setStatus('Не подключено');
@@ -803,6 +833,9 @@ const App = (() => {
 			gnssBridge = null;
 		}
 
+		// Сброс предпочтения true-heading: новая сессия может не иметь HDT.
+		hasTrueHeading = false;
+
 		try {
 			setStatus('Подключение GNSS...');			
 
@@ -819,7 +852,7 @@ const App = (() => {
 				Logger.logInfo('GNSS disconnected');
 			};
 
-			const saved = localStorage.getItem('zima2_settings');
+			const saved = safeGetItem('zima2_settings');
 			const gnssBaud = saved ? (JSON.parse(saved).gnssBaudrate || 38400) : 38400;
 			await gnssBridge.open(gnssBaud);
 
@@ -840,6 +873,7 @@ const App = (() => {
 			await gnssBridge.close();
 			gnssBridge = null;
 		}
+		hasTrueHeading = false;
 		isGnssConnected = false;
 		UITopo.setGnssConnected(false);
 		updateAllButtons();
@@ -884,15 +918,17 @@ const App = (() => {
 				document.getElementById('topo-gnss-status').className = 'locked';
 			}
 		} else if (data.type === 'hdt' && !isNaN(data.heading)) {
-			hasTrueHeading = true;
-			AZMManager.setAntennaHeading(data.heading);
-			if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
-				AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, data.heading);				
-				if (UITopo.isOpen()) {
-					document.getElementById('topo-hdg').value = data.heading.toFixed(1);
+			if (shouldUseHeading('hdt')) {
+				hasTrueHeading = true;
+				AZMManager.setAntennaHeading(data.heading);
+				if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+					AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, data.heading);				
+					if (UITopo.isOpen()) {
+						document.getElementById('topo-hdg').value = data.heading.toFixed(1);
+					}
 				}
+				updateAntennaInfoUI();
 			}
-			updateAntennaInfoUI();
 			
 		} else if (data.type === 'hdm' && !isNaN(data.heading)) {
 			if (shouldUseHeading('hdm')) {
@@ -906,17 +942,19 @@ const App = (() => {
 				updateAntennaInfoUI();
 			}
 		} else if (data.type === 'hdg' && !isNaN(data.heading)) {
-			// HDG — магнитный курс с девиацией/склонением.
-			// GNSSParser.parseHDG уже привёл его к истинному курсу (heading = trueHeading).
-			hasTrueHeading = true;
-			AZMManager.setAntennaHeading(data.heading);
-			if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
-				AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, data.heading);				
-				if (UITopo.isOpen()) {
-					document.getElementById('topo-hdg').value = data.heading.toFixed(1);
+			if (shouldUseHeading('hdg')) {
+				// HDG — магнитный курс с девиацией/склонением.
+				// GNSSParser.parseHDG уже привёл его к истинному курсу (heading = trueHeading).
+				hasTrueHeading = true;
+				AZMManager.setAntennaHeading(data.heading);
+				if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+					AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, data.heading);				
+					if (UITopo.isOpen()) {
+						document.getElementById('topo-hdg').value = data.heading.toFixed(1);
+					}
 				}
+				updateAntennaInfoUI();
 			}
-			updateAntennaInfoUI();
 		}
 		
 	}
@@ -938,8 +976,14 @@ const App = (() => {
         }
         const cmd = AZMManager.getStartCommand();
         Logger.logOutgoing('AZM', cmd.trim());
-        await serialBridge.send(cmd);
-        console.log('[Serial] → старт опроса');
+        try {
+            await serialBridge.send(cmd);
+            console.log('[Serial] → старт опроса');
+        } catch (e) {
+            console.error('[App] Ошибка старта опроса:', e);
+            Logger.logError('Start interrogation failed: ' + e.message);
+            setStatus('Ошибка отправки команды старта');
+        }
     }
 
     async function stopInterrogation() {
@@ -949,8 +993,14 @@ const App = (() => {
         }
         const cmd = AZMManager.getStopCommand();
         Logger.logOutgoing('AZM', cmd.trim());
-        await serialBridge.send(cmd);
-        console.log('[Serial] → стоп опроса');
+        try {
+            await serialBridge.send(cmd);
+            console.log('[Serial] → стоп опроса');
+        } catch (e) {
+            console.error('[App] Ошибка стопа опроса:', e);
+            Logger.logError('Stop interrogation failed: ' + e.message);
+            setStatus('Ошибка отправки команды стопа');
+        }
     }
 
     // ========== ТОПОПРИВЯЗКА ==========
@@ -1534,12 +1584,14 @@ const App = (() => {
 				TrackManager.addStationPoint(gnssData.latitude, gnssData.longitude, st.antennaHeadingDeg);
 				updateAntennaInfoUI();
 			} else if (gnssData.type === 'hdt' && !isNaN(gnssData.heading)) {
-				hasTrueHeading = true;
-				AZMManager.setAntennaHeading(gnssData.heading);
-				if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
-					AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, gnssData.heading);					
+				if (shouldUseHeading('hdt')) {
+					hasTrueHeading = true;
+					AZMManager.setAntennaHeading(gnssData.heading);
+					if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+						AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, gnssData.heading);					
+					}
+					updateAntennaInfoUI();
 				}
-				updateAntennaInfoUI();
 			} else if (gnssData.type === 'hdm' && !isNaN(gnssData.heading)) {
 				if (shouldUseHeading('hdm')) {
 					AZMManager.setAntennaHeading(gnssData.heading);
@@ -1550,13 +1602,15 @@ const App = (() => {
 				}
 			} else if (gnssData.type === 'hdg' && !isNaN(gnssData.heading)) {
                 // HDG — истинный курс (уже приведён парсером)
-                hasTrueHeading = true;
-				AZMManager.setAntennaHeading(gnssData.heading);
-                if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
-                    AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, gnssData.heading);
-                    
-                }
-				updateAntennaInfoUI();
+				if (shouldUseHeading('hdg')) {
+					hasTrueHeading = true;
+					AZMManager.setAntennaHeading(gnssData.heading);
+					if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
+						AZMManager.setAntennaPosition(st.antennaLatDeg, st.antennaLonDeg, gnssData.heading);
+						
+					}
+					updateAntennaInfoUI();
+				}
             }
 			return;
 		}
@@ -1705,14 +1759,14 @@ const App = (() => {
 		lines.push('Name,Latitude,Longitude,Depth,Type,Timestamp');
 		
 		for (const poi of points) {
-			lines.push([
+			lines.push(CSVUtils.formatLine([
 				poi.name,
 				poi.lat.toFixed(8),
 				poi.lon.toFixed(8),
 				poi.depth != null ? poi.depth.toFixed(1) : '',
 				poi.type,
 				new Date(poi.timestamp).toISOString()
-			].join(','));
+			]));
 		}
 		
 		const text = lines.join('\n');
@@ -1879,11 +1933,33 @@ const App = (() => {
 			const userAddr = parseInt(addr) + 1;
 			
 			if (isCartesian) {
-				report += `Маяк #${userAddr}: DRMS=${stats.drms.toFixed(2)}м, 2DRMS=${stats.drms2.toFixed(2)}м, 3DRMS=${stats.drms3.toFixed(2)}м, σX=${stats.sigmaX.toFixed(2)}м, σY=${stats.sigmaY.toFixed(2)}м, точек=${stats.count}\n  Центроид: X=${cX.toFixed(2)}м, Y=${cY.toFixed(2)}м\n\n`;
+				report += `Маяк #${userAddr}: DRMS=...`;
 				window._drmsData[addr] = { centroidXM: cX, centroidYM: cY, cartesian: true };
+				csvLines.push([
+					userAddr,
+					stats.count,
+					stats.drms.toFixed(2),
+					stats.drms2.toFixed(2),
+					stats.drms3.toFixed(2),
+					stats.sigmaX.toFixed(2),
+					stats.sigmaY.toFixed(2),
+					cX.toFixed(2),
+					cY.toFixed(2)
+				].join(','));
 			} else {
-				report += `Маяк #${userAddr}: DRMS=${stats.drms.toFixed(2)}м, 2DRMS=${stats.drms2.toFixed(2)}м, 3DRMS=${stats.drms3.toFixed(2)}м, σX=${stats.sigmaX.toFixed(2)}м, σY=${stats.sigmaY.toFixed(2)}м, точек=${stats.count}\n  Центроид: ${cY.toFixed(8)}, ${cX.toFixed(8)}\n\n`;
+				report += `Маяк #${userAddr}: DRMS=...`;
 				window._drmsData[addr] = { centroidLat: cY, centroidLon: cX, cartesian: false };
+				csvLines.push([
+					userAddr,
+					stats.count,
+					stats.drms.toFixed(2),
+					stats.drms2.toFixed(2),
+					stats.drms3.toFixed(2),
+					stats.sigmaX.toFixed(2),
+					stats.sigmaY.toFixed(2),
+					cY.toFixed(8),
+					cX.toFixed(8)
+				].join(','));
 			}
 		}
 		
@@ -2277,14 +2353,18 @@ const App = (() => {
 		}
 		
 		if (serialBridge) {
+			const b = serialBridge;
+			serialBridge = null;
 			try {
 				if (AZMManager.getState().isInterrogationActive) {
-					await serialBridge.send(AZMManager.getStopCommand());
+					await b.send(AZMManager.getStopCommand());
 				}
-				await serialBridge.close();
 			} catch (err) {}
-			serialBridge = null;
+			try {
+				await b.close();
+			} catch (err) {}
 		}
+		
 		if (ageTimer) clearInterval(ageTimer);
 	});
 
@@ -2364,21 +2444,21 @@ const App = (() => {
 		
 		// === ВОССТАНАВЛИВАЕМ ТОПОПРИВЯЗКУ ПОСЛЕ СМЕНЫ РЕЖИМА ===
 		if (newAntennaMode === 'geographic' && newAntennaMode !== oldAntennaMode) {
-			const saved = localStorage.getItem('topo_binding');
+			const saved = safeGetItem('topo_binding');
+			let restored = false;
 			if (saved) {
 				try {
 					const data = JSON.parse(saved);
-					if (data.lat !== undefined && data.lon !== undefined && data.hdg !== undefined &&
-						!isNaN(data.lat) && !isNaN(data.lon) && !isNaN(data.hdg)) {
-						AZMManager.setAntennaPosition(data.lat, data.lon, data.hdg);
-					} else {
-						AZMManager.setAntennaPosition(NaN, NaN, NaN);
+					const latNum = Number(data.lat);
+					const lonNum = Number(data.lon);
+					const hdgNum = Number(data.hdg);
+					if (Number.isFinite(latNum) && Number.isFinite(lonNum) && Number.isFinite(hdgNum)) {
+						AZMManager.setAntennaPosition(latNum, lonNum, hdgNum);
+						restored = true;
 					}
-				} catch (e) {
-					AZMManager.setAntennaPosition(NaN, NaN, NaN);
-				}
-			} else {
-				// Нет сохранённой привязки — сбрасываем всё
+				} catch (e) {}
+			}
+			if (!restored) {
 				AZMManager.setAntennaPosition(NaN, NaN, NaN);
 			}
 		} else if (newAntennaMode === 'cartesian_fixed' && newAntennaMode !== oldAntennaMode) {
@@ -2393,11 +2473,14 @@ const App = (() => {
 		// Обновляем UI антенны
 		updateAntennaInfoUI();
 		
-		// Перезапускаем опрос если активен
+				// Перезапускаем опрос если активен
 		if (isConnected && AZMManager.getState().isInterrogationActive) {
 			const cmd = AZMManager.getStartCommand();
 			Logger.logOutgoing('AZM', cmd.trim());
-			serialBridge.send(cmd);
+			serialBridge.send(cmd).catch(e => {
+				console.error('[App] Ошибка перезапуска опроса:', e);
+				Logger.logError('Restart interrogation failed: ' + e.message);
+			});
 		}
 		
 		setStatus('Настройки применены');
@@ -2425,7 +2508,7 @@ const App = (() => {
 		
 		const gnssBaudEl = document.getElementById('cfg-gnss-baud');
 		if (gnssBaudEl) {
-			const saved = localStorage.getItem('zima2_settings');
+			const saved = safeGetItem('zima2_settings');
 			if (saved) {
 				const data = JSON.parse(saved);
 				gnssBaudEl.value = data.gnssBaudrate || '38400';

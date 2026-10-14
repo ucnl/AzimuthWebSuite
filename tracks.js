@@ -55,8 +55,11 @@ const TrackManager = (() => {
 	 function addStationPoint(lat, lon, headingDeg) {
 		if (isNaN(lat) || isNaN(lon)) return;
 
-		// Первая точка с GNSS — якорь
-		if (stationTrack.length === 0 && !isNaN(lat)) {
+		// Якорь ставим, только если его ещё нет.
+		// Если anchor уже задан (например, по опорному маяку),
+		// не перезаписываем его — иначе координаты уже записанных
+		// точек трека окажутся в другой системе.
+		if (isNaN(anchorLat) || isNaN(anchorLon)) {
 			setAnchor(lat, lon);
 		}
 
@@ -180,12 +183,15 @@ const TrackManager = (() => {
 		if (track.length > 0 && settings.minPointDistanceM > 0) {
 			const last = track[track.length - 1];
 			if (!last.isTimeout) {
-				// Если есть относительные координаты — сравниваем по ним
-				if (!isNaN(xM) && !isNaN(last.xM)) {
-					const d = Math.sqrt((xM - last.xM) ** 2 + (yM - last.yM) ** 2);
-					if (d < settings.minPointDistanceM) return;
-				} else if (!isNaN(x) && !isNaN(last.x)) {
+				// D08: для географических точек сравниваем по АБСОЛЮТНЫМ x/y (метры от anchor).
+				// xM/yM — относительные в системе антенны — меняются при движении СУДНА,
+				// даже если маяк стоит. Сравнивать по ним неправильно.
+				// xM/yM используется только для Cartesian-режима, где lat/lon = NaN.
+				if (!isNaN(x) && !isNaN(last.x)) {
 					const d = Math.sqrt((x - last.x) ** 2 + (y - last.y) ** 2);
+					if (d < settings.minPointDistanceM) return;
+				} else if (!isNaN(xM) && !isNaN(last.xM)) {
+					const d = Math.sqrt((xM - last.xM) ** 2 + (yM - last.yM) ** 2);
 					if (d < settings.minPointDistanceM) return;
 				} else if (!isNaN(dist) && !isNaN(last.dist) && !isNaN(azm) && !isNaN(last.azm)) {
 					const angDiff = (azm - last.azm) * Math.PI / 180;
@@ -194,7 +200,7 @@ const TrackManager = (() => {
 				}
 			}
 		}
-
+		
 		track.push({
 			dist: isNaN(dist) ? null : dist,
 			azm: isNaN(azm) ? null : azm,
@@ -284,17 +290,23 @@ const TrackManager = (() => {
 			const p = track[i];
 			if (p.isTimeout) continue;
 
+			// D10: null не должен проходить как валидное значение
 			let x, y;
-			if (isCartesian && p.xM === p.xM && p.yM === p.yM) {
+			if (isCartesian && p.xM != null && p.yM != null &&
+				!isNaN(p.xM) && !isNaN(p.yM)) {
 				x = offsetX + p.xM * scale;
 				y = offsetY - p.yM * scale;
-			} else if (p.x === p.x) {
+			} else if (p.x != null && p.y != null &&
+				!isNaN(p.x) && !isNaN(p.y)) {
 				x = offsetX + p.x * scale;
 				y = offsetY - p.y * scale;
-			} else {
+			} else if (p.dist != null && p.azm != null &&
+				!isNaN(p.dist) && !isNaN(p.azm)) {
 				const ang = p.azm * Math.PI / 180;
 				x = offsetX + p.dist * Math.sin(ang) * scale;
 				y = offsetY - p.dist * Math.cos(ang) * scale;
+			} else {
+				continue;
 			}
 
 			if (gFirst) {
@@ -347,17 +359,24 @@ const TrackManager = (() => {
 				const point = track[i];
 				if (point.isTimeout) continue;
 
+				// D10: null не должен проходить как валидное значение.
+				// xM/yM может быть null (если точка отклонена фильтром).
 				let x, y;
-				if (isCartesian && point.xM === point.xM && point.yM === point.yM) {
+				if (isCartesian && point.xM != null && point.yM != null &&
+					!isNaN(point.xM) && !isNaN(point.yM)) {
 					x = offsetX + point.xM * scale;
 					y = offsetY - point.yM * scale;
-				} else if (point.x === point.x) {
+				} else if (point.x != null && point.y != null &&
+					!isNaN(point.x) && !isNaN(point.y)) {
 					x = offsetX + point.x * scale;
 					y = offsetY - point.y * scale;
-				} else {
+				} else if (point.dist != null && point.azm != null &&
+					!isNaN(point.dist) && !isNaN(point.azm)) {
 					const ang = point.azm * Math.PI / 180;
 					x = offsetX + point.dist * Math.sin(ang) * scale;
 					y = offsetY - point.dist * Math.cos(ang) * scale;
+				} else {
+					continue;   // нет валидных координат — пропускаем
 				}
 
 				if (first) {

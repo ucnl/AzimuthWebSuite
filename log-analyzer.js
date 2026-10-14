@@ -22,9 +22,11 @@ const LogAnalyzer = (() => {
         for (const e of entries) {
             if (e.type === 'header') continue;
 
-            // Временные границы
-            if (e.timestamp && !firstTime) firstTime = e.timestamp;
-            if (e.timestamp) lastTime = e.timestamp;
+			// Временные границы
+            if (e.timestamp != null) {
+                if (firstTime === null) firstTime = e.timestamp;
+                lastTime = e.timestamp;
+            }
 
             const port = e.port || '';
 
@@ -82,6 +84,10 @@ const LogAnalyzer = (() => {
         const parsed = AZMParser.parse(data);
         if (!parsed || parsed.type !== 'ndta') return;
 
+        // В success rate считаем только ответы (status=1) и таймауты (status=2).
+        // status=0 (только локальные данные станции) и status=3 (broadcast) — не запросы к маяку.
+        if (parsed.status !== 1 && parsed.status !== 2) return;
+
         const addr = parsed.address;
         if (!report.beacons[addr]) {
             report.beacons[addr] = {
@@ -110,7 +116,7 @@ const LogAnalyzer = (() => {
                 b.sumMsr += parsed.msrDB;
                 b.countMsr++;
             }
-        } else if (parsed.status === 2) {
+        } else {
             b.timeouts++;
         }
     }

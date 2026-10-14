@@ -95,7 +95,7 @@ const AZMParser = (() => {
         }
 
         const fields = fieldsPart ? fieldsPart.split(',') : [];
-        return { manufacturer, sentenceId, fields, raw: line };
+		return { manufacturer, sentenceId, fields, checksumStr, raw: line };
     }
 
     function nmeaChecksum(data) {
@@ -220,6 +220,12 @@ const AZMParser = (() => {
         const parsed = parseNMEALine(rawLine);
         if (!parsed) return null;
         if (parsed.manufacturer !== ManufacturerCode) return null;
+
+        if (parsed.checksumStr !== null) {
+            const calc = nmeaChecksum(parsed.raw);
+            const expected = parsed.checksumStr.substring(0, 2).toUpperCase();
+            if (calc !== expected) return null;
+        }
 
         const { sentenceId, fields } = parsed;
 

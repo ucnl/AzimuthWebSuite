@@ -42,8 +42,8 @@ const MedianFilterModule = (() => {
             }
 
             // Проверка на большой скачок (сброс фильтра)
-            const distToPrev = GeoUtils.haversineDistance(this.prevLat, this.prevLon, lat, lon);
-
+            const distToPrev = Haversine.haversineInverse(this.prevLat, this.prevLon, lat, lon);
+			
             if (distToPrev >= this.maxDistToReset) {
                 this.reset();
                 this.anchorLat = lat;
