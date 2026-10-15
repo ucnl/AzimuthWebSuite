@@ -1,10 +1,11 @@
 const CACHE_PREFIX = 'aws-';
-const CACHE = CACHE_PREFIX + 'v12';
+const CACHE = CACHE_PREFIX + 'v14';
 
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
+  './manifest.json',
   './app.js',
   './serial-bridge.js',
   './webview-stub.js',
@@ -44,10 +45,29 @@ const ASSETS = [
   './README.html',
   './CHANGELOG.html',
   './docs/guide.html',
+  './docs/guide_en.html',          
   './tools/azmclogparser.html',
   './tools/coord-converter.html',
   './localization/i18n.js',
-  './localization/languages.js'  
+  './localization/languages.js',  
+  './docs/guide-ru-wizard-antenna.jpg',
+  './docs/guide-ru-wizard-reference.jpg',
+  './docs/guide-ru-top-bar.jpg',
+  './docs/guide-ru-map.jpg',
+  './docs/guide-ru-beacon-panel.jpg',
+  './docs/guide-ru-antenna-info.jpg',
+  './docs/guide-ru-reference-panel.jpg',
+  './docs/guide-ru-reference-status.jpg',
+  './docs/guide-ru-reference-map.jpg',
+  './docs/guide-en-wizard-antenna.jpg',
+  './docs/guide-en-wizard-reference.jpg',
+  './docs/guide-en-top-bar.jpg',
+  './docs/guide-en-map.jpg',
+  './docs/guide-en-beacon-panel.jpg',
+  './docs/guide-en-antenna-info.jpg',
+  './docs/guide-en-reference-panel.jpg',
+  './docs/guide-en-reference-status.jpg',
+  './docs/guide-en-reference-map.jpg'
 ];
 
 self.addEventListener('install', (event) => {
