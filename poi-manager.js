@@ -110,7 +110,7 @@ const POIManager = (() => {
         try {
             localStorage.setItem('poi_data', JSON.stringify(points));
         } catch (e) {
-            console.warn('[POI] Не удалось сохранить:', e);
+            console.warn(I18n.t('module.poi.saveError'), e);
         }
     }
     
@@ -161,7 +161,7 @@ const POIManager = (() => {
 
             return valid.length;
         } catch (e) {
-            console.warn('[POI] Ошибка загрузки:', e);
+            console.warn(I18n.t('module.poi.loadError'), e);
         }
         return 0;
     }

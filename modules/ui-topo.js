@@ -70,6 +70,27 @@ const UITopo = (() => {
         }
     }
     
+    function renderGPSStatus(element, key, params, notes, stability) {
+        I18n.unbindText(element);
+        element.replaceChildren();
+        const heading = document.createElement('span');
+        I18n.bindText(heading, key, params);
+        element.appendChild(heading);
+        if (stability) {
+            element.appendChild(document.createTextNode(' ' + stability.icon + ' '));
+            const label = document.createElement('span');
+            I18n.bindText(label, stability.key);
+            element.appendChild(label);
+        }
+        for (const note of notes) {
+            element.appendChild(document.createElement('br'));
+            const text = document.createElement('small');
+            text.style.fontSize = '10px';
+            I18n.bindText(text, note);
+            element.appendChild(text);
+        }
+    }	
+	
     function setTopoMode(mode) {
         if (mode !== 'full' && mode !== 'heading_only') mode = 'full';
         topoMode = mode;
@@ -85,16 +106,18 @@ const UITopo = (() => {
             if (latEl) {
                 latEl.value = '';
                 latEl.disabled = true;
-                latEl.placeholder = '(по опорным)';
+                latEl.setAttribute('data-i18n-placeholder', 'module.topo.referencePlaceholder');
+                I18n.apply(latEl);
             }
             if (lonEl) {
                 lonEl.value = '';
                 lonEl.disabled = true;
-                lonEl.placeholder = '(по опорным)';
+                lonEl.setAttribute('data-i18n-placeholder', 'module.topo.referencePlaceholder');
+                I18n.apply(lonEl);
             }
             if (hintEl) {
                 hintEl.style.display = 'block';
-                hintEl.innerHTML = '⚓ Координаты будут вычислены по опорным маякам. Задайте только курс антенны.';
+                I18n.bindText(hintEl, 'module.topo.referenceHint');
             }
         } else {
             if (latEl) { latEl.disabled = false; latEl.placeholder = '55.123456'; }
@@ -104,7 +127,7 @@ const UITopo = (() => {
                 const antennaMode = getAntennaMode ? getAntennaMode() : 'geographic';
                 if (antennaMode === 'beacon_referenced') {
                     hintEl.style.display = 'block';
-                    hintEl.innerHTML = '⚠ Режим антенны — ⚓ по опорным. Координаты будут перезаписаны.';
+                    I18n.bindText(hintEl, 'module.topo.overwriteHint');
                 } else {
                     hintEl.style.display = 'none';
                 }
@@ -140,10 +163,10 @@ const UITopo = (() => {
         
         const gnssConnected = getGnssConnected ? getGnssConnected() : false;
         if (gnssConnected) {
-            statusEl.textContent = '✓ Внешний GNSS подключен';
+            I18n.bindText(statusEl, 'module.topo.gnssConnected');
             statusEl.className = 'locked';
         } else {
-            statusEl.textContent = 'Внешний GNSS не подключен';
+            I18n.bindText(statusEl, 'module.topo.gnssDisconnected');
             statusEl.className = '';
         }
     }
@@ -156,12 +179,12 @@ const UITopo = (() => {
         const statusEl = document.getElementById('topo-gnss-status');
 
         if (!navigator.geolocation) {
-            statusEl.textContent = 'GPS недоступен';
+            I18n.bindText(statusEl, 'module.topo.gpsUnavailable');
             statusEl.className = '';
             return;
         }
 
-        statusEl.textContent = 'Поиск GPS...';
+        I18n.bindText(statusEl, 'module.topo.gpsSearching');
         statusEl.className = '';
 
         navigator.geolocation.getCurrentPosition(
@@ -172,11 +195,11 @@ const UITopo = (() => {
                 
                 startCompassUpdates();
                 
-                statusEl.innerHTML = `✓ Координаты получены (${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)})<br>Запуск компаса...`;
+                renderGPSStatus(statusEl, 'module.topo.coordinatesReceived', { lat: pos.coords.latitude.toFixed(5), lon: pos.coords.longitude.toFixed(5) }, ['module.topo.compassStarting']);
                 statusEl.className = 'locked';
             },
             (err) => {
-                statusEl.textContent = 'Ошибка: ' + err.message;
+                I18n.bindText(statusEl, 'module.topo.error', { error: err.message });
                 statusEl.className = '';
             },
             { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
@@ -224,15 +247,8 @@ const UITopo = (() => {
             if (statusEl) {
                 const stability = getCompassStability();
                 const stabilityIcon = stability === 'stable' ? '✅' : stability === 'medium' ? '⚠️' : '🔄';
-                const stabilityText = stability === 'stable' ? 'Стабильно' : stability === 'medium' ? 'Нестабильно' : 'Измерение...';
-                
-                statusEl.innerHTML = `
-                    🧭 Азимут: ${heading.toFixed(1)}° ${stabilityIcon} ${stabilityText}<br>
-                    <small style="font-size:10px;">
-                        📱 Держите устройство горизонтально<br>
-                        ➡️ Сориентируйте его по нулевому направлению антенны
-                    </small>
-                `;
+                const stabilityKey = stability === 'stable' ? 'module.topo.stable' : stability === 'medium' ? 'module.topo.unstable' : 'module.topo.measuring';
+                renderGPSStatus(statusEl, 'module.topo.azimuth', { heading: heading.toFixed(1) }, ['module.topo.holdHorizontal', 'module.topo.alignAntenna'], { key: stabilityKey, icon: stabilityIcon });
                 statusEl.className = 'locked';
             }
         }
@@ -267,12 +283,7 @@ const UITopo = (() => {
         if (statusEl && stability === 'stable') {
             const heading = window._nativeCompass?.heading;
             if (heading !== undefined && !isNaN(heading)) {
-                statusEl.innerHTML = `
-                    ✅ Азимут стабилен: ${heading.toFixed(1)}°<br>
-                    <small style="font-size:10px;">
-                        Можно применять топопривязку
-                    </small>
-                `;
+                renderGPSStatus(statusEl, 'module.topo.stableAzimuth', { heading: heading.toFixed(1) }, ['module.topo.canApply']);
                 statusEl.className = 'locked';
             }
         }
@@ -307,10 +318,10 @@ const UITopo = (() => {
         const finalHdg = !isNaN(hdgRaw) ? hdgRaw : (savedBinding?.hdg ?? NaN);
         
         if (isNaN(finalHdg)) {
-            alert('Введите курс (направление антенны, 0-360°)');
+            alert(I18n.t('module.topo.enterHeading'));
             return;
         }
-        if (finalHdg < 0 || finalHdg > 360) { alert('Курс: 0…360°'); return; }
+        if (finalHdg < 0 || finalHdg > 360) { alert(I18n.t('module.topo.headingRange')); return; }
         
         // === РЕЖИМ "ТОЛЬКО КУРС" ===
         if (topoMode === 'heading_only') {
@@ -326,7 +337,7 @@ const UITopo = (() => {
             if (updateAllButtons) updateAllButtons();
             
             if (setStatusCallback) {
-                setStatusCallback(`Курс антенны: ${finalHdg.toFixed(1)}° (координаты — по опорным)`);
+                setStatusCallback(I18n.message('module.topo.headingApplied', { heading: finalHdg.toFixed(1) }));
             }
             if (onApplyCallback) onApplyCallback(NaN, NaN, finalHdg);
 			if (onHeadingAppliedCallback) onHeadingAppliedCallback(); 
@@ -341,11 +352,11 @@ const UITopo = (() => {
         const finalLon = !isNaN(lonRaw) ? lonRaw : (savedBinding?.lon ?? NaN);
         
         if (isNaN(finalLat) || isNaN(finalLon)) {
-            alert('Введите координаты (или переключитесь в режим «Только курс»)');
+            alert(I18n.t('module.topo.enterCoordinates'));
             return;
         }
-        if (finalLat < -90 || finalLat > 90) { alert('Широта: -90…90'); return; }
-        if (finalLon < -180 || finalLon > 180) { alert('Долгота: -180…180'); return; }
+        if (finalLat < -90 || finalLat > 90) { alert(I18n.t('module.topo.latitudeRange')); return; }
+        if (finalLon < -180 || finalLon > 180) { alert(I18n.t('module.topo.longitudeRange')); return; }
         
         if (setAntennaPosition) {
             setAntennaPosition(finalLat, finalLon, finalHdg);
@@ -359,7 +370,7 @@ const UITopo = (() => {
         if (updateAllButtons) updateAllButtons();
         
         if (setStatusCallback) {
-            setStatusCallback(`Топопривязка: ${finalLat.toFixed(5)}, ${finalLon.toFixed(5)}, ${finalHdg.toFixed(1)}°`);
+            setStatusCallback(I18n.message('module.topo.bindingApplied', { lat: finalLat.toFixed(5), lon: finalLon.toFixed(5), heading: finalHdg.toFixed(1) }));
         }
         if (onApplyCallback) onApplyCallback(finalLat, finalLon, finalHdg);
     }
@@ -379,7 +390,7 @@ const UITopo = (() => {
         saveTopoBinding(NaN, NaN, hdg);
         
         if (setStatusCallback) {
-            setStatusCallback(`Курс антенны: ${hdg.toFixed(1)}° (координаты — по опорным)`);
+            setStatusCallback(I18n.message('module.topo.headingApplied', { heading: hdg.toFixed(1) }));
         }
         return true;
     }
@@ -390,7 +401,7 @@ const UITopo = (() => {
         }
         if (updateAntennaInfoUI) updateAntennaInfoUI();
         try { localStorage.removeItem('topo_binding'); } catch (e) {}
-        if (setStatusCallback) setStatusCallback('Топопривязка сброшена');
+        if (setStatusCallback) setStatusCallback(I18n.message('module.topo.reset'));
         
         stopCompassUpdates();
         if (isVisible) toggle();
@@ -438,9 +449,9 @@ const UITopo = (() => {
             
             if (setStatusCallback) {
                 if (hasLat && hasLon) {
-                    setStatusCallback(`Загружена привязка: ${data.lat.toFixed(5)}, ${data.lon.toFixed(5)}, ${data.hdg.toFixed(1)}°`);
+                    setStatusCallback(I18n.message('module.topo.bindingLoaded', { lat: data.lat.toFixed(5), lon: data.lon.toFixed(5), heading: data.hdg.toFixed(1) }));
                 } else {
-                    setStatusCallback(`Загружен курс: ${data.hdg.toFixed(1)}° (координаты — по опорным)`);
+                    setStatusCallback(I18n.message('module.topo.headingLoaded', { heading: data.hdg.toFixed(1) }));
                 }
             }
             

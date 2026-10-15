@@ -164,9 +164,7 @@ const AntennaTableCalibration = (() => {
         
         if (rawAngles.length < 2) {
             const sectorsWithData = sectors.filter(s => s.errors.length > 0).length;
-            alert(`Недостаточно данных.\nСекторов с данными: ${sectorsWithData}/${numSectors}\n` +
-                  `Секторов с >=${minPointsPerSector} точками: ${rawAngles.length}\n` +
-                  `Попробуйте увеличить шаг угла или уменьшить мин. точек`);
+            alert(I18n.t('module.antennaCalibration.insufficientSectors', { sectors: sectorsWithData, total: numSectors, minimum: minPointsPerSector, qualified: rawAngles.length }));
             return { encoderAngles: [], errors: [], coverage: 0 };
         }
         
@@ -193,7 +191,7 @@ const AntennaTableCalibration = (() => {
 
     function downloadCSV(filename) {
         if (!calibrationTable || !calibrationTable.encoderAngles.length) {
-            alert('Нет данных для скачивания');
+            alert(I18n.t('module.antennaCalibration.noDownload'));
             return;
         }
         AntennaCorrector.downloadCalibrationFile(
@@ -226,7 +224,7 @@ const AntennaTableCalibration = (() => {
 
     function exportFullData() {
         if (!calibrationTable || points.length === 0) {
-            alert('Нет данных для экспорта');
+            alert(I18n.t('module.antennaCalibration.noExport'));
             return '';
         }
         

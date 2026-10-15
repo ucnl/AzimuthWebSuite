@@ -284,7 +284,7 @@ const UICanvas = (() => {
         ctx.fillStyle = cc.text;
         ctx.font = 'bold 11px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('АНТ', ax, ay - 26);
+        ctx.fillText(I18n.t('module.canvas.antenna'), ax, ay - 26);
     }
     
 	function drawBeacons() {
@@ -418,7 +418,7 @@ const UICanvas = (() => {
 			
 			ctx.font = '9px Arial';
 			ctx.fillStyle = cc.textSecondary;
-			ctx.fillText(`${displayDist.toFixed(0)}м`, x, y + 26);
+			ctx.fillText(I18n.t('module.unit.meters', { value: displayDist.toFixed(0) }), x, y + 26);
 			
 			if (!isNaN(b.msrDB)) {
 				ctx.font = '8px Arial';
@@ -564,7 +564,7 @@ const UICanvas = (() => {
 		ctx.font = '9px Arial';
 		ctx.fillStyle = rejectedColor;
 		ctx.textAlign = 'center';
-		ctx.fillText('ОТВЕРГНУТО', x, y - 14);
+		ctx.fillText(I18n.t('module.canvas.rejected'), x, y - 14);
 	}
 	
     function drawScaleBar() {
@@ -590,7 +590,7 @@ const UICanvas = (() => {
         const shadowColor = rootStyles.getPropertyValue('--scale-shadow').trim() || '#000';
 		ctx.shadowColor = shadowColor;
         ctx.shadowBlur = 4;
-        ctx.fillText(dm >= 1000 ? `${(dm / 1000).toFixed(1)} км` : `${Math.round(dm)} м`, bx + dp / 2, by - 12);
+        ctx.fillText(dm >= 1000 ? I18n.t('module.unit.kilometers', { value: (dm / 1000).toFixed(1) }) : I18n.t('module.unit.meters', { value: Math.round(dm) }), bx + dp / 2, by - 12);
         ctx.shadowBlur = 0;
     }
     

@@ -325,18 +325,18 @@ const LogAnalyzer = (() => {
     }
 
     function formatReport(report) {
-        if (!report) return 'Нет данных для анализа.';
+        if (!report) return I18n.html('report.empty');
 
         let html = '';
 
-        html += `<h3>📊 Общая статистика</h3>`;
-        html += `<div>Длительность: <b>${report.duration}</b></div>`;
-        html += `<div>Всего записей: <b>${report.totalEntries}</b></div>`;
-        html += `<div>NDTA: <b>${report.summary.ndtaCount}</b> | GNSS: <b>${report.summary.gnssCount}</b> | Команд: <b>${report.summary.cmdCount}</b></div>`;
+        html += `<h3>${I18n.html("report.general")}</h3>`;
+        html += `<div>${I18n.html("report.duration.label")} <b>${I18n.html("report.duration.value", { minutes: Math.floor((report.durationSeconds || 0) / 60), seconds: Math.floor((report.durationSeconds || 0) % 60) })}</b></div>`;
+        html += `<div>${I18n.html("report.entries")} <b>${report.totalEntries}</b></div>`;
+        html += `<div>NDTA: <b>${report.summary.ndtaCount}</b> | GNSS: <b>${report.summary.gnssCount}</b> | ${I18n.html("report.commands")} <b>${report.summary.cmdCount}</b></div>`;
 
-        html += `<h3 style="margin-top:16px;">📡 Маяки</h3>`;
+        html += `<h3 style="margin-top:16px;">${I18n.html("report.beacons")}</h3>`;
         if (Object.keys(report.beacons).length === 0) {
-            html += `<div style="color:#888;">Нет данных маяков в логе</div>`;
+            html += `<div style="color:#888;">${I18n.html("report.beacons.empty")}</div>`;
         } else {
             for (const addr in report.beacons) {
                 const b = report.beacons[addr];
@@ -345,31 +345,26 @@ const LogAnalyzer = (() => {
                 const avgMsr = b.countMsr > 0 ? (b.sumMsr / b.countMsr).toFixed(1) : '--';
 
                 html += `<div style="margin:4px 0;">`;
-                html += `<b>#${b.userAddress}</b>: `;
-                html += `Успешно: <b>${pct}%</b> (${b.succeeded}/${b.total}) | `;
-                html += `Ср.дальность: <b>${avgRange}м</b> | `;
-                html += `Ср.MSR: <b>${avgMsr}dB</b>`;
-                const allTracks = TrackManager.getAll();
-                const beaconTrack = allTracks[addr];
-                if (beaconTrack) {
-                    const std = calcBeaconSTD(beaconTrack);
-                    if (std) {
-                        html += ` | DRMS: <b>${std.drms.toFixed(2)}м</b>`;
-                    }
+                html += `<b>#${I18n.html("app.rawStatus", { message: b.userAddress })}</b>: `;
+                html += `${I18n.html("report.success")} <b>${pct}%</b> (${b.succeeded}/${b.total}) | `;
+                html += `${I18n.html("report.range")} <b>${avgRange}${I18n.html("app.unit.m")}</b> | `;
+                html += `${I18n.html("report.msr")} <b>${avgMsr}dB</b>`;
+                const std = report.beaconSTD?.[addr];
+                if (std) {
+                    html += ` | DRMS: <b>${std.drms.toFixed(2)}${I18n.html("app.unit.m")}</b>`;
                 }
                 html += `</div>`;
             }
         }
 
-        html += `<h3 style="margin-top:16px;">🧭 Компас</h3>`;
+        html += `<h3 style="margin-top:16px;">${I18n.html("report.compass")}</h3>`;
         
         const jumps = report.compass.jumps || [];
         const gaps = report.compass.gaps || [];
 
-        html += `<div>Скачков heading (>30°/с): <b>${jumps.length}</b></div>`;
+        html += `<div>${I18n.html("report.headingJumps")} <b>${jumps.length}</b></div>`;
         
-        const entries = Logger.getEntries();
-        const headingRMS = calcHeadingRMS(entries);
+        const headingRMS = report.headingRMS;
         if (headingRMS) {
             html += `<div style="margin-top:4px;">Heading RMS: <b>${headingRMS.rms.toFixed(2)}°</b> (n=${headingRMS.count})</div>`;
         }
@@ -378,37 +373,38 @@ const LogAnalyzer = (() => {
 		if (maxRate) {
 			const rateColor = maxRate.instantRate > 10 ? '#e74c3c' : maxRate.instantRate > 3 ? '#f39c12' : '#27ae60';
 			html += `<div style="margin-top:4px;">`;
-			html += `Макс. скорость изменения курса: <b style="color:${rateColor};">${maxRate.ratePerSec.toFixed(1)}°/с</b>`;
-			html += ` (Δ${maxRate.dHdg.toFixed(1)}° за ${maxRate.dt.toFixed(2)}с, мгновенная: ${maxRate.instantRate.toFixed(1)}°/с)`;
+			html += `${I18n.html("report.maxHeadingRate")} <b style="color:${rateColor};">${maxRate.ratePerSec.toFixed(1)}°/${I18n.html("app.unit.s")}</b>`;
+			html += I18n.html("report.headingRate.detail", { delta: maxRate.dHdg.toFixed(1), duration: maxRate.dt.toFixed(2), rate: maxRate.instantRate.toFixed(1) });
 			html += `</div>`;
 			
 			let qualityNote = '';
 			if (maxRate.instantRate > 10) {
-				qualityNote = '⚠️ Очень высокий шум';
+				qualityNote = I18n.html('report.noise.high');
 			} else if (maxRate.instantRate > 6) {
-				qualityNote = '⚠️ Повышенный шум';
+				qualityNote = I18n.html('report.noise.elevated');
 			} else if (maxRate.instantRate > 3) {
-				qualityNote = 'Приемлемый уровень шума';
+				qualityNote = I18n.html('report.noise.acceptable');
 			} else {
-				qualityNote = '✅ Отличное качество данных';
+				qualityNote = I18n.html('report.noise.excellent');
 			}
 			html += `<div style="margin-left:10px; color:#888; font-size:0.9em;">${qualityNote}</div>`;
 		}
         
         if (jumps.length > 0) {
             const max = jumps.reduce((a, b) => a.rate > b.rate ? a : b);
-            html += `<div style="margin-top:4px;">Макс. скачок: <b>${max.from.toFixed(1)}° → ${max.to.toFixed(1)}° за ${max.dt.toFixed(2)}с (${max.rate.toFixed(0)}°/с)</b></div>`;
+            html += `<div style="margin-top:4px;">${I18n.html("report.maxJump")} <b>${I18n.html("report.headingJump.value", { from: max.from.toFixed(1), to: max.to.toFixed(1), duration: max.dt.toFixed(2), rate: max.rate.toFixed(0) })}</b></div>`;
         }
 
-        html += `<div style="margin-top:4px;">Потерь GNSS (>5с): <b>${gaps.length}</b></div>`;
+        html += `<div style="margin-top:4px;">${I18n.html("report.gnssGaps")} <b>${gaps.length}</b></div>`;
         
-        const gnssStatic = calcGNSSStatic(entries);
+        const gnssStatic = report.gnssStatic;
         if (gnssStatic) {
-            html += `<div style="margin-top:4px;">GNSS DRMS: <b>${gnssStatic.drms.toFixed(2)}м</b> | Ср. скорость: <b>${gnssStatic.avgSpeed.toFixed(2)} м/с</b> (n=${gnssStatic.points})</div>`;
+            html += `<div style="margin-top:4px;">GNSS DRMS: <b>${gnssStatic.drms.toFixed(2)}${I18n.html("app.unit.m")}</b> | ${I18n.html("report.avgSpeed")} <b>${gnssStatic.avgSpeed.toFixed(2)} ${I18n.html("app.unit.m")}/${I18n.html("app.unit.s")}</b> (n=${gnssStatic.points})</div>`;
         }
 
         return html;
     }
+
 
     return {
         analyze,

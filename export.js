@@ -2,6 +2,12 @@
 
 const ExportManager = (() => {
     
+	function localized(key, fallback, params = {}) {
+        if (typeof I18n !== 'undefined') return I18n.t(key, params);
+        return fallback.replace(/\{(\w+)\}/g, (match, name) =>
+            Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match);
+    }
+	
     // ========== ВСПОМОГАТЕЛЬНЫЕ ==========
     function getTimestamp() {
         return new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
@@ -51,7 +57,7 @@ const ExportManager = (() => {
         const antennaMode = getAntennaMode();
         
         if (Object.keys(allTracks).length === 0 && stTrack.length === 0) {
-            alert('Нет данных треков');
+            alert(localized("export.noTracks", "Нет данных треков"));
             return;
         }
 
@@ -107,14 +113,14 @@ const ExportManager = (() => {
     // ========== NMEA GGA ==========
     function exportGGA() {
         if (getAntennaMode() === 'cartesian_fixed') {
-            alert('Экспорт GGA недоступен в декартовом режиме.\nСначала выполните топопривязку и пересчёт координат.');
+            alert(localized("export.gga.cartesianUnavailable", "Экспорт GGA недоступен в декартовом режиме.\nСначала выполните топопривязку и пересчёт координат."));
             return;
         }
         
         const allTracks = TrackManager.getAll();
         const trackAddresses = Object.keys(allTracks);
         if (trackAddresses.length === 0) {
-            alert('Нет данных треков');
+            alert(localized("export.noTracks", "Нет данных треков"));
             return;
         }
 
@@ -147,7 +153,7 @@ const ExportManager = (() => {
         }
 
         if (lines.length === 0) {
-            alert('Нет точек с координатами');
+            alert(localized("export.noCoordinates", "Нет точек с координатами"));
             return;
         }
         
@@ -157,13 +163,13 @@ const ExportManager = (() => {
     // ========== NMEA GGA для антенны ==========
     function exportAntennaGGA() {
         if (getAntennaMode() === 'cartesian_fixed') {
-            alert('Экспорт GGA антенны недоступен в декартовом режиме.');
+            alert(localized("export.antennaGga.cartesianUnavailable", "Экспорт GGA антенны недоступен в декартовом режиме."));
             return;
         }
         
         const stationTrack = TrackManager.stationTrack;
         if (stationTrack.length === 0) {
-            alert('Нет данных трека антенны');
+            alert(localized("export.noAntennaTrack", "Нет данных трека антенны"));
             return;
         }
 
@@ -204,12 +210,12 @@ const ExportManager = (() => {
         }
 
         if (lines.length === 0) {
-            alert('Нет точек с координатами');
+            alert(localized("export.noCoordinates", "Нет точек с координатами"));
             return;
         }
         
         downloadBlob(lines.join('\r\n'), 'text/plain', `antenna_gga_${getTimestamp()}.nmea`);
-        console.log(`[Export] Экспортировано ${lines.length} точек антенны в GGA`);
+        console.log(localized("export.diagnostic.antennaGga", "[Export] Экспортировано {count} точек антенны в GGA", { count: lines.length }));
     }
 
     // ========== NMEA PSIMSSB (Head-Up) ==========
@@ -217,7 +223,7 @@ const ExportManager = (() => {
         const allTracks = TrackManager.getAll();
         const trackAddresses = Object.keys(allTracks);
         if (trackAddresses.length === 0) {
-            alert('Нет данных треков');
+            alert(localized("export.noTracks", "Нет данных треков"));
             return;
         }
 
@@ -245,7 +251,7 @@ const ExportManager = (() => {
         }
 
         if (lines.length === 0) {
-            alert('Нет точек с относительными координатами. Нужна топопривязка.');
+            alert(localized("export.noRelativeCoordinates", "Нет точек с относительными координатами. Нужна топопривязка."));
             return;
         }
         
@@ -255,14 +261,14 @@ const ExportManager = (() => {
     // ========== NMEA PSIMSSB (UTM) ==========
     function exportPSIMSSB_NE() {
         if (getAntennaMode() === 'cartesian_fixed') {
-            alert('Экспорт PSIMSSB UTM недоступен в декартовом режиме.\nСначала выполните топопривязку и пересчёт координат.');
+            alert(localized("export.psimssb.cartesianUnavailable", "Экспорт PSIMSSB UTM недоступен в декартовом режиме.\nСначала выполните топопривязку и пересчёт координат."));
             return;
         }
         
         const allTracks = TrackManager.getAll();
         const trackAddresses = Object.keys(allTracks);
         if (trackAddresses.length === 0) {
-            alert('Нет данных треков');
+            alert(localized("export.noTracks", "Нет данных треков"));
             return;
         }
 
@@ -294,7 +300,7 @@ const ExportManager = (() => {
         }
 
         if (lines.length === 0) {
-            alert('Нет точек с координатами');
+            alert(localized("export.noCoordinates", "Нет точек с координатами"));
             return;
         }
         
@@ -309,7 +315,7 @@ const ExportManager = (() => {
 		const isCartesian = st.antennaMode === 'cartesian_fixed';
 		
 		if (Object.keys(allTracks).length === 0 && stTrack.length === 0) {
-			alert('Нет данных треков для экспорта');
+			alert(localized("export.noTracksToExport", "Нет данных треков для экспорта"));
 			return;
 		}
 		
@@ -540,9 +546,7 @@ const ExportManager = (() => {
                 kml += `
                 <Placemark>
                     <name>${escapeXml(poi.name)}</name>
-                    <description>Тип: ${poi.type === 'marked' ? 'Отмечена оператором' : 'Загружена из CSV'}
-                    Время: ${ts}
-                    Глубина: ${poi.depth != null ? poi.depth.toFixed(1) + ' м' : '--'}</description>
+                    <description>${escapeXml(localized("export.kml.description", "Тип: {type}\n                    Время: {time}\n                    Глубина: {depth}", { type: localized(poi.type === 'marked' ? 'export.kml.marked' : 'export.kml.loaded', poi.type === 'marked' ? 'Отмечена оператором' : 'Загружена из CSV'), time: ts, depth: poi.depth != null ? poi.depth.toFixed(1) + ' ' + localized("app.unit.m", "м") : '--' }))}</description>
                             <styleUrl>${style}</styleUrl>
                     <Point>
                         <coordinates>${poi.lon.toFixed(8)},${poi.lat.toFixed(8)},${alt}</coordinates>
@@ -560,7 +564,7 @@ const ExportManager = (() => {
 
     function exportTracksKML() {
         if (getAntennaMode() === 'cartesian_fixed') {
-            alert('Экспорт KML недоступен в декартовом режиме.\nСначала выполните топопривязку и пересчёт координат.');
+             alert(localized("export.kml.cartesianUnavailable", "Экспорт KML недоступен в декартовом режиме.\nСначала выполните топопривязку и пересчёт координат."));
             return;
         }
         
@@ -568,7 +572,7 @@ const ExportManager = (() => {
         const stationTrackLength = TrackManager.stationTrack.length;
         
         if (trackCount === 0 && stationTrackLength === 0) {
-            alert('Нет данных треков для экспорта');
+            alert(localized("export.noTracksToExport", "Нет данных треков для экспорта"));
             return;
         }
         

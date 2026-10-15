@@ -15,10 +15,10 @@ const AntennaCorrector = (() => {
          */
         loadCalibration(encoderAngles, errors) {
             if (encoderAngles.length !== errors.length) {
-                throw new Error('Массивы должны быть одинаковой длины');
+                 throw new Error(I18n.t('module.corrector.arrayLength'));
             }
             if (encoderAngles.length < 2) {
-                throw new Error('Таблица должна содержать минимум 2 точки');
+                throw new Error(I18n.t('module.corrector.minimum'));
             }
 
             this._calibrationTable = [];
@@ -138,14 +138,14 @@ const AntennaCorrector = (() => {
 
             const parts = line.split(/[;,\t]/).map(s => s.trim()).filter(s => s !== '');
             if (parts.length < 2) {
-                throw new Error(`Строка ${lineNum + 1}: ожидается 2 колонки`);
+                throw new Error(I18n.t('module.corrector.columns', { line: lineNum + 1 }));
             }
 
             const angle = parseFloat(parts[0]);
             const error = parseFloat(parts[1]);
 
             if (isNaN(angle) || isNaN(error)) {
-                throw new Error(`Строка ${lineNum + 1}: неверный формат чисел`);
+                throw new Error(I18n.t('module.corrector.numbers', { line: lineNum + 1 }));
             }
 
             angles.push(angle);
@@ -153,7 +153,7 @@ const AntennaCorrector = (() => {
         }
 
         if (angles.length < 2) {
-            throw new Error(`Недостаточно точек: ${angles.length}`);
+            throw new Error(I18n.t('module.corrector.points', { count: angles.length }));
         }
 
         return { angles, errors };

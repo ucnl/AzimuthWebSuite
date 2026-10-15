@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Zima2 Log Parser</title>
-<link rel="manifest" href="data:application/manifest+json,{&quot;name&quot;:&quot;Zima2%20Log%20Parser&quot;,&quot;short_name&quot;:&quot;Zima2&quot;,&quot;start_url&quot;:&quot;.&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%231a1a2e&quot;,&quot;theme_color&quot;:&quot;%23e83e8c&quot;}">
 <meta name="theme-color" content="#e83e8c">
 <style>
 :root {
@@ -95,29 +94,33 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .setting-group select:focus,
 .setting-group input[type="text"]:focus { outline: none; border-color: var(--border-accent); }
+.language-control { display:flex; justify-content:flex-end; margin: 0 0 12px; }
+.language-control select { max-width:140px; min-height:34px; padding:6px; color:var(--text-primary); background:var(--bg-input); border:1px solid var(--border-primary); border-radius:var(--radius-sm); font:inherit; }
+.language-control select:focus-visible { outline:2px solid var(--border-accent); }
 </style>
 </head>
 <body>
 <div class="container">
     <h1>📡 Zima2 Log Parser</h1>
-    <p class="subtitle">Парсинг логов USBL Zima2: GNSS-трек станции + треки маяков (AZMREM / PSIMSSB / IUDP)</p>
+<div class="language-control"><select data-language-selector data-i18n-aria-label="main.language" data-i18n-title="main.language" aria-label="Язык" title="Язык"></select></div>
+    <p class="subtitle" data-i18n="tools.parser.description">Парсинг логов USBL Zima2: GNSS-трек станции + треки маяков (AZMREM / PSIMSSB / IUDP)</p>
 
     <div class="step-card">
-        <h3>📥 Шаг 1. Загрузите лог</h3>
+        <h3 data-i18n="tools.parser.loadStep">📥 Шаг 1. Загрузите лог</h3>
         <div class="file-upload-area" onclick="document.getElementById('logFileInput').click()">
-            <span>📁 Нажмите для выбора .log / .txt</span>
+            <span data-i18n="tools.parser.chooseFile">📁 Нажмите для выбора .log / .txt</span>
             <span class="file-name" id="logFileName"></span>
             <input type="file" id="logFileInput" accept=".log,.txt,.csv" onchange="handleLogFile(event)">
         </div>
-        <textarea id="logInput" placeholder="Или вставьте содержимое лога сюда..."></textarea>
+        <textarea id="logInput" placeholder="Или вставьте содержимое лога сюда..." data-i18n-placeholder="tools.parser.inputPlaceholder"></textarea>
     </div>
 
     <div class="step-card">
-        <h3>📊 Сводка</h3>
+        <h3 data-i18n="tools.parser.summary">📊 Сводка</h3>
         <div class="summary-grid" id="summaryGrid">
-            <div class="summary-item"><div class="label">Строк</div><div class="value" id="sumLines">0</div></div>
-            <div class="summary-item"><div class="label">GNSS точек</div><div class="value" id="sumGnss">0</div></div>
-            <div class="summary-item"><div class="label">Маяков</div><div class="value" id="sumBeacons">0</div></div>
+            <div class="summary-item"><div class="label" data-i18n="tools.parser.lines">Строк</div><div class="value" id="sumLines">0</div></div>
+            <div class="summary-item"><div class="label" data-i18n="tools.parser.gnssPoints">GNSS точек</div><div class="value" id="sumGnss">0</div></div>
+            <div class="summary-item"><div class="label" data-i18n="tools.parser.beacons">Маяков</div><div class="value" id="sumBeacons">0</div></div>
             <div class="summary-item"><div class="label">AZMREM</div><div class="value" id="sumAzmrem">0</div></div>
             <div class="summary-item"><div class="label">PSIMSSB</div><div class="value" id="sumPsimssb">0</div></div>
             <div class="summary-item"><div class="label">IUDP</div><div class="value" id="sumIudp">0</div></div>
@@ -125,54 +128,54 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     </div>
 	
 	<div class="step-card">
-		<h3>⚙️ Настройки экспорта</h3>
+		<h3 data-i18n="tools.parser.exportSettings">⚙️ Настройки экспорта</h3>
 		<div class="settings-row">
 			<div class="setting-group">
-				<label>Разделитель CSV</label>
+				<label data-i18n="tools.parser.csvSeparator">Разделитель CSV</label>
 				<select id="csvSep">
-					<option value=";" selected>; (точка с запятой)</option>
-					<option value=",">, (запятая)</option>
-					<option value="\t">\t (табуляция)</option>
+					<option value=";" selected data-i18n="tools.parser.semicolon">; (точка с запятой)</option>
+					<option value="," data-i18n="tools.parser.comma">, (запятая)</option>
+					<option value="\t" data-i18n="tools.parser.tab">\t (табуляция)</option>
 				</select>
 			</div>
 			<div class="setting-group">
-				<label>DXF формат</label>
+				<label data-i18n="tools.parser.dxfFormat">DXF формат</label>
 				<select id="dxfMode">
-					<option value="3d" selected>3D (с глубиной в Z)</option>
-					<option value="2d">2D (плоский)</option>
+					<option value="3d" selected data-i18n="tools.parser.dxf3d">3D (с глубиной в Z)</option>
+					<option value="2d" data-i18n="tools.parser.dxf2d">2D (плоский)</option>
 				</select>
 			</div>
 			<div class="setting-group">
-				<label>UTM зона (авто)</label>
-				<input type="text" id="utmZoneInput" placeholder="Авто">
+				<label data-i18n="tools.parser.utmZone">UTM зона (авто)</label>
+				<input type="text" id="utmZoneInput" placeholder="Авто" data-i18n-placeholder="tools.parser.auto">
 			</div>
 			<div class="setting-group">
-				<label>Полушарие UTM</label>
+				<label data-i18n="tools.parser.utmHemisphere">Полушарие UTM</label>
 				<select id="utmHemiInput">
-					<option value="auto" selected>Авто</option>
-					<option value="N">N (север)</option>
-					<option value="S">S (юг)</option>
+					<option value="auto" selected data-i18n="tools.parser.auto">Авто</option>
+					<option value="N" data-i18n="tools.parser.north">N (север)</option>
+					<option value="S" data-i18n="tools.parser.south">S (юг)</option>
 				</select>
 			</div>
 		</div>
 		<div class="settings-row">
 			<div class="setting-group">
-				<label>Ref Lat (авто — центроид GNSS)</label>
-				<input type="text" id="refLatInput" placeholder="Авто">
+				<label data-i18n="tools.parser.refLat">Ref Lat (авто — центроид GNSS)</label>
+				<input type="text" id="refLatInput" placeholder="Авто" data-i18n-placeholder="tools.parser.auto">
 			</div>
 			<div class="setting-group">
-				<label>Ref Lon (авто — центроид GNSS)</label>
-				<input type="text" id="refLonInput" placeholder="Авто">
+				<label data-i18n="tools.parser.refLon">Ref Lon (авто — центроид GNSS)</label>
+				<input type="text" id="refLonInput" placeholder="Авто" data-i18n-placeholder="tools.parser.auto">
 			</div>
 			<div class="setting-group">
 				<label>&nbsp;</label>
-				<button class="btn-secondary" onclick="resetRef()">Сбросить Ref</button>
+				<button class="btn-secondary" onclick="resetRef()" data-i18n="tools.parser.resetReference">Сбросить Ref</button>
 			</div>
 		</div>
 	</div>
 
     <div class="step-card">
-        <h3>👁️ Предпросмотр</h3>
+        <h3 data-i18n="tools.preview">👁️ Предпросмотр</h3>
         <div class="tabs" id="previewTabs"></div>
         <div class="table-wrapper">
             <table id="previewTable">
@@ -183,7 +186,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     </div>
 	
 	<div class="step-card">
-		<h3>🗺️ Карта (локальные метры от опорной точки)</h3>
+		<h3 data-i18n="tools.parser.mapTitle">🗺️ Карта (локальные метры от опорной точки)</h3>
 		<canvas id="mapCanvas" width="1100" height="500" style="width:100%;max-width:1100px;height:auto;background:var(--bg-input);border:1px solid var(--border-primary);border-radius:var(--radius-sm);"></canvas>
 		<div class="legend" id="mapLegend" style="display:flex;gap:16px;margin-top:8px;font-size:0.78em;flex-wrap:wrap;">
 			<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#f44336;"></span> Ref</span>
@@ -193,7 +196,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 	</div>
 
     <div class="step-card">
-		<h3>💾 Экспорт</h3>
+		<h3 data-i18n="tools.parser.export">💾 Экспорт</h3>
 		<div class="btn-row">
 			<button class="btn-primary" onclick="exportCSV()" id="btnCsv" disabled>📄 CSV</button>
 			<button class="btn-primary" onclick="exportKML()" id="btnKml" disabled>🗺️ KML</button>
@@ -204,6 +207,153 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     <div id="status" class="status"></div>
 </div>
 
+<script data-localization>
+// Add a language in the header and its value in each matching column below. Missing values use English.
+(function (window, document) {
+    'use strict';
+    const storageKey = 'azimuth_logparser_language';
+    const languages = [['ru', 'Русский'], ['en', 'English']];
+    const messages = {
+        "main.language": ["Язык", "Language"],
+        "tools.error.noData": ["❌ Нет данных", "❌ No data"],
+        "tools.map.kilometers": ["{value} км", "{value} km"],
+        "tools.map.meters": ["{value} м", "{value} m"],
+        "tools.parser.auto": ["Авто", "Auto"],
+        "tools.parser.beacons": ["Маяков", "Beacons"],
+        "tools.parser.chooseFile": ["📁 Нажмите для выбора .log / .txt", "📁 Click to choose .log / .txt"],
+        "tools.parser.comma": [", (запятая)", ", (comma)"],
+        "tools.parser.csvSaved": ["✅ CSV сохранён", "✅ CSV saved"],
+        "tools.parser.csvSeparator": ["Разделитель CSV", "CSV separator"],
+        "tools.parser.description": ["Парсинг логов USBL Zima2: GNSS-трек станции + треки маяков (AZMREM / PSIMSSB / IUDP)", "Parse USBL Zima2 logs: station GNSS track + beacon tracks (AZMREM / PSIMSSB / IUDP)"],
+        "tools.parser.dxf2d": ["2D (плоский)", "2D (flat)"],
+        "tools.parser.dxf3d": ["3D (с глубиной в Z)", "3D (depth in Z)"],
+        "tools.parser.dxfFormat": ["DXF формат", "DXF format"],
+        "tools.parser.dxfSaved": ["✅ DXF сохранён ({mode})", "✅ DXF saved ({mode})"],
+        "tools.parser.emptyMap": ["Нет данных для отображения", "No data to display"],
+        "tools.parser.export": ["💾 Экспорт", "💾 Export"],
+        "tools.parser.exportSettings": ["⚙️ Настройки экспорта", "⚙️ Export settings"],
+        "tools.parser.gnssPoints": ["GNSS точек", "GNSS points"],
+        "tools.parser.inputPlaceholder": ["Или вставьте содержимое лога сюда...", "Or paste log content here..."],
+        "tools.parser.kmlDescription": ["Источник: {source}\nТочек: {count}\nСредняя глубина: {depth} м", "Source: {source}\nPoints: {count}\nAverage depth: {depth} m"],
+        "tools.parser.kmlPoints": ["Точек: {count}", "Points: {count}"],
+        "tools.parser.kmlSaved": ["✅ KML сохранён", "✅ KML saved"],
+        "tools.parser.lines": ["Строк", "Lines"],
+        "tools.parser.loadLog": ["Загрузите лог", "Load a log"],
+        "tools.parser.loadStep": ["📥 Шаг 1. Загрузите лог", "📥 Step 1. Load a log"],
+        "tools.parser.mapTitle": ["🗺️ Карта (локальные метры от опорной точки)", "🗺️ Map (local meters from the reference point)"],
+        "tools.parser.noGNSS": ["Нет данных GNSS", "No GNSS data"],
+        "tools.parser.noLocalPoints": ["Нет точек с локальными координатами", "No points with local coordinates"],
+        "tools.parser.noRecords": ["Нет записей", "No records"],
+        "tools.parser.north": ["N (север)", "N (north)"],
+        "tools.parser.parsed": ["✅ Строк: {lines}. GNSS: {gnss}, AZMREM: {azmrem}, PSIMSSB: {psimssb}, IUDP: {iudp}. Маяков: {beacons}. Ref: {reference}. UTM зона: {zone}. Ошибок: {errors}.", "✅ Lines: {lines}. GNSS: {gnss}, AZMREM: {azmrem}, PSIMSSB: {psimssb}, IUDP: {iudp}. Beacons: {beacons}. Ref: {reference}. UTM zone: {zone}. Errors: {errors}."],
+        "tools.parser.refLat": ["Ref Lat (авто — центроид GNSS)", "Ref Lat (auto — GNSS centroid)"],
+        "tools.parser.refLon": ["Ref Lon (авто — центроид GNSS)", "Ref Lon (auto — GNSS centroid)"],
+        "tools.parser.resetReference": ["Сбросить Ref", "Reset Ref"],
+        "tools.parser.semicolon": ["; (точка с запятой)", "; (semicolon)"],
+        "tools.parser.south": ["S (юг)", "S (south)"],
+        "tools.parser.summary": ["📊 Сводка", "📊 Summary"],
+        "tools.parser.tab": ["\\t (табуляция)", "\\t (tab)"],
+        "tools.parser.utmHemisphere": ["Полушарие UTM", "UTM hemisphere"],
+        "tools.parser.utmZone": ["UTM зона (авто)", "UTM zone (auto)"],
+        "tools.parser.xMeters": ["x, м", "x, m"],
+        "tools.parser.yMeters": ["y, м", "y, m"],
+        "tools.preview": ["👁️ Предпросмотр", "👁️ Preview"]
+    };
+
+    const columns = new Map(languages.map(([code, name], index) => [code.toLowerCase(), { name, index }]));
+    const bindings = new WeakMap(), selectors = new WeakSet();
+    const attributes = ['title', 'placeholder', 'aria-label'];
+    const query = ['data-i18n', 'data-i18n-bound-text', 'data-language-selector', ...attributes.map(name => 'data-i18n-' + name)]
+        .map(name => '[' + name + ']').join(',');
+    let language = '', initialized = false;
+
+    function t(key, params = {}) {
+        const values = Object.prototype.hasOwnProperty.call(messages, key) && Array.isArray(messages[key]) ? messages[key] : [];
+        const selected = values[columns.get(language)?.index], english = values[columns.get('en')?.index];
+        const text = typeof selected === 'string' ? selected : typeof english === 'string' ? english : String(key);
+        return text.replace(/\{(\w+)\}/g, (match, name) => Object.prototype.hasOwnProperty.call(params || {}, name) ? String(params[name]) : match);
+    }
+    function html(key, params) {
+        return t(key, params).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+    }
+    function message(key, params = {}) { return { key, params: { ...params } }; }
+    function bindText(element, key, params) {
+        if (!element) return;
+        bindings.set(element, message(key, params));
+        element.removeAttribute('data-i18n');
+        element.removeAttribute('data-i18n-params');
+        element.setAttribute('data-i18n-bound-text', '');
+        element.textContent = t(key, params);
+    }
+    function unbindText(element) {
+        if (!element) return;
+        bindings.delete(element);
+        element.removeAttribute('data-i18n-bound-text');
+    }
+    function fillSelector(element) {
+        element.textContent = '';
+        for (const [code, column] of columns) {
+            const option = document.createElement('option');
+            option.value = code; option.textContent = column.name;
+            element.appendChild(option);
+        }
+        if (!selectors.has(element)) element.addEventListener('change', () => setLanguage(element.value));
+        selectors.add(element);
+        element.value = language;
+    }
+    function apply(root = document) {
+        const elements = root.querySelectorAll ? [...root.querySelectorAll(query)] : [];
+        if (root.nodeType === 1) elements.unshift(root);
+        for (const element of elements) {
+            let params = {};
+            try { params = JSON.parse(element.getAttribute('data-i18n-params') || '{}'); } catch (_) {}
+            const binding = bindings.get(element);
+            if (binding) element.textContent = t(binding.key, binding.params);
+            else if (element.hasAttribute('data-i18n')) element.textContent = t(element.getAttribute('data-i18n'), params);
+            for (const attr of attributes) {
+                const key = element.getAttribute('data-i18n-' + attr);
+                if (key) element.setAttribute(attr, t(key, params));
+            }
+            if (element.hasAttribute('data-language-selector')) {
+                if (!selectors.has(element)) fillSelector(element);
+                element.value = language;
+            }
+        }
+    }
+    function normalize(code) {
+        if (typeof code !== 'string') return null;
+        const normalized = code.trim().toLowerCase().replace(/_/g, '-');
+        const base = normalized.split('-')[0];
+        return columns.has(normalized) ? normalized : columns.has(base) ? base : null;
+    }
+    function setLanguage(code, persist = true) {
+        const next = normalize(code) || 'en', changed = next !== language;
+        language = next;
+        if (persist) try { window.localStorage.setItem(storageKey, language); } catch (_) {}
+        document.documentElement.lang = language;
+        apply(document);
+        if (changed) window.dispatchEvent(new window.CustomEvent('languagechange', { detail: { language } }));
+        return language;
+    }
+    function init() {
+        if (initialized) return;
+        let saved;
+        try { saved = window.localStorage.getItem(storageKey); } catch (_) {}
+        const primary = (navigator.language || navigator.languages?.[0] || '').toLowerCase().split(/[-_]/)[0];
+        initialized = true;
+        setLanguage(normalize(saved) || (primary === 'ru' ? 'ru' : 'en'), false);
+        if (window.MutationObserver && document.body) {
+            const observer = new window.MutationObserver(records => {
+                for (const record of records) for (const node of record.addedNodes) if (node.nodeType === 1) apply(node);
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+        }
+    }
+    window.I18n = { t, html, message, bindText, unbindText, apply, setLanguage, getLanguage: () => language, init };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+})(window, document);
+</script>
 <script>
 // ============================================================
 // UTM (Karney / Snyder)
@@ -814,7 +964,7 @@ const CanvasMap = (() => {
             ctx.fillStyle = 'rgba(255,255,255,0.3)';
             ctx.font = '14px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('Нет данных для отображения', w / 2, h / 2);
+            ctx.fillText(I18n.t('tools.parser.emptyMap'), w / 2, h / 2);
             return;
         }
 
@@ -823,7 +973,7 @@ const CanvasMap = (() => {
             ctx.fillStyle = 'rgba(255,255,255,0.3)';
             ctx.font = '14px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('Нет точек с локальными координатами', w / 2, h / 2);
+            ctx.fillText(I18n.t('tools.parser.noLocalPoints'), w / 2, h / 2);
             return;
         }
 
@@ -952,7 +1102,7 @@ const CanvasMap = (() => {
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 11px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(barM >= 1000 ? `${(barM / 1000).toFixed(1)} км` : `${Math.round(barM)} м`, bx + barPx / 2, by - 8);
+        ctx.fillText(barM >= 1000 ? I18n.t('tools.map.kilometers', { value: (barM / 1000).toFixed(1) }) : I18n.t('tools.map.meters', { value: Math.round(barM) }), bx + barPx / 2, by - 8);
     }
 
     return { draw, beaconColor };
@@ -1092,7 +1242,7 @@ const Exporter = (() => {
             parts.push(`
 <Placemark>
   <name>Station Track</name>
-  <description>Точек: ${stValid.length}</description>
+  <description>${I18n.html('tools.parser.kmlPoints', { count: stValid.length })}</description>
   <styleUrl>#stationStyle</styleUrl>
   <LineString>
     <coordinates>${coords.trim()}</coordinates>
@@ -1119,7 +1269,7 @@ const Exporter = (() => {
             parts.push(`
 <Placemark>
   <name>Beacon ${addr + 1}</name>
-  <description>Источник: ${src}\nТочек: ${valid.length}\nСредняя глубина: ${avgDepth.toFixed(1)} м</description>
+  <description>${I18n.html('tools.parser.kmlDescription', { source: src, count: valid.length, depth: avgDepth.toFixed(1) })}</description>
   <styleUrl>#beaconStyle${(addr % 16) + 1}</styleUrl>
   <LineString>
     <coordinates>${coords.trim()}</coordinates>
@@ -1243,10 +1393,13 @@ function runParse() {
     CanvasMap.draw(model);
     setExportButtons(true);
     showStatus(
-        `✅ Строк: ${parsed.stats.lines}. GNSS: ${parsed.stats.gnss}, AZMREM: ${parsed.stats.azmrem}, PSIMSSB: ${parsed.stats.psimssb}, IUDP: ${parsed.stats.iudp}. ` +
-        `Маяков: ${Object.keys(model.beacons).length}. ` +
-        `Ref: ${model.refPoint ? model.refPoint.lat.toFixed(6) + ', ' + model.refPoint.lon.toFixed(6) : '—'}. ` +
-        `UTM зона: ${model.utmZone || '—'}. Ошибок: ${parsed.stats.errors}.`,
+        I18n.message('tools.parser.parsed', {
+            lines: parsed.stats.lines, gnss: parsed.stats.gnss, azmrem: parsed.stats.azmrem,
+            psimssb: parsed.stats.psimssb, iudp: parsed.stats.iudp,
+            beacons: Object.keys(model.beacons).length,
+            reference: model.refPoint ? model.refPoint.lat.toFixed(6) + ', ' + model.refPoint.lon.toFixed(6) : '—',
+            zone: model.utmZone || '—', errors: parsed.stats.errors
+        }),
         'success'
     );
 }
@@ -1276,14 +1429,20 @@ function updateTabs() {
     tabs.innerHTML = '';
     if (!parsed) return;
 
+    const available = [];
+    if (parsed.gnss.length > 0) available.push('gnss');
+    const addrs = Object.keys(parsed.beacons).map(Number).sort((a,b) => a-b);
+    addrs.forEach(addr => { if (parsed.beacons[addr].length) available.push('beacon_' + addr); });
+    if (!available.includes(currentTab)) currentTab = available[0] || '';
+
     // GNSS
     if (parsed.gnss.length > 0) {
         addTab(tabs, 'gnss', `🛰️ GNSS (${parsed.gnss.length})`);
     }
     // Маяки
-    const addrs = Object.keys(parsed.beacons).map(Number).sort((a,b) => a-b);
     for (const addr of addrs) {
         const n = parsed.beacons[addr].length;
+        if (!n) continue;
         const src = parsed.beacons[addr][0].source;
         addTab(tabs, 'beacon_' + addr, `📡 Beacon ${addr + 1} (${n}) [${src}]`);
     }
@@ -1300,10 +1459,15 @@ function addTab(container, id, label) {
 function updateTable() {
     const head = document.getElementById('previewHead');
     const body = document.getElementById('previewBody');
-    if (!parsed) { head.innerHTML = ''; body.innerHTML = '<tr><td style="text-align:center;color:var(--text-muted);padding:20px;">Загрузите лог</td></tr>'; return; }
+    if (!parsed) { head.innerHTML = ''; body.innerHTML = '<tr><td style="text-align:center;color:var(--text-muted);padding:20px;" data-i18n="tools.parser.loadLog">Загрузите лог</td></tr>'; return; }
+    if (!currentTab || (currentTab.startsWith('beacon_') && !model.beacons[currentTab.slice(7)]?.length)) {
+        head.innerHTML = '';
+        body.innerHTML = `<tr><td style="text-align:center;color:var(--text-muted);padding:20px;">${I18n.html('tools.parser.noRecords')}</td></tr>`;
+        return;
+    }
 
     if (currentTab === 'gnss') {
-		head.innerHTML = '<tr><th>#</th><th>time</th><th>lat</th><th>lon</th><th>x, м</th><th>y, м</th><th>alt</th><th>speedKn</th><th>courseDeg</th><th>valid</th><th>quality</th><th>sat</th></tr>';
+		head.innerHTML = '<tr><th>#</th><th>time</th><th>lat</th><th>lon</th><th data-i18n="tools.parser.xMeters">x, м</th><th data-i18n="tools.parser.yMeters">y, м</th><th>alt</th><th>speedKn</th><th>courseDeg</th><th>valid</th><th>quality</th><th>sat</th></tr>';
 		const rows = model.gnss.slice(0, 500).map((p, i) => `<tr>
 			<td>${i+1}</td><td>${p.time || ''}</td>
 			<td>${fmt(p.lat, 7)}</td><td>${fmt(p.lon, 7)}</td>
@@ -1312,7 +1476,7 @@ function updateTable() {
 			<td>${fmt(p.speedKn, 2)}</td><td>${fmt(p.courseDeg, 1)}</td>
 			<td>${p.valid ? '✓' : '✗'}</td><td>${p.quality ?? ''}</td><td>${p.satellites ?? ''}</td>
 		</tr>`).join('');
-		body.innerHTML = rows || '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:20px;">Нет данных GNSS</td></tr>';
+		body.innerHTML = rows || '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:20px;" data-i18n="tools.parser.noGNSS">Нет данных GNSS</td></tr>';
 		return;
 	}
 
@@ -1322,7 +1486,7 @@ function updateTable() {
         const src = recs[0]?.source;
 
 		if (src === 'AZMREM') {
-			head.innerHTML = '<tr><th>#</th><th>time</th><th>lat</th><th>lon</th><th>x, м</th><th>y, м</th><th>depth</th><th>sRange</th><th>azimuth</th><th>msr</th><th>pTime</th><th>elev</th><th>vcc</th><th>temp</th><th>msg</th></tr>';
+			head.innerHTML = '<tr><th>#</th><th>time</th><th>lat</th><th>lon</th><th data-i18n="tools.parser.xMeters">x, м</th><th data-i18n="tools.parser.yMeters">y, м</th><th>depth</th><th>sRange</th><th>azimuth</th><th>msr</th><th>pTime</th><th>elev</th><th>vcc</th><th>temp</th><th>msg</th></tr>';
 			body.innerHTML = recs.slice(0, 500).map((r, i) => `<tr>
 				<td>${i+1}</td><td>${r.time || ''}</td>
 				<td>${fmt(r.lat, 7)}</td><td>${fmt(r.lon, 7)}</td>
@@ -1331,7 +1495,7 @@ function updateTable() {
 				<td>${fmt(r.sRange, 2)}</td><td>${fmt(r.azimuth, 1)}</td><td>${fmt(r.msr, 1)}</td>
 				<td>${fmt(r.pTime, 4)}</td><td>${fmt(r.elevation, 1)}</td><td>${fmt(r.vcc, 2)}</td>
 				<td>${fmt(r.waterTemp, 1)}</td><td>${esc(r.message || '')}</td>
-			</tr>`).join('') || '<tr><td colspan="15" style="text-align:center;color:var(--text-muted);padding:20px;">Нет записей</td></tr>';
+			</tr>`).join('') || '<tr><td colspan="15" style="text-align:center;color:var(--text-muted);padding:20px;" data-i18n="tools.parser.noRecords">Нет записей</td></tr>';
 		} else if (src === 'PSIMSSB') {
 			head.innerHTML = '<tr><th>#</th><th>time</th><th>easting</th><th>northing</th><th>lat</th><th>lon</th><th>depth</th><th>valid</th></tr>';
 			body.innerHTML = recs.slice(0, 500).map((r, i) => `<tr>
@@ -1340,16 +1504,16 @@ function updateTable() {
 				<td>${fmt(r.lat, 7)}</td><td>${fmt(r.lon, 7)}</td>
 				<td>${fmt(r.depth, 2)}</td>
 				<td>${r.valid ? '✓' : '✗'}</td>
-			</tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;">Нет записей</td></tr>';
+			</tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px;" data-i18n="tools.parser.noRecords">Нет записей</td></tr>';
 		} else if (src === 'IUDP') {
-			head.innerHTML = '<tr><th>#</th><th>time</th><th>lat</th><th>lon</th><th>x, м</th><th>y, м</th><th>valid</th><th>speedKn</th><th>courseDeg</th></tr>';
+			head.innerHTML = '<tr><th>#</th><th>time</th><th>lat</th><th>lon</th><th data-i18n="tools.parser.xMeters">x, м</th><th data-i18n="tools.parser.yMeters">y, м</th><th>valid</th><th>speedKn</th><th>courseDeg</th></tr>';
 			body.innerHTML = recs.slice(0, 500).map((r, i) => `<tr>
 				<td>${i+1}</td><td>${r.time || ''}</td>
 				<td>${fmt(r.lat, 7)}</td><td>${fmt(r.lon, 7)}</td>
 				<td>${fmt(r.x, 1)}</td><td>${fmt(r.y, 1)}</td>
 				<td>${r.valid ? '✓' : '✗'}</td>
 				<td>${fmt(r.speedKn, 2)}</td><td>${fmt(r.courseDeg, 1)}</td>
-			</tr>`).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px;">Нет записей</td></tr>';
+			</tr>`).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px;" data-i18n="tools.parser.noRecords">Нет записей</td></tr>';
 		}
     }
 }
@@ -1368,7 +1532,8 @@ function esc(s) {
 function showStatus(msg, type) {
     const s = document.getElementById('status');
     s.className = 'status ' + type;
-    s.textContent = msg;
+    if (msg && typeof msg === 'object' && msg.key) I18n.bindText(s, msg.key, msg.params);
+            else { I18n.unbindText(s); s.textContent = msg; }
 }
 
 // ============================================================
@@ -1381,26 +1546,26 @@ function getCsvSep() {
 }
 
 function exportCSV() {
-    if (!model) { showStatus('❌ Нет данных', 'error'); return; }
+    if (!model) { showStatus(I18n.message('tools.error.noData'), 'error'); return; }
     const sep = getCsvSep();
     const csv = Exporter.buildCSV(model, sep);
     Exporter.downloadBlob(csv, 'text/csv;charset=utf-8', `zima2_export_${Exporter.getTimestamp()}.csv`);
-    showStatus('✅ CSV сохранён', 'success');
+    showStatus(I18n.message('tools.parser.csvSaved'), 'success');
 }
 
 function exportKML() {
-    if (!model) { showStatus('❌ Нет данных', 'error'); return; }
+    if (!model) { showStatus(I18n.message('tools.error.noData'), 'error'); return; }
     const kml = Exporter.buildKML(model);
     Exporter.downloadBlob(kml, 'application/vnd.google-earth.kml+xml', `zima2_tracks_${Exporter.getTimestamp()}.kml`);
-    showStatus('✅ KML сохранён', 'success');
+    showStatus(I18n.message('tools.parser.kmlSaved'), 'success');
 }
 
 function exportDXF() {
-    if (!model) { showStatus('❌ Нет данных', 'error'); return; }
+    if (!model) { showStatus(I18n.message('tools.error.noData'), 'error'); return; }
     const is3D = document.getElementById('dxfMode').value === '3d';
     const dxf = Exporter.buildDXF(model, is3D);
     Exporter.downloadBlob(dxf, 'application/octet-stream', `zima2_tracks_${Exporter.getTimestamp()}.dxf`);
-    showStatus(`✅ DXF сохранён (${is3D ? '3D' : '2D'})`, 'success');
+    showStatus(I18n.message('tools.parser.dxfSaved', { mode: is3D ? '3D' : '2D' }), 'success');
 }
 
 function resetRef() {
@@ -1479,20 +1644,12 @@ function applyUserOverrides() {
     });
 });
 
-// ============================================================
-// PWA (inline service worker)
-// ============================================================
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        const swCode = `
-            const C = 'zima2-parser-v1';
-            self.addEventListener('install', e => e.waitUntil(caches.open(C).then(c => c.addAll(['/']))));
-            self.addEventListener('fetch', e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))));
-        `;
-        const blob = new Blob([swCode], { type: 'application/javascript' });
-        navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(() => {});
-    });
-}
+window.addEventListener('languagechange', () => {
+    updateTable();
+    CanvasMap.draw(model);
+    I18n.apply(document.getElementById('previewTable'));
+});
+
 </script>
 </body>
 </html>

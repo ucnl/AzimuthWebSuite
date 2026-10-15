@@ -2,6 +2,12 @@
 // v3: с ускорением и пропуском пустого времени
 
 const Logger = (() => {
+	
+	function localized(key, fallback, params = {}) {
+        if (typeof I18n !== 'undefined') return I18n.t(key, params);
+        return fallback.replace(/\{(\w+)\}/g, (match, name) =>
+            Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match);
+    }
 
     // ========== СОСТОЯНИЕ ==========
     let entries = [];            // кольцевой буфер в памяти
@@ -67,7 +73,7 @@ const Logger = (() => {
 				const parsed = AZMParser.parse(e.data);
 				if (parsed && parsed.type === 'ndta' && parsed.status === 1) {
 					firstBeaconIndex = i;
-					console.log('[Logger] Найдена первая точка маяка (status=1) на индексе', firstBeaconIndex);
+					console.log(localized("app.log.diagnostic.firstBeacon", "[Logger] Найдена первая точка маяка (status=1) на индексе"), firstBeaconIndex);
 					break;
 				}
 			}
@@ -77,7 +83,7 @@ const Logger = (() => {
 			// Если нет точек маяка, стартуем с первой не-header записи
 			for (let i = 0; i < entries.length; i++) {
 				if (entries[i].type !== 'header') {
-					console.log('[Logger] Точек маяка нет, старт с индекса', i);
+					console.log(localized("app.log.diagnostic.noBeacon", "[Logger] Точек маяка нет, старт с индекса"), i);
 					return i;
 				}
 			}
@@ -93,7 +99,7 @@ const Logger = (() => {
 			startIndex++;
 		}
 		
-		console.log('[Logger] Старт с индекса', startIndex, '(отступ от точки маяка:', firstBeaconIndex - startIndex, 'записей)');
+		console.log(localized("app.log.diagnostic.indexOffset", "[Logger] Старт с индекса {index} (отступ от точки маяка: {offset} записей)", { index: startIndex, offset: firstBeaconIndex - startIndex }));
 		return startIndex;
 	}
 
@@ -179,7 +185,7 @@ const Logger = (() => {
                 const lines = await LogStorage.readAll();
                 if (lines.length > 0) return lines.join('\n');
             } catch (e) {
-                console.warn('[Logger] Ошибка чтения из IndexedDB:', e);
+                console.warn(localized("app.log.diagnostic.storageRead", "[Logger] Ошибка чтения из IndexedDB:"), e);
             }
         }
         return entries.map(e => e.formatted || e.text || '').join('\n');
@@ -190,7 +196,7 @@ const Logger = (() => {
         filename = filename || `zima2_log_${ts}.log`;
         const text = await exportLog();
         if (!text || text.length < 50) {
-            alert('Лог пуст или слишком короткий');
+            alert(localized("app.log.tooShort", "Лог пуст или слишком короткий"));
             return;
         }
         const blob = new Blob([text], { type: 'text/plain' });
@@ -322,13 +328,13 @@ const Logger = (() => {
 		// Поиск индекса первой точки маяка
 		if (skipToFirstData) {
 			playbackIndex = findFirstBeaconDataIndex();
-			console.log('[Logger] Старт с индекса (с пропуском):', playbackIndex);
+			console.log(localized("app.log.diagnostic.skipStart", "[Logger] Старт с индекса (с пропуском):"), playbackIndex);
 		} else {
 			playbackIndex = 0;
 			while (playbackIndex < entries.length && entries[playbackIndex].type === 'header') {
 				playbackIndex++;
 			}
-			console.log('[Logger] Старт с индекса (без пропуска):', playbackIndex);
+			console.log(localized("app.log.diagnostic.start", "[Logger] Старт с индекса (без пропуска):"), playbackIndex);
 		}
 		
 		isPlaying = true;

@@ -75,39 +75,39 @@ const UIAntennaCalibration = (() => {
 		
 		if (elStatus) {
 			if (isCollecting) {
-				elStatus.textContent = `⚡ Накопление... Собрано точек: ${state.pointCount}`;
+				I18n.bindText(elStatus, 'module.antennaCalibration.collecting', { count: state.pointCount });
 				elStatus.style.color = statusSuccess;
 			} else {
-				elStatus.textContent = `Собрано точек: ${state.pointCount}`;
+				I18n.bindText(elStatus, 'module.antennaCalibration.count', { count: state.pointCount });
 				elStatus.style.color = textPrimary;
 			}
 		}
 		
 		if (elProgress) {
 			if (state.hasTable) {
-				elProgress.textContent = `Секторов: ${state.usedSectors}/${state.totalSectors} (${(state.coverage * 100).toFixed(1)}%)`;
+				I18n.bindText(elProgress, 'module.antennaCalibration.sectors', { used: state.usedSectors, total: state.totalSectors, coverage: (state.coverage * 100).toFixed(1) });
 				elProgress.style.color = state.coverage > 0.8 ? statusSuccess : statusWarning;
 			} else {
-				elProgress.textContent = 'Таблица не построена';
+				I18n.bindText(elProgress, 'module.antennaCalibration.noTable');
 				elProgress.style.color = textSecondary;
 			}
 		}
 		
 		if (elCentroid) {
 			if (state.hasCentroid) {
-				elCentroid.textContent = `Центроида: ${state.centroidLat.toFixed(6)}°, ${state.centroidLon.toFixed(6)}°`;
+				I18n.bindText(elCentroid, 'module.antennaCalibration.centroid', { lat: state.centroidLat.toFixed(6), lon: state.centroidLon.toFixed(6) });
 				elCentroid.style.color = statusSuccess;
 			} else {
-				elCentroid.textContent = 'Центроида: недостаточно данных';
+				I18n.bindText(elCentroid, 'module.antennaCalibration.noCentroid');
 				elCentroid.style.color = statusWarning;
 			}
 		}
 		
 		if (elCoverage) {
 			if (state.hasTable) {
-				elCoverage.textContent = `Покрытие: ${(state.coverage * 100).toFixed(1)}%`;
+				I18n.bindText(elCoverage, 'module.antennaCalibration.coverage', { coverage: (state.coverage * 100).toFixed(1) });
 			} else {
-				elCoverage.textContent = 'Покрытие: --';
+				I18n.bindText(elCoverage, 'module.antennaCalibration.noCoverage');
 			}
 		}
 		
@@ -123,13 +123,13 @@ const UIAntennaCalibration = (() => {
         AntennaTableCalibration.reset();
         isCollecting = true;
         updateUI();
-        deps.setStatus?.('📡 Калибровка антенны: накопление точек...');
+        deps.setStatus?.(I18n.message('module.antennaCalibration.started'));
     }
 
     function stopCalibration() {
         isCollecting = false;
         updateUI();
-        deps.setStatus?.('Накопление остановлено. ' + AntennaTableCalibration.getCount() + ' точек собрано');
+        deps.setStatus?.(I18n.message('module.antennaCalibration.stopped', { count: AntennaTableCalibration.getCount() }));
     }
 
 	function buildTable() {
@@ -138,38 +138,38 @@ const UIAntennaCalibration = (() => {
 		const result = AntennaTableCalibration.buildTable(stepDeg);  // ← убрать smoothWin
 		
 		if (result.encoderAngles.length === 0) {
-			alert('Не удалось построить таблицу. Недостаточно данных.');
+			alert(I18n.t('module.antennaCalibration.buildFailed'));
 			return;
 		}
 		
 		updateUI();
-		deps.setStatus?.(`✅ Таблица построена: ${result.usedSectors} секторов, покрытие ${(result.coverage * 100).toFixed(1)}%`);
+		deps.setStatus?.(I18n.message('module.antennaCalibration.built', { used: result.usedSectors, coverage: (result.coverage * 100).toFixed(1) }));
 	}
 
-    function applyTable() {
+	function applyTable() {
         const success = AntennaTableCalibration.applyToManager();
         if (success) {
-            deps.setStatus?.('✅ Калибровочная таблица применена');
-            alert('Таблица загружена в AntennaCorrector');
+            deps.setStatus?.(I18n.message('module.antennaCalibration.applied'));
+            alert(I18n.t('module.antennaCalibration.loaded'));
         } else {
-            alert('Нет таблицы для применения');
+            alert(I18n.t('module.antennaCalibration.noApply'));
         }
     }
 
     function downloadTable() {
         AntennaTableCalibration.downloadCSV();
-        deps.setStatus?.('💾 Таблица скачана');
+        deps.setStatus?.(I18n.message('module.antennaCalibration.downloaded'));
     }
 
 	function downloadFullData() {
 		AntennaTableCalibration.downloadFullData();
-		deps.setStatus?.('💾 Полные данные скачаны');
+		deps.setStatus?.(I18n.message('module.antennaCalibration.fullDownloaded'));
 	}
 
     function toggleAntennaCalibration() {
         // Просто открываем панель — пользователь сам запустит накопление и воспроизведение
         if (!isOpen) open();
-        deps.setStatus?.('Нажмите ▶ Старт, затем ▶ Воспроизвести лог');
+        deps.setStatus?.(I18n.message('module.antennaCalibration.instructions'));
     }
 
     return {

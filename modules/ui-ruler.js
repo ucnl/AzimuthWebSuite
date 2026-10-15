@@ -55,7 +55,7 @@ const UIRuler = (() => {
         }
         updateButton();
         if (setStatusCallback) {
-            setStatusCallback(rulerActive ? '📏 Линейка: кликните для первой точки' : '📏 Линейка выключена');
+            setStatusCallback(rulerActive ? I18n.message('module.ruler.first') : I18n.message('module.ruler.off'));
         }
     }
     
@@ -67,7 +67,7 @@ const UIRuler = (() => {
         const btn = document.getElementById('btn-ruler');
         if (btn) {
             btn.classList.toggle('active', rulerActive);
-            btn.textContent = rulerActive ? '📏 Отмена' : '📏 Линейка';
+            I18n.bindText(btn, rulerActive ? 'module.ruler.cancel' : 'module.ruler.button');
         }
     }
     
@@ -85,7 +85,7 @@ const UIRuler = (() => {
         if (rulerWorldPoints.length >= 2) {
             rulerWorldPoints = [worldPoint];
             rulerDistanceM = 0;
-            if (setStatusCallback) setStatusCallback('📏 Линейка: выберите вторую точку');
+             if (setStatusCallback) setStatusCallback(I18n.message('module.ruler.second'));
             if (drawCallback) drawCallback();
             return;
         }
@@ -93,7 +93,7 @@ const UIRuler = (() => {
         rulerWorldPoints.push(worldPoint);
         
         if (rulerWorldPoints.length === 1) {
-            if (setStatusCallback) setStatusCallback('📏 Линейка: кликните для второй точки');
+            if (setStatusCallback) setStatusCallback(I18n.message('module.ruler.clickSecond'));
             if (drawCallback) drawCallback();
         } else if (rulerWorldPoints.length === 2) {
             const p1 = rulerWorldPoints[0];
@@ -101,7 +101,7 @@ const UIRuler = (() => {
             const dx = p2.x - p1.x;
             const dy = p2.y - p1.y;
             rulerDistanceM = Math.sqrt(dx * dx + dy * dy);
-            if (setStatusCallback) setStatusCallback(`📏 Линейка: расстояние ${rulerDistanceM.toFixed(1)} м. Кликните для новой линии`);
+            if (setStatusCallback) setStatusCallback(I18n.message('module.ruler.distance', { distance: rulerDistanceM.toFixed(1) }));
             if (drawCallback) drawCallback();
         }
     }

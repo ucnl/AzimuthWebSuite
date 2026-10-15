@@ -60,7 +60,7 @@ const App = (() => {
 		let newSpeed = PLAYBACK_SPEEDS[newIdx];
 		Logger.setPlaybackSpeed(newSpeed);
 		updateSpeedUI();
-		setStatus(`Скорость воспроизведения: ${newSpeed}x`);
+		setStatus(I18n.message("app.playback.speed", { speed: newSpeed }));
 	}
 
 	function decreasePlaybackSpeed() {
@@ -70,11 +70,13 @@ const App = (() => {
 		let newSpeed = PLAYBACK_SPEEDS[newIdx];
 		Logger.setPlaybackSpeed(newSpeed);
 		updateSpeedUI();
-		setStatus(`Скорость воспроизведения: ${newSpeed}x`);
+		setStatus(I18n.message("app.playback.speed", { speed: newSpeed }));
 	}	
 	
 	let analysisPanel, analysisContent;
 	let lastAnalysisText = '';
+	let analysisSnapshot = null;
+	let devicePresentation = null;
 
 	let gnssBridge = null;
 	let isGnssConnected = false;
@@ -112,17 +114,18 @@ const App = (() => {
 		const entries = Logger.getEntries();
 	
 		if (entries.length === 0) {
-			alert('Нет данных для анализа. Загрузите лог.');
+			alert(I18n.t("app.analysis.empty"));
 			return;
 		}
 
 		const report = LogAnalyzer.analyze(entries);
+        analysisSnapshot = { type: 'log', report };
 		lastAnalysisText = LogAnalyzer.formatReport(report);
 		analysisContent.innerHTML = lastAnalysisText;
 		
 		// Заголовок
 		const title = document.getElementById('analysis-title');
-		if (title) title.textContent = '🔍 Анализ лога';
+		if (title) I18n.bindText(title, "app.analysis.title");
 		
 		// Кнопка скачивания DRMS не нужна
 		const downloadBtn = document.getElementById('analysis-download-btn');
@@ -133,6 +136,7 @@ const App = (() => {
 
 	function closeAnalysis() {
 		analysisPanel.style.display = 'none';
+        analysisSnapshot = null;
 		// Очищаем глобальные данные DRMS при закрытии
 		window._drmsCSV = null;
 	}
@@ -140,9 +144,9 @@ const App = (() => {
 	function copyAnalysis() {
 		const text = analysisContent.innerText;
 		navigator.clipboard.writeText(text).then(() => {
-			setStatus('Отчёт скопирован');
+			setStatus(I18n.message("app.analysis.copied"));
 		}).catch(() => {
-			alert('Не удалось скопировать');
+			alert(I18n.t("app.analysis.copyFailed"));
 		});
 	}
 	
@@ -152,7 +156,7 @@ const App = (() => {
 		const trackAddresses = Object.keys(allTracks);
 		
 		if (trackAddresses.length === 0) {
-			alert('Нет треков для расчёта. Сначала накопите треки маяков.');
+			alert(I18n.t("app.drms.noTracksHint"));
 			return;
 		}
 		
@@ -161,12 +165,12 @@ const App = (() => {
 		
 		// Меняем заголовок
 		const title = document.getElementById('analysis-title');
-		if (title) title.textContent = '🔧 Калибровка φ (по известной точке)';
+		if (title) I18n.bindText(title, "app.phi.title");
 	}
 
 	function cycleTheme() {
 		const themeName = Themes.cycleTheme();
-		setStatus('Тема: ' + themeName);
+		setStatus(I18n.message("app.theme.changed", { name: themeName }));
 	}
 	
     function sleep(ms) {
@@ -174,16 +178,77 @@ const App = (() => {
     }
 
     function setStatus(msg) {
-        if (statusText) statusText.textContent = msg;
-        console.log('[App]', msg);
+        const descriptor = msg && typeof msg === 'object' && typeof msg.key === 'string'
+            ? msg : I18n.message('app.rawStatus', { message: String(msg ?? '') });
+        if (statusText) I18n.bindText(statusText, descriptor.key, descriptor.params);
+        console.log('[App]', I18n.t(descriptor.key, descriptor.params));
     }
 	
+	
+	function errorDetails(error) { return error && error.message ? error.message : String(error ?? ''); }
+
+    function readStoredObject(key) {
+        try {
+            const data = JSON.parse(localStorage.getItem(key) || '{}');
+            return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+        } catch (e) { return {}; }
+    }
+
+    function renderDeviceLabel() {
+        if (!deviceLabel || !devicePresentation) return;
+        const info = devicePresentation;
+        const typeNames = { 0: 'USBL', 1: I18n.t('app.device.transponder'), 2: 'LBL' };
+        let label = `Zima2 ${typeNames[info.deviceType] || ''}`.trim();
+        if (info.serialNumber) label += ` [${info.serialNumber}]`;
+        deviceLabel.textContent = label;
+        if (info.deviceType === 1) {
+            const userAddr = remoteCurrentAddr !== RemoteAddr.REM_ADDR_INVALID ? remoteCurrentAddr + 1 : '?';
+            deviceLabel.appendChild(document.createTextNode(' ' + I18n.t('app.device.address', { address: userAddr }) + ' '));
+            const control = document.createElement('span');
+            control.textContent = '⚙';
+            control.onclick = toggleRemoteConfig;
+            control.style.cssText = 'cursor:pointer; margin-left:4px; font-size:14px;';
+            control.setAttribute('data-i18n-title', 'app.device.configureAddress');
+            deviceLabel.appendChild(control);
+            I18n.apply(control);
+        }
+    }
+
+    function renderAnalysisSnapshot() {
+        if (!analysisSnapshot || !analysisContent || !analysisPanel || analysisPanel.style.display === 'none') return;
+        if (analysisSnapshot.type === 'log') {
+            lastAnalysisText = LogAnalyzer.formatReport(analysisSnapshot.report);
+            analysisContent.innerHTML = lastAnalysisText;
+        } else {
+            const pre = document.createElement('pre');
+            pre.style.cssText = 'font-size:12px; line-height:1.6;';
+            pre.textContent = analysisSnapshot.lines.map(item => I18n.t(item.key, item.params)).join('');
+            analysisContent.replaceChildren(pre);
+        }
+        const select = document.getElementById('drms-phi-beacon');
+        if (select) Array.from(select.options).forEach(option => {
+            option.textContent = I18n.t('app.beacon.name', { address: parseInt(option.value) + 1 });
+        });
+    }
+
+    function refreshLanguagePresentation() {
+        if (!canvas) return;
+        renderDeviceLabel();
+        updateAntennaInfoUI();
+        updateBeaconsBar();
+        const panel = document.getElementById('reference-panel');
+        if (panel && panel.style.display === 'block') refreshReferencePanel();
+        renderAnalysisSnapshot();
+    }
+    window.addEventListener('languagechange', refreshLanguagePresentation);
+	
+		
     // ========== ИНИЦИАЛИЗАЦИЯ ==========
-	 function init() {
+	function init() {
 		document.getElementById('app-version').textContent = `${APP_VERSION}`;
 		
-		LogStorage.open().catch(e => console.warn('IndexedDB недоступна:', e));
-		console.log('[App] Инициализация...');
+		LogStorage.open().catch(e => console.warn(I18n.t("app.diagnostic.storageUnavailable"), e));
+		console.log(I18n.t("app.diagnostic.initializing"));
 
 		canvas = document.getElementById('map-canvas');
 		ctx = canvas.getContext('2d');
@@ -213,7 +278,7 @@ const App = (() => {
 		remoteConfigPanel = document.getElementById('remote-config-panel');
 
 		if (!canvas || !ctx) {
-			console.error('[App] Canvas не найден!');
+			console.error(I18n.t("app.diagnostic.noCanvas"));
 			return;
 		}
 
@@ -244,7 +309,7 @@ const App = (() => {
 				} else {
 					UICanvas.centerOnWorldPoint(0, 0);
 				}
-				setStatus('Слежение за антенной');
+				setStatus(I18n.message("app.follow.antenna"));
 			});
 		}
 		
@@ -368,7 +433,7 @@ const App = (() => {
 				// Открываем панель опорных маяков при выборе режима ⚓
 				if (mode === 'beacon_referenced') {
 					setTimeout(() => App.toggleReferencePanel(), 300);
-					setStatus('Режим опорных маяков. Нажмите 🧭 в панели ⚓, чтобы задать курс, и добавьте опорный маяк.');
+					setStatus(I18n.message("app.reference.modeHint"));
 				}
 								
 				// Если нужно ввести топопривязку — открываем панель
@@ -398,7 +463,7 @@ const App = (() => {
 		if (btnSpeedDown) btnSpeedDown.onclick = () => decreasePlaybackSpeed();
 		if (btnSpeedUp) btnSpeedUp.onclick = () => increasePlaybackSpeed();
 
-		console.log('[App] Инициализация завершена');
+		console.log(I18n.t("app.diagnostic.initialized"));
 	}
 
     // ========== ТАЙМЕР СТАРЕНИЯ ==========
@@ -469,7 +534,7 @@ const App = (() => {
     }
 
 	async function disconnectSerial() {
-		setStatus('Отключение...');		
+		setStatus(I18n.message("app.connection.disconnecting"));
 
 		// Останавливаем запись
 		Logger.stopRecording();
@@ -486,14 +551,14 @@ const App = (() => {
 					await sleep(200);
 				}
 			} catch (e) {
-				console.warn('[App] Ошибка при отправке stop:', e.message);
+				console.warn(I18n.t("app.diagnostic.closeError"), e.message);
 				Logger.logError('Stop on disconnect failed: ' + e.message);
 			}
 			// close() всегда, даже если send упал.
 			try {
 				await b.close();
 			} catch (e) {
-				console.warn('[App] Ошибка при закрытии порта:', e.message);
+				console.warn(I18n.t("app.diagnostic.closeError"), e.message);
 			}
 		}
 
@@ -503,7 +568,7 @@ const App = (() => {
 		// Предложить сохранить лог
 		const count = Logger.getEntryCount();
 		if (count > 10) {
-			if (confirm(`Сессия завершена. ${count} записей в логе.\nСохранить лог?`)) {
+			if (confirm(I18n.t("app.log.saveSession", { count }))) {
 				await Logger.downloadLog();
 			}
 		}
@@ -546,36 +611,35 @@ const App = (() => {
 		if (info.deviceType === 1) {
 			isRemoteDevice = true;
 			remoteCurrentAddr = info.remoteAddress; // 0-based
-			const userAddr = remoteCurrentAddr !== RemoteAddr.REM_ADDR_INVALID ? remoteCurrentAddr + 1 : '?';
-			deviceLabel.innerHTML = `${label} (адрес ${userAddr}) <span onclick="App.toggleRemoteConfig()" style="cursor:pointer; margin-left:4px; font-size:14px;" title="Настроить адрес">⚙</span>`;
-			setStatus('Маяк подключен');
+			renderDeviceLabel();
+			setStatus(I18n.message("app.connection.beaconConnected"));
 			return; // не запускаем опрос для маяка
 		}
 		
 		isRemoteDevice = false;
 		deviceLabel.textContent = label;
 		
-		setStatus('Устройство обнаружено. Запуск опроса...');
+		setStatus(I18n.message("app.connection.deviceDetected"));
 		loadSettings();
 
 		if (serialBridge && isConnected) {
 			const cmd = AZMManager.getStartCommand();
 			Logger.logOutgoing('AZM', cmd.trim());
 			serialBridge.send(cmd).catch(e => {
-				console.error('[App] Ошибка автостарта опроса:', e);
+				console.error('[App] Ошибка автостарта опроса:', e); // WARNING!!!
 				Logger.logError('Autostart failed: ' + e.message);
 			});
-			console.log('[Serial] → автостарт опроса');
+			console.log(I18n.t("app.diagnostic.autoInterrogation"));
 		}
 	}
 
     function handleSTRSTP(data) {
         const isActive = data.addrMask !== 0;
         if (isActive) {
-            setStatus('Опрос активен');
+            setStatus(I18n.message("app.interrogation.active"));
             connectionIndicator.className = 'connected active';
         } else {
-            setStatus('Опрос остановлен');
+            setStatus(I18n.message("app.interrogation.stopped"));
             connectionIndicator.className = 'connected';            
         }
 		
@@ -591,12 +655,12 @@ const App = (() => {
 			if (el) el.textContent = remoteCurrentAddr + 1; // 1-based для отображения
 		}
 		if (statusEl) {
-			statusEl.textContent = `✓ Адрес изменён на ${data.remoteAddr + 1}`;
+			I18n.bindText(statusEl, "app.remote.addressChanged", { address: data.remoteAddr + 1 });
 			const rootStyles = getComputedStyle(document.documentElement);
 			const statusSuccess = rootStyles.getPropertyValue('--status-success').trim() || '#4caf50';
 			statusEl.style.color = statusSuccess;
 		}
-		setStatus(`Маяк: адрес изменён на ${data.remoteAddr + 1}`);
+		setStatus(I18n.message("app.remote.changed", { address: data.remoteAddr + 1 }));
 	}
 
 	function handleACK(data) {
@@ -606,10 +670,10 @@ const App = (() => {
 			const rootStyles = getComputedStyle(document.documentElement);
 			
 			if (data.result === 0) {
-				statusEl.textContent = '✓ Команда принята';
+				I18n.bindText(statusEl, "app.remote.accepted");
 				statusEl.style.color = rootStyles.getPropertyValue('--status-success').trim() || '#4caf50';
 			} else {
-				statusEl.textContent = `✗ Ошибка: код ${data.result}`;
+				I18n.bindText(statusEl, "app.remote.codeError", { code: data.result });
 				statusEl.style.color = rootStyles.getPropertyValue('--status-error').trim() || '#dc3545';
 			}
 		}
@@ -799,13 +863,13 @@ const App = (() => {
 	}
 
 	function onSerialError(error) {
-		console.error('[App] Ошибка порта:', error);
+		console.error(I18n.t("app.diagnostic.portError"), error);
 		Logger.logError(error.message);
-		setStatus('Ошибка порта: ' + error.message);
+		setStatus(I18n.message("app.connection.portError", { error: errorDetails(error) }));
 	}
 
 	function onSerialClose() {
-        console.log('[App] Соединение закрыто');
+        console.log(I18n.t("app.diagnostic.closed"));
         isConnected = false;
         // Если _readLoop сам вызвал close(), serialBridge уже освободил ресурсы.
         // Здесь только обнуляем ссылку.
@@ -817,9 +881,10 @@ const App = (() => {
         }
 
         connectionIndicator.className = '';
-        setStatus('Не подключено');
+        setStatus(I18n.message("app.connection.disconnected"));
         isRemoteDevice = false;
 		remoteCurrentAddr = null;
+		devicePresentation = null;
 		deviceLabel.textContent = 'Zima2 USBL';
 
         AZMManager.reset();
@@ -828,6 +893,7 @@ const App = (() => {
 	
 	
 	async function connectGNSS() {
+		
 		if (gnssBridge) {
 			try { await gnssBridge.close(); } catch (e) {}
 			gnssBridge = null;
@@ -837,12 +903,12 @@ const App = (() => {
 		hasTrueHeading = false;
 
 		try {
-			setStatus('Подключение GNSS...');			
+			setStatus(I18n.message("app.gnss.connecting"));		
 
 			gnssBridge = new SerialBridge();
 			gnssBridge.onMessage = onGnssMessage;
 			gnssBridge.onError = (e) => {
-				console.error('[GNSS] Ошибка:', e.message);
+				console.error(I18n.t("app.diagnostic.gnssError"), e.message);
 				Logger.logError('GNSS: ' + e.message);				
 			};
 			gnssBridge.onClose = () => {
@@ -854,16 +920,17 @@ const App = (() => {
 
 			const saved = safeGetItem('zima2_settings');
 			const gnssBaud = saved ? (JSON.parse(saved).gnssBaudrate || 38400) : 38400;
+			hasTrueHeading = false;
 			await gnssBridge.open(gnssBaud);
 
 			isGnssConnected = true;
 			UITopo.setGnssConnected(true);
 			updateAllButtons();
 			Logger.logInfo('GNSS connected at ' + gnssBaud);
-			setStatus('GNSS подключен (' + gnssBaud + ')');
+			setStatus(I18n.message("app.gnss.connected", { baud: gnssBaud }));
 		} catch (e) {
 			Logger.logError('GNSS: ' + e.message);
-			setStatus('Ошибка GNSS: ' + e.message);
+			setStatus(I18n.message("app.gnss.error", { error: errorDetails(e) }));
 			updateAllButtons();
 		}
 	}
@@ -914,7 +981,7 @@ const App = (() => {
 			
 			if (UITopo.isOpen()) {
 				UITopo.updateFieldsFromGNSS(data.latitude, data.longitude, data.heading);
-				document.getElementById('topo-gnss-status').textContent = '✓ Внешний GNSS';
+				I18n.bindText(document.getElementById('topo-gnss-status'), "app.gnss.external");
 				document.getElementById('topo-gnss-status').className = 'locked';
 			}
 		} else if (data.type === 'hdt' && !isNaN(data.heading)) {
@@ -963,7 +1030,7 @@ const App = (() => {
 	// ========== КАЛИБРОВКА ==========
 	function toggleCalibration() { UICalibration.toggle(); }
 	function startCalibration() { UICalibration.start(); }
-	function stopCalibration() { UICalibration.stop(); }
+	function stopCalibration() { return UICalibration.stop(); }
 	function loadCalibrationFile() { UICalibration.loadCalibrationFile(); }
 	function resetCalibration() { UICalibration.resetCalibration(); }
 	
@@ -971,36 +1038,28 @@ const App = (() => {
     // ========== УПРАВЛЕНИЕ ОПРОСОМ ==========
     async function startInterrogation() {
         if (!serialBridge || !isConnected) {
-            setStatus('Нет подключения');
+            setStatus(I18n.message("app.connection.none"));
             return;
         }
         const cmd = AZMManager.getStartCommand();
         Logger.logOutgoing('AZM', cmd.trim());
         try {
             await serialBridge.send(cmd);
-            console.log('[Serial] → старт опроса');
-        } catch (e) {
-            console.error('[App] Ошибка старта опроса:', e);
-            Logger.logError('Start interrogation failed: ' + e.message);
-            setStatus('Ошибка отправки команды старта');
-        }
+            console.log(I18n.t("app.diagnostic.startInterrogation"));
+        } catch (error) { onSerialError(error); }
     }
 
     async function stopInterrogation() {
         if (!serialBridge || !isConnected) {
-            setStatus('Нет подключения');
+            setStatus(I18n.message("app.connection.none"));
             return;
         }
         const cmd = AZMManager.getStopCommand();
         Logger.logOutgoing('AZM', cmd.trim());
         try {
             await serialBridge.send(cmd);
-            console.log('[Serial] → стоп опроса');
-        } catch (e) {
-            console.error('[App] Ошибка стопа опроса:', e);
-            Logger.logError('Stop interrogation failed: ' + e.message);
-            setStatus('Ошибка отправки команды стопа');
-        }
+            console.log(I18n.t("app.diagnostic.stopInterrogation"));
+        } catch (error) { onSerialError(error); }
     }
 
     // ========== ТОПОПРИВЯЗКА ==========
@@ -1028,7 +1087,7 @@ const App = (() => {
 		// --- Список опорных ---
 		const listEl = document.getElementById('ref-list');
 		if (refAddrs.length === 0) {
-			listEl.innerHTML = '<div style="text-align:center; color:var(--text-secondary); font-size:11px; padding:8px; background:var(--bg-input); border-radius:4px;">Нет опорных маяков</div>';
+			listEl.innerHTML = `<div style="text-align:center; color:var(--text-secondary); font-size:11px; padding:8px; background:var(--bg-input); border-radius:4px;">${I18n.html('app.reference.none')}</div>`;
 		} else {
 			listEl.innerHTML = refAddrs.map(addr => {
 				const r = refs[addr];
@@ -1036,25 +1095,23 @@ const App = (() => {
 				return `
 					<div style="display:flex; justify-content:space-between; align-items:center; padding:8px; background:var(--bg-input); border-radius:4px; margin-bottom:4px; font-size:11px;">
 						<div style="flex:1;">
-							<b style="color:var(--border-accent);">Маяк #${userAddr}</b><br>
+							<b style="color:var(--border-accent);">${I18n.html("app.beacon.name", { address: userAddr })}</b><br>
 							<span style="color:var(--text-secondary);">${r.lat.toFixed(6)}, ${r.lon.toFixed(6)}</span><br>
-							<span style="color:var(--text-secondary);">Глубина: ${r.depth.toFixed(1)} м</span>
+							<span style="color:var(--text-secondary);">${I18n.html("app.reference.depth", { depth: r.depth.toFixed(1) })}</span>
 						</div>
 						<button onclick="App.removeReferenceBeacon(${addr})" 
 								style="background:var(--btn-disconnect); color:white; border:none; border-radius:4px; padding:4px 8px; cursor:pointer; font-size:14px;"
-								title="Убрать опорный">✕</button>
+								title="${I18n.html("app.reference.remove")}">✕</button>
 					</div>
 				`;
 			}).join('');
 		}
 		
-		
-		
-		
 		// --- Dropdown адресов из маски ---
 		const st = AZMManager.getState();
 		const mask = st.addressMask || 0;
 		const addrSelect = document.getElementById('ref-addr');
+        const selectedAddress = addrSelect.value;
 		
 		// Собираем список адресов из маски (0..15)
 		const allAddrs = [];
@@ -1065,7 +1122,7 @@ const App = (() => {
 		}
 		
 		if (allAddrs.length === 0) {
-			addrSelect.innerHTML = '<option value="">— маска адресов пуста —</option>';
+			addrSelect.innerHTML = `<option value="">${I18n.html('app.reference.emptyMask')}</option>`;
 			addrSelect.disabled = true;
 		} else {
 			addrSelect.disabled = false;
@@ -1079,35 +1136,38 @@ const App = (() => {
 				const isRef = refs[addr] !== undefined;
 				const isMeasured = measuredAddrs.has(addr);
 				const suffix = isRef 
-					? ' (уже опорный)' 
-					: (isMeasured ? '' : ' (нет данных)');
+					? I18n.html('app.reference.already')
+					: (isMeasured ? '' : I18n.html('app.reference.noData'));
 				const disabled = isRef ? 'disabled' : '';
-				return `<option value="${addr}" ${disabled}>Маяк #${userAddr}${suffix}</option>`;
+				return `<option value="${addr}" ${disabled}>${I18n.html("app.beacon.name", { address: userAddr })}${suffix}</option>`;
 			}).join('');
 		}
 		
 		
 		
 		
+        if (Array.from(addrSelect.options).some(option => option.value === selectedAddress && !option.disabled)) {
+            addrSelect.value = selectedAddress;
+        }
 		// --- Статус режима ---		
 		const isRefMode = st.antennaMode === 'beacon_referenced';
 		const statusEl = document.getElementById('ref-status');
 		const toggleBtn = document.getElementById('ref-btn-toggle');
 		
 		if (isRefMode) {
-			statusEl.innerHTML = `✅ Режим активен (${refAddrs.length} опорных)`;
+			I18n.bindText(statusEl, "app.reference.active", { count: refAddrs.length });
 			statusEl.style.color = 'var(--status-success)';
-			toggleBtn.textContent = '⏸ Деактивировать';
+			I18n.bindText(toggleBtn, "app.reference.deactivate");
 			toggleBtn.className = 'panel-btn panel-btn-close';
 		} else {
 			if (refAddrs.length > 0) {
-				statusEl.innerHTML = `⚪ Готов к активации (${refAddrs.length} опорных)`;
+				I18n.bindText(statusEl, "app.reference.ready", { count: refAddrs.length });
 				statusEl.style.color = 'var(--text-secondary)';
 			} else {
-				statusEl.innerHTML = '⚪ Режим не активирован';
+				I18n.bindText(statusEl, "app.reference.inactive");
 				statusEl.style.color = 'var(--text-secondary)';
 			}
-			toggleBtn.textContent = '▶ Активировать';
+			I18n.bindText(toggleBtn, "app.reference.activate");
 			toggleBtn.className = 'panel-btn panel-btn-apply';
 		}
 		
@@ -1123,18 +1183,18 @@ const App = (() => {
 				
 				// Разброс показываем только при 2+ источниках
 				const spreadLine = shipPos.count >= 2
-					? `📊 Источников: ${shipPos.count}, разброс: ${shipPos.spread.toFixed(1)} м<br>`
-					: `📊 Источников: ${shipPos.count}<br>`;
+					? `${I18n.html("app.reference.sourcesSpread", { count: shipPos.count, spread: shipPos.spread.toFixed(1) })}<br>`
+					: `${I18n.html("app.reference.sources", { count: shipPos.count })}<br>`;
 				
 				stateEl.innerHTML = `
-					📍 <b>Позиция судна:</b> ${shipPos.lat.toFixed(6)}, ${shipPos.lon.toFixed(6)}<br>
+					📍 <b>${I18n.html("app.reference.shipPosition")}</b> ${shipPos.lat.toFixed(6)}, ${shipPos.lon.toFixed(6)}<br>
 					${spreadLine}
-					⏱ Возраст: ${age} с
+					${I18n.html("app.reference.age", { age })}
 				`;
 			} else if (refAddrs.length > 0) {
-				stateEl.innerHTML = '⏳ Ожидание данных от опорных маяков...<br><small style="color:var(--text-muted);">Убедитесь, что маяки опрашиваются (кнопка ▶ Опрос) и попадают в маску.</small>';
+				stateEl.innerHTML = `${I18n.html('app.reference.waiting')}<br><small style="color:var(--text-muted);">${I18n.html('app.reference.waitingHint')}</small>`;
 			} else {
-				stateEl.innerHTML = '⚠ Добавьте хотя бы один опорный маяк.';
+				stateEl.textContent = I18n.t('app.reference.addRequired');
 			}
 		} else {
 			stateEl.innerHTML = '';
@@ -1147,10 +1207,10 @@ const App = (() => {
 		const lon = parseFloat(document.getElementById('ref-lon').value);
 		const depth = parseFloat(document.getElementById('ref-depth').value);
 		
-		if (isNaN(addr)) { alert('Выберите маяк'); return; }
-		if (isNaN(lat) || isNaN(lon)) { alert('Введите корректные координаты'); return; }
-		if (lat < -90 || lat > 90) { alert('Широта должна быть от -90 до 90'); return; }
-		if (lon < -180 || lon > 180) { alert('Долгота должна быть от -180 до 180'); return; }
+		if (isNaN(addr)) { alert(I18n.t("app.reference.selectBeacon")); return; }
+		if (isNaN(lat) || isNaN(lon)) { alert(I18n.t("app.reference.invalidCoordinates")); return; }
+		if (lat < -90 || lat > 90) { alert(I18n.t("app.reference.latitudeRange")); return; }
+		if (lon < -180 || lon > 180) { alert(I18n.t("app.reference.longitudeRange")); return; }
 		
 		AZMManager.setReferenceBeacon(addr, lat, lon, isNaN(depth) ? 0 : depth);
 		
@@ -1171,14 +1231,14 @@ const App = (() => {
 		
 		saveSettings();
 		refreshReferencePanel();
-		setStatus(`Опорный маяк #${addr + 1} добавлен`);
+		setStatus(I18n.message("app.reference.added", { address: addr + 1 }));
 	}
 
 	function removeReferenceBeacon(addr) {
 		AZMManager.removeReferenceBeacon(addr);
 		saveSettings();
 		refreshReferencePanel();
-		setStatus(`Опорный маяк #${addr + 1} удалён`);
+		setStatus(I18n.message("app.reference.removed", { address: addr + 1 }));
 	}
 
 	function toggleReferenceMode() {
@@ -1189,10 +1249,10 @@ const App = (() => {
 		
 		if (isRefMode) {
 			AZMManager.setAntennaMode('geographic');
-			setStatus('Режим опорных маяков деактивирован');
+			setStatus(I18n.message("app.reference.deactivated"));
 		} else {
 			if (refAddrs.length === 0) {
-				alert('Сначала добавьте хотя бы один опорный маяк');
+				alert(I18n.t("app.reference.addFirst"));
 				return;
 			}
 			
@@ -1205,7 +1265,7 @@ const App = (() => {
 			}
 			
 			AZMManager.setAntennaMode('beacon_referenced');
-			setStatus('Режим опорных маяков активирован');
+			setStatus(I18n.message("app.reference.activated"));
 		}
 		
 		saveSettings();
@@ -1234,7 +1294,7 @@ const App = (() => {
 			const icon = document.createElement('span');
 			icon.id = 'ai-ref-indicator';
 			icon.textContent = ' ⚓';
-			icon.title = 'Позиция вычислена по опорным маякам';
+			icon.setAttribute('data-i18n-title', 'app.reference.positionHint'); I18n.apply(icon);
 			icon.style.color = 'var(--border-accent)';
 			icon.style.cursor = 'help';
 			container.appendChild(icon);
@@ -1253,7 +1313,7 @@ const App = (() => {
 			const noPos = isNaN(st.antennaLatDeg) || isNaN(st.antennaLonDeg);
 			
 			if (isRefMode && noPos) {
-				document.getElementById('ai-lat').textContent = '⚓ ожидание...';
+				document.getElementById('ai-lat').textContent = I18n.t('app.reference.positionWaiting')
 				document.getElementById('ai-lon').textContent = '⚓';
 			} else {
 				document.getElementById('ai-lat').textContent = isNaN(st.antennaLatDeg) ? '--' : st.antennaLatDeg.toFixed(6);
@@ -1294,7 +1354,7 @@ const App = (() => {
 					qualityClass = 'quality-poor';
 				}
 				
-				qualityEl.textContent = `±${shipPos.spread.toFixed(1)}м (${shipPos.count}×, ${age}с)`;
+				qualityEl.textContent = I18n.t('app.reference.quality', { spread: shipPos.spread.toFixed(1), count: shipPos.count, age });
 				qualityEl.className = 'ai-value ' + qualityClass;
 			}
 		}
@@ -1317,7 +1377,7 @@ const App = (() => {
 						st.antennaLatDeg * Math.PI / 180, st.antennaLonDeg * Math.PI / 180,
 						st.gnssLatDeg * Math.PI / 180, st.gnssLonDeg * Math.PI / 180
 					);
-					document.getElementById('ai-diff').textContent = diff.toFixed(1) + ' м';
+					document.getElementById('ai-diff').textContent = diff.toFixed(1) + ' ' + I18n.t('app.unit.m')
 				} else {
 					document.getElementById('ai-diff').textContent = '--';
 				}
@@ -1330,19 +1390,19 @@ const App = (() => {
 
 		// Кнопка подключения AZM
 		if (isConnected) {
-			btnConnection.textContent = '⏏ AZM';
+			I18n.bindText(btnConnection, "app.connection.disconnectButton");
 			btnConnection.className = 'top-btn btn-disconnect';
 		} else {
-			btnConnection.textContent = '🔌 AZM';
+			I18n.bindText(btnConnection, "app.connection.connectButton");
 			btnConnection.className = 'top-btn btn-connect';
 		}
 
 		// Кнопка GNSS
 		if (isGnssConnected) {
-			btnGnss.textContent = '⏏ GNSS';
+			I18n.bindText(btnGnss, "app.gnss.disconnectButton");
 			btnGnss.className = 'top-btn btn-disconnect';
 		} else {
-			btnGnss.textContent = '📡 GNSS';
+			I18n.bindText(btnGnss, "app.gnss.connectButton");
 			btnGnss.className = 'top-btn btn-gnss';
 		}
 
@@ -1350,15 +1410,15 @@ const App = (() => {
 		if (isConnected && st.isDeviceInfoValid) {
 			btnInterrogation.disabled = false;
 			if (st.isInterrogationActive) {
-				btnInterrogation.textContent = '⏸ Стоп';
+				I18n.bindText(btnInterrogation, "app.interrogation.stop");
 				btnInterrogation.className = 'top-btn btn-stop';
 			} else {
-				btnInterrogation.textContent = '▶ Опрос';
+				I18n.bindText(btnInterrogation, "app.interrogation.start");
 				btnInterrogation.className = 'top-btn btn-start';
 			}
 		} else {
 			btnInterrogation.disabled = true;
-			btnInterrogation.textContent = '▶ Опрос';
+			I18n.bindText(btnInterrogation, "app.interrogation.start");
 			btnInterrogation.className = 'top-btn btn-start';
 		}
 	}
@@ -1381,9 +1441,9 @@ const App = (() => {
 
 	function toggleInterrogation() {
 		if (AZMManager.getState().isInterrogationActive) {
-			stopInterrogation();
+			return stopInterrogation();
 		} else {
-			startInterrogation();
+			return startInterrogation();
 		}
 	}
 
@@ -1410,7 +1470,7 @@ const App = (() => {
 
 	async function sendRemoteConfig() {
 		if (!serialBridge || !isConnected) {
-			alert('Нет подключения');
+			alert(I18n.t("app.connection.none"));
 			return;
 		}
 		
@@ -1418,7 +1478,7 @@ const App = (() => {
 		const salinity = parseFloat(document.getElementById('cfg-remote-salinity').value);
 		
 		if (isNaN(userAddr) || userAddr < 1 || userAddr > 16) {
-			alert('Адрес должен быть от 1 до 16');
+			alert(I18n.t("app.remote.addressRange"));
 			return;
 		}
 		
@@ -1431,19 +1491,19 @@ const App = (() => {
 		try {
 			const statusEl = document.getElementById('remote-config-status');
 			if (statusEl) {
-				statusEl.textContent = '⏳ Отправка...';
+				I18n.bindText(statusEl, "app.remote.sending");
 				statusEl.style.color = rootStyles.getPropertyValue('--status-warning').trim() || '#ffc107';
 			}
 			Logger.logOutgoing('AZM', cmd.trim());
 			await serialBridge.send(cmd);
-			setStatus(`Отправлена команда смены адреса на ${addr}`);
+			setStatus(I18n.message("app.remote.commandSent", { address: addr }));
 		} catch (e) {
 			const statusEl = document.getElementById('remote-config-status');
 			if (statusEl) {
-				statusEl.textContent = '✗ Ошибка отправки';
+				I18n.bindText(statusEl, "app.remote.sendFailed");
 				statusEl.style.color = rootStyles.getPropertyValue('--status-error').trim() || '#dc3545';
 			}
-			alert('Ошибка отправки: ' + e.message);
+			alert(I18n.t("app.remote.sendError", { error: errorDetails(e) }));
 		}
 	}
 
@@ -1451,11 +1511,11 @@ const App = (() => {
     // ========== ЛОГГЕР ==========
     function saveLog() {
         if (Logger.getEntryCount() === 0) {
-            alert('Нет данных для сохранения');
+            alert(I18n.t("app.log.empty"));
             return;
         }
         Logger.downloadLog();
-        setStatus('Лог сохранён');
+        setStatus(I18n.message("app.log.saved"));
     }
 
 	async function loadLog() {
@@ -1470,10 +1530,10 @@ const App = (() => {
 		try {
 			const count = await Logger.loadLogFromFile();
 			if (count > 0) {
-				setStatus(`Загружено ${count} записей`);
+				setStatus(I18n.message("app.log.loaded", { count }));
 			}
 		} catch (e) {
-			console.error('[App] Ошибка загрузки лога:', e);
+			console.error(I18n.t("app.diagnostic.loadError"), e);
 		}
 	}
 
@@ -1487,7 +1547,7 @@ const App = (() => {
 		}
 
 		if (Logger.getEntries().length === 0) {
-			alert('Нет загруженного лога. Откройте файл лога через 📂 Открыть.');
+			alert(I18n.t("app.log.loadFirst"));
 			return;
 		}
 
@@ -1512,7 +1572,7 @@ const App = (() => {
 					TrackManager.clearStationTrack();   // сбросит трек станции и якорь
 					TrackManager.setAnchor(ref.lat, ref.lon);
 					UICanvas.centerOnGeoPoint(ref.lat, ref.lon);
-					console.log('[App] Anchor установлен по опорному маяку:', ref.lat, ref.lon);
+					console.log(I18n.t("app.diagnostic.anchorSet"), ref.lat, ref.lon);
 				}
 			}
 		} else if (!isNaN(st.antennaLatDeg) && !isNaN(st.antennaLonDeg)) {
@@ -1636,7 +1696,8 @@ const App = (() => {
 	}
 
     function onPlaybackStart() {
-        setStatus('▶ Воспроизведение...');
+        hasTrueHeading = false;
+		setStatus(I18n.message("app.playback.started"));
 		const speedControl = document.getElementById('playback-speed-control');
 		if (speedControl) speedControl.classList.add('active');
 		updateSpeedUI();
@@ -1667,7 +1728,7 @@ const App = (() => {
 		document.getElementById('log-load-item').style.opacity = '1';
 		document.getElementById('log-load-item').style.pointerEvents = 'auto';
 
-		setStatus('Воспроизведение завершено');
+		setStatus(I18n.message("app.playback.finished"));
 	}
 
     function onPlaybackProgress(current, total) {
@@ -1680,15 +1741,15 @@ const App = (() => {
     // ========== ТРЕКИ ==========
     function toggleTracks() {
         const visible = TrackManager.toggleShowTracks();
-        btnTracksShow.textContent = visible ? '📐 Треки' : '📐 Скрыты';
+        I18n.bindText(btnTracksShow, visible ? 'app.tracks.visible' : 'app.tracks.hidden');
         btnTracksShow.classList.toggle('active', visible);
     }
 
     function clearTracks() {
-        if (confirm('Очистить все треки маяков?')) {
+        if (confirm(I18n.t("app.tracks.clearConfirm"))) {
             TrackManager.clearAll();
 			TrackManager.clearStationTrack();
-            setStatus('Треки очищены');
+            setStatus(I18n.message("app.tracks.cleared"));
         }
     }
 
@@ -1705,9 +1766,9 @@ const App = (() => {
 			reader.onload = (ev) => {
 				const count = POIManager.loadFromCSV(ev.target.result);
 				if (count > 0) {
-					setStatus(`Загружено ${count} POI`);
+					setStatus(I18n.message("app.poi.loaded", { count }));
 				} else {
-					alert('Не удалось загрузить POI. Проверьте формат файла.');
+					alert(I18n.t("app.poi.loadFailed"));
 				}
 			};
 			reader.readAsText(file);
@@ -1717,12 +1778,12 @@ const App = (() => {
 
 	function clearPOI() {
 		if (POIManager.getCount() === 0) {
-			alert('Нет POI для очистки');
+			alert(I18n.t("app.poi.noneToClear"));
 			return;
 		}
-		if (confirm(`Очистить все POI (${POIManager.getCount()} шт.)?`)) {
+		if (confirm(I18n.t("app.poi.clearConfirm", { count: POIManager.getCount() }))) {
 			POIManager.clear();
-			setStatus('POI очищены');
+			setStatus(I18n.message("app.poi.cleared"));
 		}
 	}
 
@@ -1736,22 +1797,22 @@ const App = (() => {
 		const depth = beacon.depthM;
 		
 		if (isNaN(lat) || isNaN(lon)) {
-			alert('У маяка ещё нет координат');
+			alert(I18n.t("app.poi.noCoordinates"));
 			return;
 		}
 		
 		const now = new Date();
 		const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
-		const name = `Маяк #${beacon.userAddress || address + 1} — ${timeStr}`;
+		const name = `${I18n.t('app.beacon.name', { address: beacon.userAddress || address + 1 })} — ${timeStr}`;
 		
 		POIManager.addMarkedPoint(name, lat, lon, !isNaN(depth) ? depth : null);
-		setStatus(`Отмечено: ${name}`);
+		setStatus(I18n.message("app.poi.marked", { name }));
 	}
 
 	function exportPOI_CSV() {
 		const points = POIManager.getAll();
 		if (points.length === 0) {
-			alert('Нет POI для экспорта');
+			alert(I18n.t("app.poi.noneToExport"));
 			return;
 		}
 		
@@ -1780,7 +1841,7 @@ const App = (() => {
 		document.body.removeChild(a);
 		URL.revokeObjectURL(url);
 		
-		setStatus(`Экспортировано ${points.length} POI`);
+		setStatus(I18n.message("app.poi.exported", { count: points.length }));
 	}
 
 
@@ -1821,11 +1882,11 @@ const App = (() => {
 
 			const userAddr = b.userAddress || b.address + 1;
 			const range = !isNaN(b.slantRangeProjectionM) && b.slantRangeProjectionM > 0 
-				? b.slantRangeProjectionM.toFixed(1) + ' м'
+				? b.slantRangeProjectionM.toFixed(1) + ' ' + I18n.html('app.unit.m')
 				: !isNaN(b.slantRangeM) && b.slantRangeM > 0 
-					? b.slantRangeM.toFixed(1) + ' м'
+					? b.slantRangeM.toFixed(1) + I18n.html('app.unit.m')
 					: !isNaN(b.absoluteDistanceM) 
-						? b.absoluteDistanceM.toFixed(1) + ' м'
+						? b.absoluteDistanceM.toFixed(1) + I18n.html('app.unit.m')
 						: '--';
 			const azm = !isNaN(b.absoluteAzimuthDeg) 
 				? b.absoluteAzimuthDeg.toFixed(1) + '°'
@@ -1838,7 +1899,7 @@ const App = (() => {
 			html += `
 			<div class="beacon-card ${cardClass}">
 				<div class="bc-addr" onclick="App.onBeaconCardClick(${b.address})">#${userAddr}</div>
-				<div class="bc-range" onclick="App.onBeaconCardClick(${b.address})">📏 ${range}  🌊 ${!isNaN(b.depthM) ? b.depthM.toFixed(1) + 'м' : '--'}</div>
+				<div class="bc-range" onclick="App.onBeaconCardClick(${b.address})">📏 ${range}  🌊 ${!isNaN(b.depthM) ? b.depthM.toFixed(1) + I18n.html('app.unit.m') : '--'}</div>
 				<div class="bc-azimuth" onclick="App.onBeaconCardClick(${b.address})">🧭 ${azm}</div>
 				<div class="bc-msr" onclick="App.onBeaconCardClick(${b.address})">📶 ${!isNaN(b.msrDB) ? b.msrDB.toFixed(1) + ' dB' : '--'}</div>
 				<div class="bc-vcc" onclick="App.onBeaconCardClick(${b.address})">🔋 ${!isNaN(b.vccV) ? b.vccV.toFixed(1) + ' V' : '--'}  🌡 ${!isNaN(b.waterTempC) ? b.waterTempC.toFixed(1) + ' °C' : '--'}</div>
@@ -1846,10 +1907,10 @@ const App = (() => {
 					${!isNaN(b.latitudeDeg) ? b.latitudeDeg.toFixed(6) : '--'}, ${!isNaN(b.longitudeDeg) ? b.longitudeDeg.toFixed(6) : '--'}
 				</div>
 				<div class="bc-actions">${!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg) ? 
-						`<span class="bc-mark" onclick="event.stopPropagation(); App.markBeaconPoint(${b.address})" title="Отметить точку">📌</span>` 
+						`<span class="bc-mark" onclick="event.stopPropagation(); App.markBeaconPoint(${b.address})" title="${I18n.html("app.beacon.mark")}">📌</span>` 
 						: ''}
 				</div>
-				<div class="bc-age ${ageClass}" onclick="App.onBeaconCardClick(${b.address})">⏱ ${age.toFixed(0)}с${b.isTimeout ? ' ⌛' : ''}</div>
+				<div class="bc-age ${ageClass}" onclick="App.onBeaconCardClick(${b.address})">⏱ ${age.toFixed(0)}${I18n.html("app.unit.s")}${b.isTimeout ? ' ⌛' : ''}</div>
 			</div>`;
 		});
         beaconsBar.innerHTML = html;
@@ -1864,16 +1925,16 @@ const App = (() => {
 		if (st.antennaMode === 'cartesian_fixed') {
 			if (!isNaN(b.xM) && !isNaN(b.yM)) {
 				UICanvas.followCartesianPoint(b.xM, b.yM);
-				setStatus(`Слежение за маяком #${b.userAddress || b.address + 1}`);
+				setStatus(I18n.message("app.follow.beacon", { address: b.userAddress || b.address + 1 }));
 			} else {
-				setStatus(`Маяк #${b.userAddress || b.address + 1} не имеет координат`);
+				setStatus(I18n.message("app.follow.noCoordinates", { address: b.userAddress || b.address + 1 }));
 			}
 		} else {
 			if (!isNaN(b.latitudeDeg) && !isNaN(b.longitudeDeg)) {
 				UICanvas.followGeoPoint(b.latitudeDeg, b.longitudeDeg, 'beacon', address);
-				setStatus(`Слежение за маяком #${b.userAddress || b.address + 1}`);
+				setStatus(I18n.message("app.follow.beacon", { address: b.userAddress || b.address + 1 }));
 			} else {
-				setStatus(`Маяк #${b.userAddress || b.address + 1} не имеет координат`);
+				setStatus(I18n.message("app.follow.noCoordinates", { address: b.userAddress || b.address + 1 }));
 			}
 		}
 	}
@@ -1885,11 +1946,12 @@ const App = (() => {
 		const isCartesian = st.antennaMode === 'cartesian_fixed';
 		
 		if (trackAddresses.length === 0) {
-			alert('Нет треков для расчёта');
+			alert(I18n.t("app.drms.noTracks"));
 			return;
 		}
 		
 		let report = '';
+        const reportLines = [];
 		const csvLines = isCartesian
 			? ['Beacon,Points,DRMS_m,2DRMS_m,3DRMS_m,SigmaX_m,SigmaY_m,CentroidX_m,CentroidY_m']
 			: ['Beacon,Points,DRMS_m,2DRMS_m,3DRMS_m,SigmaX_m,SigmaY_m,CentroidLat,CentroidLon'];
@@ -1916,9 +1978,10 @@ const App = (() => {
 				if (validPoints.length < 3) continue;
 				
 				let cLat = 0, cLon = 0;
-				for (const p of validPoints) { cLat += p.lat; cLon += p.lon; }
+				const lonAnchor = validPoints[0].lon;
+				for (const p of validPoints) { cLat += p.lat; cLon += GeoUtils.unwrapLongitude(p.lon, lonAnchor); }
 				cLat /= validPoints.length;
-				cLon /= validPoints.length;
+				cLon = GeoUtils.normalizeLongitude(cLon / validPoints.length);
 				
 				stats = GeoUtils.calcDRMS(validPoints.map(p => {
 					const d = GeoUtils.deltasByDegrees(cLat, cLon, p.lat, p.lon);
@@ -1931,48 +1994,37 @@ const App = (() => {
 			
 			beaconsWithStats++;
 			const userAddr = parseInt(addr) + 1;
+			csvLines.push([
+				userAddr, stats.count, stats.drms.toFixed(2), stats.drms2.toFixed(2), stats.drms3.toFixed(2),
+				stats.sigmaX.toFixed(2), stats.sigmaY.toFixed(2),
+				isCartesian ? cX.toFixed(2) : cY.toFixed(8),
+				isCartesian ? cY.toFixed(2) : cX.toFixed(8)
+			].join(','));
 			
 			if (isCartesian) {
-				report += `Маяк #${userAddr}: DRMS=...`;
+                reportLines.push(I18n.message('report.drms.cartesian', { address: userAddr, drms: stats.drms.toFixed(2), drms2: stats.drms2.toFixed(2), drms3: stats.drms3.toFixed(2), sigmaX: stats.sigmaX.toFixed(2), sigmaY: stats.sigmaY.toFixed(2), count: stats.count, x: cX.toFixed(2), y: cY.toFixed(2) }));
 				window._drmsData[addr] = { centroidXM: cX, centroidYM: cY, cartesian: true };
-				csvLines.push([
-					userAddr,
-					stats.count,
-					stats.drms.toFixed(2),
-					stats.drms2.toFixed(2),
-					stats.drms3.toFixed(2),
-					stats.sigmaX.toFixed(2),
-					stats.sigmaY.toFixed(2),
-					cX.toFixed(2),
-					cY.toFixed(2)
-				].join(','));
 			} else {
-				report += `Маяк #${userAddr}: DRMS=...`;
+                reportLines.push(I18n.message('report.drms.geographic', { address: userAddr, drms: stats.drms.toFixed(2), drms2: stats.drms2.toFixed(2), drms3: stats.drms3.toFixed(2), sigmaX: stats.sigmaX.toFixed(2), sigmaY: stats.sigmaY.toFixed(2), count: stats.count, lat: cY.toFixed(8), lon: cX.toFixed(8) }));
 				window._drmsData[addr] = { centroidLat: cY, centroidLon: cX, cartesian: false };
-				csvLines.push([
-					userAddr,
-					stats.count,
-					stats.drms.toFixed(2),
-					stats.drms2.toFixed(2),
-					stats.drms3.toFixed(2),
-					stats.sigmaX.toFixed(2),
-					stats.sigmaY.toFixed(2),
-					cY.toFixed(8),
-					cX.toFixed(8)
-				].join(','));
 			}
 		}
 		
+        report = reportLines.map(item => I18n.t(item.key, item.params)).join('');
 		if (!report) {
-			alert('Недостаточно данных для расчёта DRMS');
+			alert(I18n.t("app.drms.insufficient"));
 			return;
 		}
 		
 		if (analysisPanel && analysisContent) {
 			const title = document.getElementById('analysis-title');
-			if (title) title.textContent = '📊 Отчёт DRMS';
+			if (title) I18n.bindText(title, "app.drms.title");
 			
-			analysisContent.innerHTML = '<pre style="font-size:12px; line-height:1.6;">' + report + '</pre>';
+			analysisSnapshot = { type: 'drms', lines: reportLines };
+            const pre = document.createElement('pre');
+            pre.style.cssText = 'font-size:12px; line-height:1.6;';
+            pre.textContent = report;
+            analysisContent.replaceChildren(pre);
 			
 			const downloadBtn = document.getElementById('analysis-download-btn');
 			if (downloadBtn) downloadBtn.style.display = '';
@@ -1994,7 +2046,7 @@ const App = (() => {
 		}
 		
 		window._drmsCSV = csvLines.join('\n');
-		setStatus(`DRMS рассчитан для ${beaconsWithStats} маяков`);
+		setStatus(I18n.message("app.drms.calculated", { count: beaconsWithStats }));
 	}
 
 	// Настройка секции калибровки φ
@@ -2009,9 +2061,9 @@ const App = (() => {
 		// Если больше одного маяка — показываем выпадающий список
 		if (addresses.length > 1 && beaconSelect && beaconSelectDiv) {
 			beaconSelectDiv.style.display = 'block';
-			beaconSelect.innerHTML = addresses.map(a => {
+				beaconSelect.innerHTML = addresses.map(a => {
 				const userAddr = parseInt(a) + 1;
-				return `<option value="${a}">Маяк #${userAddr}</option>`;
+				return `<option value="${a}">${I18n.html("app.beacon.name", { address: userAddr })}</option>`;
 			}).join('');
 			beaconSelect.onchange = updateDRMSPhiCentroid;
 		}
@@ -2068,7 +2120,7 @@ const App = (() => {
 		const realLon = parseFloat(document.getElementById('drms-phi-real-lon').value);
 		
 		if (isNaN(realLat) || isNaN(realLon)) {
-			alert('Введите реальные координаты маяка');
+			alert(I18n.t("app.phi.coordinatesRequired"));
 			return;
 		}
 		
@@ -2078,7 +2130,7 @@ const App = (() => {
 		const antLon = st.antennaLonDeg;
 		
 		if (isNaN(antLat) || isNaN(antLon)) {
-			alert('Нет координат антенны. Выполните топопривязку.');
+			alert(I18n.t("app.phi.antennaRequired"));
 			return;
 		}
 		
@@ -2129,7 +2181,7 @@ const App = (() => {
 			// Обновляем UI калибровки если нужно
 		}
 		
-		setStatus(`φ = ${phi.toFixed(1)}° применён`);
+		setStatus(I18n.message("app.phi.applied", { phi: phi.toFixed(1) }));
 		
 		// Пересчитываем маяки
 		AZMManager.recalcAllBeacons();
@@ -2137,7 +2189,7 @@ const App = (() => {
 
 	function downloadDRMS() {
 		if (!window._drmsCSV) {
-			alert('Нет данных DRMS для скачивания');
+			alert(I18n.t("app.drms.noneToDownload"));
 			return;
 		}
 		const blob = new Blob([window._drmsCSV], { type: 'text/csv' });
@@ -2188,7 +2240,6 @@ const App = (() => {
 			canvas.style.cursor = 'grab'; 
 		});
 
-		// В dblclick:
 		canvas.addEventListener('dblclick', () => {
 			UICanvas.setScale(100);
 			const st = AZMManager.getState();
@@ -2199,7 +2250,7 @@ const App = (() => {
 			} else {
 				UICanvas.centerOnWorldPoint(0, 0);
 			}
-			setStatus('Вид сброшен');
+			setStatus(I18n.message("app.view.reset"));
 		});
 		
 		canvas.addEventListener('click', (e) => {
@@ -2207,7 +2258,7 @@ const App = (() => {
 				UIRuler.handleClick(e);
 			} else {
 				UICanvas.clearFollowTarget();
-				setStatus('Слежение отключено');  // добавить
+				setStatus(I18n.message("app.follow.off"));
 			}
 		});
 		
@@ -2253,7 +2304,7 @@ const App = (() => {
 				} else {
 					UICanvas.centerOnWorldPoint(0, 0);
 				}
-				setStatus('Вид сброшен');
+				setStatus(I18n.message("app.view.reset"));
 				lastTouchTime = 0;
 				return;
 			}
@@ -2318,7 +2369,7 @@ const App = (() => {
 				if (tapTimeout) clearTimeout(tapTimeout);
 				tapTimeout = setTimeout(() => {
 					UICanvas.clearFollowTarget();
-					setStatus('Слежение отключено');
+					setStatus(I18n.message("app.follow.off"));
 					tapTimeout = null;
 				}, 100);
 			}
@@ -2329,7 +2380,7 @@ const App = (() => {
 
     // ========== ЗАКРЫТИЕ СТРАНИЦЫ ==========
 	window.addEventListener('beforeunload', async (e) => {
-		console.log('[App] Закрытие страницы, освобождаю порт...');
+		console.log(I18n.t("app.diagnostic.closingPage"));
 		
 		// Проверяем наличие данных
 		const tracks = TrackManager.getAll();
@@ -2342,7 +2393,7 @@ const App = (() => {
 		// Если есть данные — показываем предупреждение
 		if (hasData) {
 			e.preventDefault();
-			e.returnValue = 'Есть несохранённые данные (треки, лог). Вы уверены, что хотите закрыть страницу?';
+			e.returnValue = I18n.t('app.page.unsaved');
 			return e.returnValue;
 		}
 		
@@ -2387,7 +2438,7 @@ const App = (() => {
 	function openSettings() { UISettings.open(); }
 	function closeSettings() { UISettings.close(); }
 
-	function applySettings() {
+	async function applySettings() {
 		// Получаем значения из UI
 		const mask = UISettings.getInt('cfg-mask', 1);
 		const maxDist = UISettings.getFloat('cfg-maxdist', 1000);
@@ -2406,8 +2457,8 @@ const App = (() => {
 		
 		const newCompassMode = UISettings.getValue('cfg-compass-mode');
 		if (newCompassMode) {
+			if (newCompassMode !== compassMode) hasTrueHeading = false;
 			compassMode = newCompassMode;
-			if (compassMode !== 'auto') hasTrueHeading = false;
 		}
 		
 		// === РЕЖИМ АНТЕННЫ — ПРИМЕНЯЕМ ПЕРВЫМ ===
@@ -2444,22 +2495,13 @@ const App = (() => {
 		
 		// === ВОССТАНАВЛИВАЕМ ТОПОПРИВЯЗКУ ПОСЛЕ СМЕНЫ РЕЖИМА ===
 		if (newAntennaMode === 'geographic' && newAntennaMode !== oldAntennaMode) {
-			const saved = safeGetItem('topo_binding');
-			let restored = false;
-			if (saved) {
-				try {
-					const data = JSON.parse(saved);
-					const latNum = Number(data.lat);
-					const lonNum = Number(data.lon);
-					const hdgNum = Number(data.hdg);
-					if (Number.isFinite(latNum) && Number.isFinite(lonNum) && Number.isFinite(hdgNum)) {
-						AZMManager.setAntennaPosition(latNum, lonNum, hdgNum);
-						restored = true;
-					}
-				} catch (e) {}
-			}
-			if (!restored) {
-				AZMManager.setAntennaPosition(NaN, NaN, NaN);
+			const data = readStoredObject('topo_binding');
+			const heading = Number.isFinite(data.hdg) && data.hdg >= 0 && data.hdg <= 360 ? data.hdg : NaN;
+			if (Number.isFinite(data.lat) && data.lat >= -90 && data.lat <= 90 &&
+				Number.isFinite(data.lon) && data.lon >= -180 && data.lon <= 180 && Number.isFinite(heading)) {
+				AZMManager.setAntennaPosition(data.lat, data.lon, heading);
+			} else {
+				AZMManager.setAntennaPosition(NaN, NaN, heading);
 			}
 		} else if (newAntennaMode === 'cartesian_fixed' && newAntennaMode !== oldAntennaMode) {
 			AZMManager.setAntennaPosition(NaN, NaN, 0);
@@ -2473,17 +2515,15 @@ const App = (() => {
 		// Обновляем UI антенны
 		updateAntennaInfoUI();
 		
-				// Перезапускаем опрос если активен
+		// Перезапускаем опрос если активен
 		if (isConnected && AZMManager.getState().isInterrogationActive) {
 			const cmd = AZMManager.getStartCommand();
 			Logger.logOutgoing('AZM', cmd.trim());
-			serialBridge.send(cmd).catch(e => {
-				console.error('[App] Ошибка перезапуска опроса:', e);
-				Logger.logError('Restart interrogation failed: ' + e.message);
-			});
+			try { await serialBridge.send(cmd); }
+			catch (error) { onSerialError(error); return; }
 		}
 		
-		setStatus('Настройки применены');
+		setStatus(I18n.message("app.settings.applied"));
 		UISettings.close();
 	}
 
@@ -2508,11 +2548,7 @@ const App = (() => {
 		
 		const gnssBaudEl = document.getElementById('cfg-gnss-baud');
 		if (gnssBaudEl) {
-			const saved = safeGetItem('zima2_settings');
-			if (saved) {
-				const data = JSON.parse(saved);
-				gnssBaudEl.value = data.gnssBaudrate || '38400';
-			}
+			gnssBaudEl.value = readStoredObject('zima2_settings').gnssBaudrate || '38400';
 		}
 		
 		const compassEl = document.getElementById('cfg-compass-mode');
@@ -2531,6 +2567,7 @@ const App = (() => {
 		
 		UISettings.syncCheckboxesFromMask(st.addressMask);
 	}
+
 
 	function saveSettings() {
 		const data = {
@@ -2622,6 +2659,7 @@ const App = (() => {
     // ========== ПУБЛИЧНЫЙ API ==========
 	return {
 		init,
+		setStatus,
 		toggleConnection, disconnectSerial,
 		toggleInterrogation,
 		toggleTopoPanel, applyTopoBinding, clearTopoBinding,

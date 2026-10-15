@@ -2,6 +2,10 @@
 // Прозрачная запись без запросов к пользователю
 
 const LogStorage = (() => {
+	
+	function localized(key, fallback) {
+        return typeof I18n !== 'undefined' ? I18n.t(key) : fallback;
+    }
 
     const DB_NAME = 'zima2_logs';
     const DB_VERSION = 1;
@@ -33,7 +37,7 @@ const LogStorage = (() => {
             };
 
             request.onerror = (event) => {
-                console.error('[LogStorage] Ошибка открытия IndexedDB:', event.target.error);
+                console.error(localized('module.storage.openError', '[LogStorage] Ошибка открытия IndexedDB:'), event.target.error);
                 isOpen = false;
                 reject(event.target.error);
             };
@@ -53,10 +57,10 @@ const LogStorage = (() => {
                 timestamp: Date.now(),
             });
             tx.onerror = (e) => {
-                console.warn('[LogStorage] Ошибка записи:', e.target.error);
+                console.warn(localized('module.storage.writeError', '[LogStorage] Ошибка записи:'), e.target.error);
             };
         } catch (e) {
-            console.warn('[LogStorage] Ошибка транзакции:', e);
+            console.warn(localized('module.storage.transactionError', '[LogStorage] Ошибка транзакции:'), e);
         }
     }
 
@@ -80,11 +84,11 @@ const LogStorage = (() => {
                 };
 
                 request.onerror = (e) => {
-                    console.error('[LogStorage] Ошибка чтения:', e.target.error);
+                    console.error(localized('module.storage.readError', '[LogStorage] Ошибка чтения:'), e.target.error);
                     resolve([]);
                 };
             } catch (e) {
-                console.warn('[LogStorage] Ошибка транзакции чтения:', e);
+                console.warn(localized('module.storage.readTransactionError', '[LogStorage] Ошибка транзакции чтения:'), e);
                 resolve([]);
             }
         });
@@ -106,11 +110,11 @@ const LogStorage = (() => {
 
                 request.onsuccess = () => resolve();
                 request.onerror = (e) => {
-                    console.error('[LogStorage] Ошибка очистки:', e.target.error);
+                    console.error(localized('module.storage.clearError', '[LogStorage] Ошибка очистки:'), e.target.error);
                     resolve();
                 };
             } catch (e) {
-                console.warn('[LogStorage] Ошибка транзакции очистки:', e);
+                console.warn(localized('module.storage.clearTransactionError', '[LogStorage] Ошибка транзакции очистки:'), e);
                 resolve();
             }
         });

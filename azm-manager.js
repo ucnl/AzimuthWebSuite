@@ -216,7 +216,7 @@ const AZMManager = (() => {
 			return strategyGeographic(beacon, projectionM, hasProjection);
 
 		} catch (e) {
-			console.error('[AZM Manager] Ошибка:', e.message);
+			console.error(typeof I18n !== 'undefined' ? I18n.t('module.manager.error') : '[AZM Manager] Ошибка:', e.message);
 			return null;
 		}
 	}

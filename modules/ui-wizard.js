@@ -7,45 +7,35 @@ const UIWizard = (() => {
     let onComplete = null;
 	let isFinishing = false;
 
-	function safeGetItem(key) {
-		try { return localStorage.getItem(key); } catch (e) { return null; }
-	}
-	function safeSetItem(key, value) {
-		try { localStorage.setItem(key, value); return true; } catch (e) { return false; }
-	}
-	function safeRemoveItem(key) {
-		try { localStorage.removeItem(key); return true; } catch (e) { return false; }
-	}
-
     const STEPS = [
         {
             id: 'antenna_mode',
-            title: 'Режим антенны',
+            titleKey: 'module.wizard.antennaTitle',
             render: (state) => `
                 <p style="text-align:center; color:var(--text-primary); margin-bottom:16px;">
-                    Антенна неподвижна?
+                    <span data-i18n="module.wizard.fixedQuestion">${I18n.html('module.wizard.fixedQuestion')}</span>
                 </p>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     <label style="display:flex; align-items:center; padding:12px; border:2px solid ${!state.moving ? 'var(--border-accent)' : 'var(--border-primary)'}; border-radius:8px; cursor:pointer; background:${!state.moving ? 'var(--bg-tertiary)' : 'transparent'};">
                         <input type="radio" name="wiz-moving" value="fixed" ${!state.moving ? 'checked' : ''} style="margin-right:10px;">
                         <div>
-                            <strong>Неподвижна</strong><br>
-                            <small style="color:var(--text-secondary);">Пирс, зафиксированное судно</small>
+                            <strong><span data-i18n="module.wizard.fixed">${I18n.html('module.wizard.fixed')}</span></strong><br>
+                            <small style="color:var(--text-secondary);"><span data-i18n="module.wizard.fixedHint">${I18n.html('module.wizard.fixedHint')}</span></small>
                         </div>
                     </label>
                     <label style="display:flex; align-items:center; padding:12px; border:2px solid ${state.moving ? 'var(--border-accent)' : 'var(--border-primary)'}; border-radius:8px; cursor:pointer; background:${state.moving ? 'var(--bg-tertiary)' : 'transparent'};">
                         <input type="radio" name="wiz-moving" value="moving" ${state.moving ? 'checked' : ''} style="margin-right:10px;">
                         <div>
-                            <strong>Движется</strong><br>
-                            <small style="color:var(--text-secondary);">Катер, буй</small>
+                            <strong><span data-i18n="module.wizard.moving">${I18n.html('module.wizard.moving')}</span></strong><br>
+                            <small style="color:var(--text-secondary);"><span data-i18n="module.wizard.movingHint">${I18n.html('module.wizard.movingHint')}</span></small>
                         </div>
                     </label>
                 </div>
             `,
             buttons: (state, stepIdx, totalSteps) => `
-                <button class="wiz-btn wiz-btn-skip" data-action="skip">✕ Пропустить</button>
+                <button class="wiz-btn wiz-btn-skip" data-action="skip"><span data-i18n="module.wizard.skip">${I18n.html('module.wizard.skip')}</span></button>
                 <span style="color:var(--text-secondary);font-size:11px;">${stepIdx + 1}/${totalSteps}</span>
-                <button class="wiz-btn wiz-btn-next" data-action="next">Далее →</button>
+                <button class="wiz-btn wiz-btn-next" data-action="next"><span data-i18n="module.wizard.next">${I18n.html('module.wizard.next')}</span></button>
             `,
             getState: () => {
                 const el = document.querySelector('input[name="wiz-moving"]:checked');
@@ -54,38 +44,37 @@ const UIWizard = (() => {
         },
 		{
             id: 'reference_mode',
-            title: 'Опорные маяки',
+            titleKey: 'module.wizard.referenceTitle',
             render: (state) => `
                 <p style="text-align:center; color:var(--text-primary); margin-bottom:12px;">
-                    Есть ли маяк с известными координатами?
+                    <span data-i18n="module.wizard.referenceQuestion">${I18n.html('module.wizard.referenceQuestion')}</span>
                 </p>
                 <p style="text-align:center; color:var(--text-secondary); font-size:11px; margin-bottom:16px;">
-                    Такой маяк может использоваться как <b>опорный</b> — 
-                    координаты судна будут вычисляться по нему без GNSS.
+                    <span data-i18n="module.wizard.referenceDescription">${I18n.html('module.wizard.referenceDescription')}</span>
                 </p>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     <label style="display:flex; align-items:center; padding:12px; border:2px solid ${!state.useReferenceBeacons ? 'var(--border-accent)' : 'var(--border-primary)'}; border-radius:8px; cursor:pointer; background:${!state.useReferenceBeacons ? 'var(--bg-tertiary)' : 'transparent'};">
                         <input type="radio" name="wiz-use-ref" value="no" ${!state.useReferenceBeacons ? 'checked' : ''} style="margin-right:10px;">
                         <div>
-                            <strong>Нет</strong><br>
-                            <small style="color:var(--text-secondary);">Обычный режим (GNSS или топопривязка)</small>
+                            <strong><span data-i18n="module.wizard.no">${I18n.html('module.wizard.no')}</span></strong><br>
+                            <small style="color:var(--text-secondary);"><span data-i18n="module.wizard.normalHint">${I18n.html('module.wizard.normalHint')}</span></small>
                         </div>
                     </label>
                     <label style="display:flex; align-items:center; padding:12px; border:2px solid ${state.useReferenceBeacons ? 'var(--border-accent)' : 'var(--border-primary)'}; border-radius:8px; cursor:pointer; background:${state.useReferenceBeacons ? 'var(--bg-tertiary)' : 'transparent'};">
                         <input type="radio" name="wiz-use-ref" value="yes" ${state.useReferenceBeacons ? 'checked' : ''} style="margin-right:10px;">
                         <div>
-                            <strong>Да, буду использовать ⚓</strong><br>
-                            <small style="color:var(--text-secondary);">Координаты судна по опорному маяку</small>
+                            <strong><span data-i18n="module.wizard.referenceYes">${I18n.html('module.wizard.referenceYes')}</span></strong><br>
+                            <small style="color:var(--text-secondary);"><span data-i18n="module.wizard.referenceHint">${I18n.html('module.wizard.referenceHint')}</span></small>
                         </div>
                     </label>
                 </div>
             `,
             buttons: (state, stepIdx, totalSteps) => `
-                <button class="wiz-btn wiz-btn-back" data-action="back">← Назад</button>
+                <button class="wiz-btn wiz-btn-back" data-action="back"><span data-i18n="module.wizard.back">${I18n.html('module.wizard.back')}</span></button>
                 <span style="color:var(--text-secondary);font-size:11px;">${stepIdx + 1}/${totalSteps}</span>
                 ${state.useReferenceBeacons 
-                    ? `<button class="wiz-btn wiz-btn-finish" data-action="finish">Готово ✓</button>`
-                    : `<button class="wiz-btn wiz-btn-next" data-action="next">Далее →</button>`
+                    ? `<button class="wiz-btn wiz-btn-finish" data-action="finish"><span data-i18n="module.wizard.finish">${I18n.html('module.wizard.finish')}</span></button>`
+                    : `<button class="wiz-btn wiz-btn-next" data-action="next"><span data-i18n="module.wizard.next">${I18n.html('module.wizard.next')}</span></button>`
                 }
             `,
             getState: () => {
@@ -115,32 +104,32 @@ const UIWizard = (() => {
         },
         {
             id: 'topo',
-            title: 'Координаты антенны',
+            titleKey: 'module.wizard.topoTitle',
             render: (state) => `
                 <p style="text-align:center; color:var(--text-primary); margin-bottom:16px;">
-                    Знаете координаты и курс антенны?
+                    <span data-i18n="module.wizard.topoQuestion">${I18n.html('module.wizard.topoQuestion')}</span>
                 </p>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     <label style="display:flex; align-items:center; padding:12px; border:2px solid ${!state.hasTopo ? 'var(--border-accent)' : 'var(--border-primary)'}; border-radius:8px; cursor:pointer; background:${!state.hasTopo ? 'var(--bg-tertiary)' : 'transparent'};">
                         <input type="radio" name="wiz-has-topo" value="no" ${!state.hasTopo ? 'checked' : ''} style="margin-right:10px;">
                         <div>
-                            <strong>Нет</strong><br>
-                            <small style="color:var(--text-secondary);">Работа в метрах X,Y,Z от антенны</small>
+                            <strong><span data-i18n="module.wizard.no">${I18n.html('module.wizard.no')}</span></strong><br>
+                            <small style="color:var(--text-secondary);"><span data-i18n="module.wizard.cartesianHint">${I18n.html('module.wizard.cartesianHint')}</span></small>
                         </div>
                     </label>
                     <label style="display:flex; align-items:center; padding:12px; border:2px solid ${state.hasTopo ? 'var(--border-accent)' : 'var(--border-primary)'}; border-radius:8px; cursor:pointer; background:${state.hasTopo ? 'var(--bg-tertiary)' : 'transparent'};">
                         <input type="radio" name="wiz-has-topo" value="yes" ${state.hasTopo ? 'checked' : ''} style="margin-right:10px;">
                         <div>
-                            <strong>Да, сейчас введу</strong><br>
-                            <small style="color:var(--text-secondary);">Будут доступны географические координаты</small>
+                            <strong><span data-i18n="module.wizard.topoYes">${I18n.html('module.wizard.topoYes')}</span></strong><br>
+                            <small style="color:var(--text-secondary);"><span data-i18n="module.wizard.topoHint">${I18n.html('module.wizard.topoHint')}</span></small>
                         </div>
                     </label>
                 </div>
             `,
             buttons: (state, stepIdx, totalSteps) => `
-                <button class="wiz-btn wiz-btn-back" data-action="back">← Назад</button>
+                <button class="wiz-btn wiz-btn-back" data-action="back"><span data-i18n="module.wizard.back">${I18n.html('module.wizard.back')}</span></button>
                 <span style="color:var(--text-secondary);font-size:11px;">${stepIdx + 1}/${totalSteps}</span>
-                <button class="wiz-btn wiz-btn-finish" data-action="finish">Готово ✓</button>
+                <button class="wiz-btn wiz-btn-finish" data-action="finish"><span data-i18n="module.wizard.finish">${I18n.html('module.wizard.finish')}</span></button>
             `,
             getState: () => {
                 const el = document.querySelector('input[name="wiz-has-topo"]:checked');
@@ -149,9 +138,10 @@ const UIWizard = (() => {
         },
         {
             id: 'gnss',
-            title: 'Подключение GNSS-компаса',            
+            titleKey: 'module.wizard.gnssTitle',
             render: (state) => {
-                const saved = safeGetItem('zima2_settings');
+                let saved = null;
+                try { saved = localStorage.getItem('zima2_settings'); } catch (e) {}
                 let gnssBaud = 38400;
                 if (saved) {
                     try { gnssBaud = JSON.parse(saved).gnssBaudrate || 38400; } catch (e) {}
@@ -161,28 +151,28 @@ const UIWizard = (() => {
                 
                 return `
                     <p style="text-align:center; color:var(--text-primary); margin-bottom:12px;">
-                        Антенна движется — нужен внешний компас.
+                        <span data-i18n="module.wizard.movingCompass">${I18n.html('module.wizard.movingCompass')}</span>
                     </p>
                     <div class="topo-row">
-                        <label>Скорость порта:</label>
+                        <label><span data-i18n="module.wizard.baud">${I18n.html('module.wizard.baud')}</span></label>
                         <select id="wiz-gnss-baud" style="flex:1; padding:6px 8px; border:1px solid var(--border-primary); border-radius:var(--radius-sm); background:var(--bg-input); color:var(--text-primary); font-size:12px;">
                             ${options}
                         </select>
                     </div>
                     <div style="text-align:center; margin:12px 0;">
                         <button id="wiz-gnss-connect-btn" class="top-btn btn-gnss" style="font-size:12px; padding:8px 16px;">
-                            📡 Подключить и проверить
+                            <span data-i18n="module.wizard.connect">${I18n.html('module.wizard.connect')}</span>
                         </button>
                     </div>
                     <div id="wiz-gnss-status" style="text-align:center; font-size:12px; color:var(--text-secondary); min-height:18px;">
-                        Не подключен
+                        <span data-i18n="module.wizard.disconnected">${I18n.html('module.wizard.disconnected')}</span>
                     </div>
                 `;
             },
             buttons: (state, stepIdx, totalSteps) => `
-                <button class="wiz-btn wiz-btn-back" data-action="back">← Назад</button>
+                <button class="wiz-btn wiz-btn-back" data-action="back"><span data-i18n="module.wizard.back">${I18n.html('module.wizard.back')}</span></button>
                 <span style="color:var(--text-secondary);font-size:11px;">${stepIdx + 1}/${totalSteps}</span>
-                <button class="wiz-btn wiz-btn-finish" data-action="finish">Готово ✓</button>
+                <button class="wiz-btn wiz-btn-finish" data-action="finish"><span data-i18n="module.wizard.finish">${I18n.html('module.wizard.finish')}</span></button>
             `,
             getState: () => {
                 const baudEl = document.getElementById('wiz-gnss-baud');
@@ -203,7 +193,7 @@ const UIWizard = (() => {
 							localStorage.setItem('zima2_settings', JSON.stringify(data));
 						} catch (e) {}
 						
-						statusEl.textContent = '⏳ Подключение...';
+						I18n.bindText(statusEl, 'module.wizard.connecting');
 						statusEl.style.color = 'var(--status-warning)';
 						
 						try {
@@ -214,15 +204,15 @@ const UIWizard = (() => {
 								await new Promise(resolve => setTimeout(resolve, 800));
 								
 								if (typeof App !== 'undefined' && App.isGNSSConnected && App.isGNSSConnected()) {
-									statusEl.textContent = '✓ Подключен';
+									I18n.bindText(statusEl, 'module.wizard.connected');
 									statusEl.style.color = 'var(--status-success)';
 								} else {
-									statusEl.textContent = '✗ Не подключен';
+									I18n.bindText(statusEl, 'module.wizard.notConnected');
 									statusEl.style.color = 'var(--status-error)';
 								}
 							}
 						} catch (e) {
-							statusEl.textContent = '✗ Ошибка: ' + e.message;
+							I18n.bindText(statusEl, 'module.wizard.error', { error: e.message });
 							statusEl.style.color = 'var(--status-error)';
 						}
 					};
@@ -243,7 +233,8 @@ const UIWizard = (() => {
         }
         
         // Проверяем, нужно ли показывать мастер
-        const skip = safeGetItem('wizard_skip');
+        let skip = null;
+        try { skip = localStorage.getItem('wizard_skip'); } catch (e) {}
         if (!skip) {
             show();
         }
@@ -265,7 +256,7 @@ const UIWizard = (() => {
         
         const dontShow = document.getElementById('wizard-dont-show')?.checked;
         if (dontShow) {
-            if (dontShow) safeSetItem('wizard_skip', '1');
+            try { localStorage.setItem('wizard_skip', '1'); } catch (e) {}
         }
         
         if (onComplete) {
@@ -303,7 +294,7 @@ const UIWizard = (() => {
             return;
         }
         
-        title.textContent = '⚙ ' + step.title;
+        I18n.bindText(title, step.titleKey);
         body.innerHTML = step.render(wizardState);
         
         // Кнопка "больше не показывать" на последнем шаге
@@ -311,12 +302,14 @@ const UIWizard = (() => {
         const dontShowHtml = isLast ? `
             <label style="display:flex; align-items:center; cursor:pointer; font-size:12px; color:var(--text-secondary); margin-top:8px;">
                 <input type="checkbox" id="wizard-dont-show" style="margin-right:8px;">
-                Больше не показывать
+                <span data-i18n="module.wizard.dontShow">${I18n.html('module.wizard.dontShow')}</span>
             </label>
         ` : '';
         
         body.innerHTML += dontShowHtml;
         buttons.innerHTML = step.buttons(wizardState, currentStepIndex, activeSteps.length);
+        I18n.apply(body);
+        I18n.apply(buttons);
         
         // Навешиваем обработчики
         buttons.querySelectorAll('button').forEach(btn => {
@@ -383,7 +376,7 @@ const UIWizard = (() => {
 	}
 
     function resetWizard() {
-        safeRemoveItem('wizard_skip');
+        try { localStorage.removeItem('wizard_skip'); } catch (e) {}
     }
 
     return {

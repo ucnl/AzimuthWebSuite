@@ -58,8 +58,8 @@ const UICalibration = (() => {
         isCalibrating = true;
         
         const statusEl = document.getElementById('cal-status');
-        if (statusEl) statusEl.textContent = 'Собрано: 0';
-        if (setStatusCallback) setStatusCallback('Калибровка начата');
+        if (statusEl) I18n.bindText(statusEl, 'module.calibration.zero');
+        if (setStatusCallback) setStatusCallback(I18n.message('module.calibration.started'));
         
         document.getElementById('btn-cal-start').disabled = true;
         document.getElementById('btn-cal-stop').disabled = false;
@@ -90,10 +90,7 @@ const UICalibration = (() => {
         
         if (!isNaN(phi)) {
             const choice = confirm(
-                `Калибровка завершена.\n\n` +
-                `φ = ${phi.toFixed(1)}°\n` +
-                `Собрано точек: ${AngularCalibration.getCount()}\n\n` +
-                `Применить это значение?`
+                I18n.t('module.calibration.confirm', { phi: phi.toFixed(1), count: AngularCalibration.getCount() })
             );
             
             if (choice) {
@@ -105,7 +102,7 @@ const UICalibration = (() => {
                     setAntennaOffsets(state.offsetXM, state.offsetYM, phi);
                 }
                 if (saveSettingsCallback) saveSettingsCallback();
-                if (setStatusCallback) setStatusCallback(`Калибровка завершена. φ = ${phi.toFixed(1)}°`);
+                if (setStatusCallback) setStatusCallback(I18n.message('module.calibration.completed', { phi: phi.toFixed(1) }));
                 
                 const statusEl = document.getElementById('cal-status');
                 if (statusEl) statusEl.textContent = `✓ φ = ${phi.toFixed(1)}°`;
@@ -122,13 +119,13 @@ const UICalibration = (() => {
                 }
             } else {
                 const statusEl = document.getElementById('cal-status');
-                if (statusEl) statusEl.textContent = 'Отклонено';
-                if (setStatusCallback) setStatusCallback('Калибровка отклонена');
+                if (statusEl) I18n.bindText(statusEl, 'module.calibration.rejected');
+                if (setStatusCallback) setStatusCallback(I18n.message('module.calibration.cancelled'));
             }
         } else {
-            if (setStatusCallback) setStatusCallback('Недостаточно точек для калибровки');
+            if (setStatusCallback) setStatusCallback(I18n.message('module.calibration.tooFew'));
             const statusEl = document.getElementById('cal-status');
-            if (statusEl) statusEl.textContent = 'Недостаточно точек';
+            if (statusEl) I18n.bindText(statusEl, 'module.calibration.tooFewShort');
         }
     }
     
@@ -143,7 +140,7 @@ const UICalibration = (() => {
         const count = AngularCalibration.getCount();
         const maxPoints = parseInt(document.getElementById('cfg-cal-points')?.value) || 100;
         const statusEl = document.getElementById('cal-status');
-        if (statusEl) statusEl.textContent = 'Собрано: ' + count;
+        if (statusEl) I18n.bindText(statusEl, 'module.calibration.count', { count });
         if (count >= maxPoints) stop();
     }
     
@@ -178,8 +175,8 @@ const UICalibration = (() => {
             }
         } catch (e) {
             if (e.name !== 'AbortError') {
-                console.error('[UICalibration] Ошибка загрузки:', e);
-                alert('Ошибка загрузки: ' + e.message);
+                console.error(I18n.t('module.calibration.loadDiagnostic'), e);
+                alert(I18n.t('module.calibration.loadError', { error: e.message }));
             }
         }
     }
@@ -199,14 +196,14 @@ const UICalibration = (() => {
             saveCalibrationToStorage(angles, errors);
             updateCalibrationUI(angles.length);
             if (recalcAllBeacons) recalcAllBeacons();
-            if (setStatusCallback) setStatusCallback(`Калибровка загружена: ${angles.length} точек`);
+            if (setStatusCallback) setStatusCallback(I18n.message('module.calibration.loaded', { count: angles.length }));
         } catch (e) {
-            alert('Ошибка формата файла: ' + e.message);
+            alert(I18n.t('module.calibration.formatError', { error: e.message }));
         }
     }
     
     function resetCalibration() {
-        if (confirm('Сбросить калибровочную таблицу антенны?')) {
+        if (confirm(I18n.t('module.calibration.resetConfirm'))) {
             // Используем колбек вместо window.AZMManager
             if (resetAntennaCalibrationCallback) {
                 resetAntennaCalibrationCallback();
@@ -214,7 +211,7 @@ const UICalibration = (() => {
             localStorage.removeItem('antenna_calibration');
             updateCalibrationUI(0);
             if (recalcAllBeacons) recalcAllBeacons();
-            if (setStatusCallback) setStatusCallback('Калибровка сброшена');
+            if (setStatusCallback) setStatusCallback(I18n.message('module.calibration.reset'));
         }
     }
     
@@ -225,7 +222,7 @@ const UICalibration = (() => {
         
         if (pointCount > 0) {
             if (infoRow) infoRow.style.display = 'flex';
-            if (statusEl) statusEl.textContent = `✓ Загружено ${pointCount} точек`;
+            if (statusEl) I18n.bindText(statusEl, 'module.calibration.tableLoaded', { count: pointCount });
             if (resetBtn) resetBtn.style.display = 'inline-block';
         } else {
             if (infoRow) infoRow.style.display = 'none';
@@ -238,7 +235,7 @@ const UICalibration = (() => {
         try {
             localStorage.setItem('antenna_calibration', JSON.stringify({ angles, errors }));
         } catch (e) {
-            console.warn('Не удалось сохранить калибровку:', e);
+            console.warn(I18n.t('module.calibration.saveDiagnostic'), e);
         }
     }
     
@@ -257,7 +254,7 @@ const UICalibration = (() => {
                 }
             }
         } catch (e) {
-            console.warn('Ошибка загрузки калибровки из storage:', e);
+            console.warn(I18n.t('module.calibration.storageDiagnostic'), e);
         }
         updateCalibrationUI(0);
         return false;
