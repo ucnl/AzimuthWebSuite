@@ -16,6 +16,25 @@ const UTM = (() => {
         return zone;
     }
     
+	// Особые случаи UTM: Норвегия и Шпицберген.
+    // Базовая зона вычисляется по долготе, затем корректируется по широте.
+    function applySpecialZones(zone, latDeg, lonDeg) {
+        // Норвегия: полоса 56°..64° N, 3°..12° E — зона 32
+        if (latDeg >= 56 && latDeg < 64 && lonDeg >= 3 && lonDeg < 12) {
+            return 32;
+        }
+        // Шпицберген: полоса 72°..84° N, 0°..42° E
+        if (latDeg >= 72 && latDeg < 84 && lonDeg >= 0 && lonDeg < 42) {
+            if (lonDeg < 9)  return 31;
+            if (lonDeg < 21) return 33;
+            if (lonDeg < 33) return 35;
+            return 37;
+        }
+        return zone;
+    }
+	
+	
+	
     function getUtmLetter(latDeg) {
         if (latDeg >= 72 && latDeg < 84) return 'X';
         if (latDeg >= 64 && latDeg < 72) return 'W';
@@ -45,7 +64,7 @@ const UTM = (() => {
      * @returns {{ easting: number, northing: number, zone: number, letter: string }}
      */
     function fromLatLon(latDeg, lonDeg) {
-        const zone = getZone(lonDeg);
+        const zone = applySpecialZones(getZone(lonDeg), latDeg, lonDeg);
         const letter = getUtmLetter(latDeg);
         
         const latRad = latDeg * Math.PI / 180;

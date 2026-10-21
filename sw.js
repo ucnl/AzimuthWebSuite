@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'aws-';
-const CACHE = CACHE_PREFIX + 'v14';
+const CACHE = CACHE_PREFIX + 'v16';
 
 const ASSETS = [
   './',

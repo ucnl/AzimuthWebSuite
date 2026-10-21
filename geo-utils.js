@@ -189,6 +189,38 @@ const GeoUtils = (() => {
 		};
 	}
 
+	/**
+	 * Разворачивает долготу относительно опорной точки, чтобы избежать
+	 * скачка через ±180°. Возвращает значение, близкое к anchor.
+	 *
+	 * Пример: unwrapLongitude(-179.9, 179.9) = 180.1  (а не -179.9)
+	 *         unwrapLongitude(179.9, -179.9) = -180.1 (а не 179.9)
+	 *
+	 * @param {number} lonDeg   — долгота, которую надо развернуть, градусы
+	 * @param {number} anchorDeg — опорная долгота, градусы
+	 * @returns {number} развёрнутая долгота, градусы (может выходить за [-180, 180))
+	 */
+	function unwrapLongitude(lonDeg, anchorDeg) {
+		let diff = lonDeg - anchorDeg;
+		// Приводим разность к диапазону [-180, 180)
+		diff = ((diff + 540) % 360) - 180;
+		return anchorDeg + diff;
+	}
+
+	/**
+	 * Нормализует долготу в диапазон [-180, 180).
+	 *
+	 * Пример: normalizeLongitude(180.1) = -179.9
+	 *         normalizeLongitude(-180.1) = 179.9
+	 *         normalizeLongitude(37.6) = 37.6
+	 *
+	 * @param {number} lonDeg — долгота в градусах
+	 * @returns {number} нормализованная долгота в [-180, 180)
+	 */
+	function normalizeLongitude(lonDeg) {
+		return ((lonDeg + 180) % 360 + 360) % 360 - 180;
+	}
+
 
 
     return {
@@ -202,7 +234,9 @@ const GeoUtils = (() => {
         screenToGeo,
         meridianRadius,
         primeVerticalRadius,
-		calcDRMS
+		calcDRMS,
+		unwrapLongitude,
+		normalizeLongitude,
     };
 
 })();
