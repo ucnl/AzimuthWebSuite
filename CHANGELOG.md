@@ -3,6 +3,10 @@
 ---
 # Changelog
 
+## [1.6.3] - 2026-11-03
+### Fixed
+- не отображалась иконка вызова настроек маяка, если к приложению подключен маяк (handleDINFO в app.js)
+
 ## [1.6.2] - 2026-10-15
 ### Fixed
 - geo-utils.js добавлены функции unwrapLongitude и normalizeLongitude, которые вызываются в отчете DRMS

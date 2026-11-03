@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.6.2';
+    const APP_VERSION = '1.6.3';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -603,21 +603,19 @@ const App = (() => {
     }
 
 	function handleDINFO(info) {
-		const typeNames = { 0: 'USBL', 1: 'Маяк-ответчик', 2: 'LBL' };
-		let label = `Zima2 ${typeNames[info.deviceType] || ''}`.trim();
-		if (info.serialNumber) label += ` [${info.serialNumber}]`;
+        devicePresentation = { ...info };
 		
 		// Для маяка запоминаем адрес и добавляем кнопку настройки
 		if (info.deviceType === 1) {
 			isRemoteDevice = true;
 			remoteCurrentAddr = info.remoteAddress; // 0-based
-			renderDeviceLabel();
+            renderDeviceLabel();
 			setStatus(I18n.message("app.connection.beaconConnected"));
 			return; // не запускаем опрос для маяка
 		}
 		
 		isRemoteDevice = false;
-		deviceLabel.textContent = label;
+        renderDeviceLabel();
 		
 		setStatus(I18n.message("app.connection.deviceDetected"));
 		loadSettings();
@@ -625,11 +623,9 @@ const App = (() => {
 		if (serialBridge && isConnected) {
 			const cmd = AZMManager.getStartCommand();
 			Logger.logOutgoing('AZM', cmd.trim());
-			serialBridge.send(cmd).catch(e => {
-				console.error('[App] Ошибка автостарта опроса:', e); // WARNING!!!
-				Logger.logError('Autostart failed: ' + e.message);
-			});
-			console.log(I18n.t("app.diagnostic.autoInterrogation"));
+			serialBridge.send(cmd)
+				.then(() => console.log(I18n.t("app.diagnostic.autoInterrogation")))
+				.catch(onSerialError);
 		}
 	}
 
@@ -2450,7 +2446,7 @@ const App = (() => {
 		const offsX = UISettings.getFloat('cfg-offsetx', 0);
 		const offsY = UISettings.getFloat('cfg-offsety', 0);
 		const phi = UISettings.getFloat('cfg-phi', 0);
-		const maxPoints = UISettings.getInt('cfg-maxpoints', 500);
+		const maxPoints = UISettings.getInt('cfg-maxpoints', 5000);
 		const minDist = UISettings.getFloat('cfg-minpointdist', 0.5);
 		const maxBeaconSpeed = UISettings.getFloat('cfg-max-beacon-speed', 1.0);
 		const maxShipSpeed = UISettings.getFloat('cfg-max-ship-speed', 2.0);
