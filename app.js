@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.6.3';
+    const APP_VERSION = '1.6.4';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========

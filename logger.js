@@ -296,7 +296,16 @@ const Logger = (() => {
         return entries.length;
     }
 
-    function loadLogFromFile() {
+	function loadLogFromFile() {
+        // В лаунчере (Android WebView) FileReader не читает content:// URI —
+        // используем нативный мост. На ПК/в браузере — обычный <input type="file">.
+        if (window._nativeFileReadSupported === true) {
+            return loadLogFromFileNative();
+        }
+        return loadLogFromFileBrowser();
+    }
+
+    function loadLogFromFileBrowser() {
         return new Promise((resolve, reject) => {
             const input = document.createElement('input');
             input.type = 'file';
@@ -304,8 +313,6 @@ const Logger = (() => {
             input.onchange = (e) => {
                 const file = e.target.files[0];
                 if (!file) { reject('No file'); return; }
-				
-				/*
                 const reader = new FileReader();
                 reader.onload = () => {
                     const count = importLog(reader.result);
@@ -313,23 +320,39 @@ const Logger = (() => {
                 };
                 reader.onerror = () => reject(reader.error);
                 reader.readAsText(file);
-				*/
-				file.text().then(text => {
-					console.log('[Logger] file.text() OK, length=', text.length);
-					const count = importLog(text);
-					resolve(count);
-				}).catch(err => {
-					console.log('[Logger] file.text() error', err);
-					// Fallback на FileReader, если text() не сработал
-					const reader = new FileReader();
-					reader.onload = () => resolve(importLog(reader.result));
-					reader.onerror = () => reject(reader.error);
-					reader.readAsText(file);
-				});
-				
-				
             };
             input.click();
+        });
+    }
+
+    function loadLogFromFileNative() {
+        return new Promise((resolve, reject) => {
+            const onReady = () => {
+                cleanup();
+                const text = window._nativeFileContent || '';
+                const count = importLog(text);
+                resolve(count);
+            };
+            const onError = () => {
+                cleanup();
+                reject(window._nativeFileError || 'Ошибка чтения файла');
+            };
+            const cleanup = () => {
+                window.removeEventListener('native-file-ready', onReady);
+                window.removeEventListener('native-file-error', onError);
+                window._nativeFileContent = null;
+                window._nativeFileError = null;
+            };
+
+            window.addEventListener('native-file-ready', onReady);
+            window.addEventListener('native-file-error', onError);
+
+            // Просим лаунчер открыть диалог и прочитать файл
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = 'app://pick_and_read_log';
+            document.body.appendChild(iframe);
+            setTimeout(() => document.body.removeChild(iframe), 100);
         });
     }
 
