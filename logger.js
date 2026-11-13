@@ -296,78 +296,39 @@ const Logger = (() => {
         return entries.length;
     }
 
-	function loadLogFromFile() {
-        // В лаунчере (Android WebView) FileReader не читает content:// URI —
-        // используем нативный мост. На ПК/в браузере — обычный <input type="file">.
-        if (window._nativeFileReadSupported === true) {
-            return loadLogFromFileNative();
-        }
-        return loadLogFromFileBrowser();
-    }
+    function loadLogFromFile() {
+        const log = (msg) => {
+            console.log('[Logger]', msg);
+            try { if (typeof App !== 'undefined' && App.setStatus) App.setStatus('[Log] ' + msg); } catch (e) {}
+        };
 
-    function loadLogFromFileBrowser() {
         return new Promise((resolve, reject) => {
+            log('открываю диалог...');
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = '.log,.txt';
             input.onchange = (e) => {
                 const file = e.target.files[0];
-                if (!file) { reject('No file'); return; }
+                if (!file) { log('файл не выбран'); reject('No file'); return; }
+                log('выбран: ' + file.name + ', size=' + file.size + ', type=' + file.type);
+
                 const reader = new FileReader();
                 reader.onload = () => {
-                    const count = importLog(reader.result);
+                    const text = reader.result || '';
+                    log('прочитано: ' + text.length + ' символов');
+                    const count = importLog(text);
+                    log('распознано записей: ' + count);
                     resolve(count);
                 };
-                reader.onerror = () => reject(reader.error);
+                reader.onerror = () => {
+                    log('ошибка чтения: ' + (reader.error && reader.error.message ? reader.error.message : reader.error));
+                    reject(reader.error);
+                };
                 reader.readAsText(file);
             };
             input.click();
         });
     }
-
-	function loadLogFromFileNative() {
-		return new Promise((resolve, reject) => {
-			if (typeof App !== 'undefined' && App.setStatus) {
-				App.setStatus('Шаг 1: запрос нативного диалога...');
-			}
-			const onReady = () => {
-				cleanup();
-				const text = window._nativeFileContent || '';
-				if (typeof App !== 'undefined' && App.setStatus) {
-					App.setStatus('Шаг 4: получено ' + text.length + ' символов');
-				}
-				const count = importLog(text);
-				if (typeof App !== 'undefined' && App.setStatus) {
-					App.setStatus('Шаг 5: распознано ' + count + ' записей');
-				}
-				resolve(count);
-			};
-			const onError = () => {
-				cleanup();
-				if (typeof App !== 'undefined' && App.setStatus) {
-					App.setStatus('Ошибка: ' + (window._nativeFileError || '?'));
-				}
-				reject(window._nativeFileError || 'Ошибка чтения файла');
-			};
-			const cleanup = () => {
-				window.removeEventListener('native-file-ready', onReady);
-				window.removeEventListener('native-file-error', onError);
-				window._nativeFileContent = null;
-				window._nativeFileError = null;
-			};
-			window.addEventListener('native-file-ready', onReady);
-			window.addEventListener('native-file-error', onError);
-			const iframe = document.createElement('iframe');
-			iframe.style.display = 'none';
-			iframe.src = 'app://pick_and_read_log';
-			document.body.appendChild(iframe);
-			setTimeout(() => document.body.removeChild(iframe), 100);
-			if (typeof App !== 'undefined' && App.setStatus) {
-				App.setStatus('Шаг 2: iframe отправлен, ждём диалог...');
-			}
-		});
-	}
-
     // ========== ВОСПРОИЗВЕДЕНИЕ ==========
 
 	function startPlayback(speed = 1.0, realtime = true, skipToFirstData = false) {
