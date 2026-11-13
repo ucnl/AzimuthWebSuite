@@ -325,36 +325,48 @@ const Logger = (() => {
         });
     }
 
-    function loadLogFromFileNative() {
-        return new Promise((resolve, reject) => {
-            const onReady = () => {
-                cleanup();
-                const text = window._nativeFileContent || '';
-                const count = importLog(text);
-                resolve(count);
-            };
-            const onError = () => {
-                cleanup();
-                reject(window._nativeFileError || 'Ошибка чтения файла');
-            };
-            const cleanup = () => {
-                window.removeEventListener('native-file-ready', onReady);
-                window.removeEventListener('native-file-error', onError);
-                window._nativeFileContent = null;
-                window._nativeFileError = null;
-            };
-
-            window.addEventListener('native-file-ready', onReady);
-            window.addEventListener('native-file-error', onError);
-
-            // Просим лаунчер открыть диалог и прочитать файл
-            const iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            iframe.src = 'app://pick_and_read_log';
-            document.body.appendChild(iframe);
-            setTimeout(() => document.body.removeChild(iframe), 100);
-        });
-    }
+	function loadLogFromFileNative() {
+		return new Promise((resolve, reject) => {
+			if (typeof App !== 'undefined' && App.setStatus) {
+				App.setStatus('Шаг 1: запрос нативного диалога...');
+			}
+			const onReady = () => {
+				cleanup();
+				const text = window._nativeFileContent || '';
+				if (typeof App !== 'undefined' && App.setStatus) {
+					App.setStatus('Шаг 4: получено ' + text.length + ' символов');
+				}
+				const count = importLog(text);
+				if (typeof App !== 'undefined' && App.setStatus) {
+					App.setStatus('Шаг 5: распознано ' + count + ' записей');
+				}
+				resolve(count);
+			};
+			const onError = () => {
+				cleanup();
+				if (typeof App !== 'undefined' && App.setStatus) {
+					App.setStatus('Ошибка: ' + (window._nativeFileError || '?'));
+				}
+				reject(window._nativeFileError || 'Ошибка чтения файла');
+			};
+			const cleanup = () => {
+				window.removeEventListener('native-file-ready', onReady);
+				window.removeEventListener('native-file-error', onError);
+				window._nativeFileContent = null;
+				window._nativeFileError = null;
+			};
+			window.addEventListener('native-file-ready', onReady);
+			window.addEventListener('native-file-error', onError);
+			const iframe = document.createElement('iframe');
+			iframe.style.display = 'none';
+			iframe.src = 'app://pick_and_read_log';
+			document.body.appendChild(iframe);
+			setTimeout(() => document.body.removeChild(iframe), 100);
+			if (typeof App !== 'undefined' && App.setStatus) {
+				App.setStatus('Шаг 2: iframe отправлен, ждём диалог...');
+			}
+		});
+	}
 
     // ========== ВОСПРОИЗВЕДЕНИЕ ==========
 
