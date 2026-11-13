@@ -304,6 +304,8 @@ const Logger = (() => {
             input.onchange = (e) => {
                 const file = e.target.files[0];
                 if (!file) { reject('No file'); return; }
+				
+				/*
                 const reader = new FileReader();
                 reader.onload = () => {
                     const count = importLog(reader.result);
@@ -311,6 +313,21 @@ const Logger = (() => {
                 };
                 reader.onerror = () => reject(reader.error);
                 reader.readAsText(file);
+				*/
+				file.text().then(text => {
+					console.log('[Logger] file.text() OK, length=', text.length);
+					const count = importLog(text);
+					resolve(count);
+				}).catch(err => {
+					console.log('[Logger] file.text() error', err);
+					// Fallback на FileReader, если text() не сработал
+					const reader = new FileReader();
+					reader.onload = () => resolve(importLog(reader.result));
+					reader.onerror = () => reject(reader.error);
+					reader.readAsText(file);
+				});
+				
+				
             };
             input.click();
         });
