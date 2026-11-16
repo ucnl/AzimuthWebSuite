@@ -332,16 +332,16 @@ const Logger = (() => {
 		if (typeof window.NativeBridge !== 'undefined' && window.NativeBridge.PickLogFile) {
 			return new Promise((resolve, reject) => {
 				const cleanup = () => {
-					window.removeEventListener('native-log-ready', onReady);
-					window.removeEventListener('native-log-error', onError);
+					window._nativeLogContent_ready = null;
+					window._nativeLogContent_error = null;
 					window._nativeLogContent = null;
 					window._nativeLogError = null;
 				};
 				const onReady = () => {
 					log('[L4a]');
-					cleanup();
 					const text = window._nativeLogContent || '';
 					log('[L4]' + text.length);
+					cleanup();
 					let count = 0;
 					try {
 						count = importLog(text);
@@ -357,8 +357,8 @@ const Logger = (() => {
 					reject(window._nativeLogError || 'Ошибка чтения файла');
 				};
 				log('[L0]');
-				window.addEventListener('native-log-ready', onReady);
-				window.addEventListener('native-log-error', onError);
+				window._nativeLogContent_ready = onReady;
+				window._nativeLogContent_error = onError;
 				log('[L2]');
 				try {
 					window.NativeBridge.PickLogFile();
