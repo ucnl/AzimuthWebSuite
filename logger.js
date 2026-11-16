@@ -321,12 +321,21 @@ const Logger = (() => {
 				window.NativeBridge.PickLogFile();
 			});
 		}
-
-		// Старый путь для ПК/браузера
+		
 		return new Promise((resolve, reject) => {
 			const input = document.createElement('input');
 			input.type = 'file';
-			input.accept = '.log,.txt,text/plain';
+			
+			const isAndroid = /Android/i.test(navigator.userAgent);
+			const isWebView = isAndroid && /wv/.test(navigator.userAgent); 
+
+			if (isAndroid && !window.NativeBridge) {				
+				input.accept = '*/*';
+			} else {				
+				input.accept = '.log,.txt,text/plain';
+			}
+			
+			
 			input.style.display = 'none';
 			document.body.appendChild(input);
 			input.onchange = (e) => {
