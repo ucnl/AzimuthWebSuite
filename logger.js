@@ -307,10 +307,13 @@ const Logger = (() => {
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = '.log,.txt';
+            input.style.display = 'none';
+            document.body.appendChild(input);   
+
             input.onchange = (e) => {
                 const file = e.target.files[0];
-                if (!file) { log('файл не выбран'); reject('No file'); return; }
-                log('выбран: ' + file.name + ', size=' + file.size + ', type=' + file.type);
+                if (!file) { log('файл не выбран'); cleanup(); reject('No file'); return; }
+                log('выбран: ' + file.name + ', size=' + file.size);
 
                 const reader = new FileReader();
                 reader.onload = () => {
@@ -318,14 +321,21 @@ const Logger = (() => {
                     log('прочитано: ' + text.length + ' символов');
                     const count = importLog(text);
                     log('распознано записей: ' + count);
+                    cleanup();
                     resolve(count);
                 };
                 reader.onerror = () => {
                     log('ошибка чтения: ' + (reader.error && reader.error.message ? reader.error.message : reader.error));
+                    cleanup();
                     reject(reader.error);
                 };
                 reader.readAsText(file);
             };
+
+            const cleanup = () => {
+                try { document.body.removeChild(input); } catch (e) {}
+            };
+
             input.click();
         });
     }
