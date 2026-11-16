@@ -323,12 +323,14 @@ const Logger = (() => {
 	*/
 	
 	function loadLogFromFile() {
+		const log = (msg) => {
+			console.log('[Logger]', msg);
+			try { if (typeof App !== 'undefined' && App.setStatus) App.setStatus(msg); } catch (e) {}
+		};
+
+		// Нативная ветка (лаунчер, Android WebView)
 		if (typeof window.NativeBridge !== 'undefined' && window.NativeBridge.PickLogFile) {
 			return new Promise((resolve, reject) => {
-				const log = (msg) => {
-					console.log('[Logger]', msg);
-					try { if (typeof App !== 'undefined' && App.setStatus) App.setStatus('[Log] ' + msg); } catch (e) {}
-				};
 				const cleanup = () => {
 					window.removeEventListener('native-log-ready', onReady);
 					window.removeEventListener('native-log-error', onError);
@@ -338,30 +340,31 @@ const Logger = (() => {
 				const onReady = () => {
 					cleanup();
 					const text = window._nativeLogContent || '';
-					log('нативный: получено ' + text.length + ' символов');
+					log('[L4]' + text.length);
 					const count = importLog(text);
-					log('нативный: распознано ' + count);
+					log('[L5]' + count);
 					resolve(count);
 				};
 				const onError = () => {
 					cleanup();
-					log('нативный: ошибка ' + (window._nativeLogError || '?'));
+					log('[L6]');
 					reject(window._nativeLogError || 'Ошибка чтения файла');
 				};
 				window.addEventListener('native-log-ready', onReady);
 				window.addEventListener('native-log-error', onError);
-				log('запрос нативного диалога...');
+				log('[L2]');
 				try {
 					window.NativeBridge.PickLogFile();
 				} catch (e) {
 					cleanup();
-					log('NativeBridge error: ' + e.message);
+					log('[L3]' + (e && e.message ? e.message : e));
 					reject(e);
 				}
 			});
 		}
 
-		// Fallback для ПК
+		// Fallback для ПК/браузера
+		log('[L1]');
 		return new Promise((resolve, reject) => {
 			const input = document.createElement('input');
 			input.type = 'file';
@@ -371,9 +374,12 @@ const Logger = (() => {
 			input.onchange = (e) => {
 				const file = e.target.files[0];
 				if (!file) { document.body.removeChild(input); reject('No file'); return; }
+				log('[L1b]' + file.size);
 				const reader = new FileReader();
 				reader.onload = () => {
-					const count = importLog(reader.result || '');
+					const text = reader.result || '';
+					log('[L1c]' + text.length);
+					const count = importLog(text);
 					document.body.removeChild(input);
 					resolve(count);
 				};
@@ -382,7 +388,7 @@ const Logger = (() => {
 			};
 			input.click();
 		});
-	}	
+	}
 	
 	
 	
