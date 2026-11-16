@@ -296,6 +296,8 @@ const Logger = (() => {
         return entries.length;
     }
 
+   /* Минимальная стабильная функция
+   
 	function loadLogFromFile() {
 		return new Promise((resolve, reject) => {
 			const input = document.createElement('input');
@@ -318,6 +320,58 @@ const Logger = (() => {
 			input.click();
 		});
 	}
+	*/
+	
+	function loadLogFromFile() {
+		if (typeof window.NativeBridge !== 'undefined' && window.NativeBridge.PickLogFile) {
+			return new Promise((resolve, reject) => {
+				const onReady = () => {
+					cleanup();
+					const text = window._nativeLogContent || '';
+					const count = importLog(text);
+					resolve(count);
+				};
+				const onError = () => {
+					cleanup();
+					reject(window._nativeLogError || 'Ошибка чтения файла');
+				};
+				const cleanup = () => {
+					window.removeEventListener('native-log-ready', onReady);
+					window.removeEventListener('native-log-error', onError);
+					window._nativeLogContent = null;
+					window._nativeLogError = null;
+				};
+				window.addEventListener('native-log-ready', onReady);
+				window.addEventListener('native-log-error', onError);
+				window.NativeBridge.PickLogFile();
+			});
+		}
+
+		// Fallback для ПК
+		return new Promise((resolve, reject) => {
+			const input = document.createElement('input');
+			input.type = 'file';
+			input.accept = '.log,.txt,text/plain';
+			input.style.display = 'none';
+			document.body.appendChild(input);
+			input.onchange = (e) => {
+				const file = e.target.files[0];
+				if (!file) { document.body.removeChild(input); reject('No file'); return; }
+				const reader = new FileReader();
+				reader.onload = () => {
+					const count = importLog(reader.result || '');
+					document.body.removeChild(input);
+					resolve(count);
+				};
+				reader.onerror = () => { document.body.removeChild(input); reject(reader.error); };
+				reader.readAsText(file);
+			};
+			input.click();
+		});
+	}	
+	
+	
+	
     // ========== ВОСПРОИЗВЕДЕНИЕ ==========
 
 	function startPlayback(speed = 1.0, realtime = true, skipToFirstData = false) {
