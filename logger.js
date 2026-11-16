@@ -341,7 +341,12 @@ const Logger = (() => {
 					cleanup();
 					const text = window._nativeLogContent || '';
 					log('[L4]' + text.length);
-					const count = importLog(text);
+					let count = 0;
+					try {
+						count = importLog(text);
+					} catch (e) {
+						log('[L4e]' + (e && e.message ? e.message : e));
+					}
 					log('[L5]' + count);
 					resolve(count);
 				};
