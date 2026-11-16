@@ -296,49 +296,54 @@ const Logger = (() => {
         return entries.length;
     }
 
-    function loadLogFromFile() {
-        const log = (msg) => {
-            console.log('[Logger]', msg);
-            try { if (typeof App !== 'undefined' && App.setStatus) App.setStatus('[Log] ' + msg); } catch (e) {}
-        };
+	function loadLogFromFile() {
+		// Если есть нативный мост — используем его
+		if (typeof window.NativeBridge !== 'undefined') {
+			return new Promise((resolve, reject) => {
+				const onReady = () => {
+					cleanup();
+					const text = window._nativeLogContent || '';
+					const count = importLog(text);
+					resolve(count);
+				};
+				const onError = () => {
+					cleanup();
+					reject(window._nativeLogError || 'Ошибка чтения файла');
+				};
+				const cleanup = () => {
+					window.removeEventListener('native-log-ready', onReady);
+					window.removeEventListener('native-log-error', onError);
+					window._nativeLogContent = null;
+					window._nativeLogError = null;
+				};
+				window.addEventListener('native-log-ready', onReady);
+				window.addEventListener('native-log-error', onError);
+				window.NativeBridge.PickLogFile();
+			});
+		}
 
-        return new Promise((resolve, reject) => {
-            log('открываю диалог...');
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.log,.txt';
-            input.style.display = 'none';
-            document.body.appendChild(input);   
-
-            input.onchange = (e) => {
-                const file = e.target.files[0];
-                if (!file) { log('файл не выбран'); cleanup(); reject('No file'); return; }
-                log('выбран: ' + file.name + ', size=' + file.size);
-
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const text = reader.result || '';
-                    log('прочитано: ' + text.length + ' символов');
-                    const count = importLog(text);
-                    log('распознано записей: ' + count);
-                    cleanup();
-                    resolve(count);
-                };
-                reader.onerror = () => {
-                    log('ошибка чтения: ' + (reader.error && reader.error.message ? reader.error.message : reader.error));
-                    cleanup();
-                    reject(reader.error);
-                };
-                reader.readAsText(file);
-            };
-
-            const cleanup = () => {
-                try { document.body.removeChild(input); } catch (e) {}
-            };
-
-            input.click();
-        });
-    }
+		// Старый путь для ПК/браузера
+		return new Promise((resolve, reject) => {
+			const input = document.createElement('input');
+			input.type = 'file';
+			input.accept = '.log,.txt';
+			input.style.display = 'none';
+			document.body.appendChild(input);
+			input.onchange = (e) => {
+				const file = e.target.files[0];
+				if (!file) { document.body.removeChild(input); reject('No file'); return; }
+				const reader = new FileReader();
+				reader.onload = () => {
+					const count = importLog(reader.result || '');
+					document.body.removeChild(input);
+					resolve(count);
+				};
+				reader.onerror = () => { document.body.removeChild(input); reject(reader.error); };
+				reader.readAsText(file);
+			};
+			input.click();
+		});
+	}
     // ========== ВОСПРОИЗВЕДЕНИЕ ==========
 
 	function startPlayback(speed = 1.0, realtime = true, skipToFirstData = false) {
