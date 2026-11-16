@@ -338,6 +338,7 @@ const Logger = (() => {
 					window._nativeLogError = null;
 				};
 				const onReady = () => {
+					log('[L4a]');
 					cleanup();
 					const text = window._nativeLogContent || '';
 					log('[L4]' + text.length);
@@ -355,6 +356,7 @@ const Logger = (() => {
 					log('[L6]');
 					reject(window._nativeLogError || 'Ошибка чтения файла');
 				};
+				log('[L0]');
 				window.addEventListener('native-log-ready', onReady);
 				window.addEventListener('native-log-error', onError);
 				log('[L2]');
