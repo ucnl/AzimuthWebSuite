@@ -249,6 +249,17 @@ const App = (() => {
 		
 		LogStorage.open().catch(e => console.warn(I18n.t("app.diagnostic.storageUnavailable"), e));
 		console.log(I18n.t("app.diagnostic.initializing"));
+		
+		console.log('NativeBridge=' + (typeof window.NativeBridge));
+		try	{
+			setTimeout(() => {
+				if (typeof App !== 'undefined' && App.setStatus) 
+					App.setStatus('NativeBridge=' + (typeof window.NativeBridge)); 
+				}, 1000); 
+			} 
+		catch (e) {}
+		
+		
 
 		canvas = document.getElementById('map-canvas');
 		ctx = canvas.getContext('2d');
