@@ -67,7 +67,7 @@ const UIRuler = (() => {
         const btn = document.getElementById('btn-ruler');
         if (btn) {
             btn.classList.toggle('active', rulerActive);
-            I18n.bindText(btn, rulerActive ? 'module.ruler.cancel' : 'module.ruler.button');
+            btn.setAttribute('title', I18n.t(rulerActive ? 'module.ruler.cancel' : 'module.ruler.button'));
         }
     }
     

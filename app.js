@@ -251,15 +251,7 @@ const App = (() => {
 		console.log(I18n.t("app.diagnostic.initializing"));
 		
 		console.log('NativeBridge=' + (typeof window.NativeBridge));
-		try	{
-			setTimeout(() => {
-				if (typeof App !== 'undefined' && App.setStatus) 
-					App.setStatus('NativeBridge=' + (typeof window.NativeBridge)); 
-				}, 1000); 
-			} 
-		catch (e) {}
-		
-		
+			
 
 		canvas = document.getElementById('map-canvas');
 		ctx = canvas.getContext('2d');
@@ -1748,7 +1740,7 @@ const App = (() => {
     // ========== ТРЕКИ ==========
     function toggleTracks() {
         const visible = TrackManager.toggleShowTracks();
-        I18n.bindText(btnTracksShow, visible ? 'app.tracks.visible' : 'app.tracks.hidden');
+        btnTracksShow.setAttribute('title', I18n.t(visible ? 'app.tracks.visible' : 'app.tracks.hidden'));
         btnTracksShow.classList.toggle('active', visible);
     }
 

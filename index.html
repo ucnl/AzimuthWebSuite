@@ -116,17 +116,17 @@
 
 			 <!-- Управление треками -->
 			<div id="tracks-control">
-				<button class="track-btn active" id="btn-tracks-show" onclick="App.toggleTracks()" data-i18n="main.tracks">📐 Треки</button>
-				<button class="track-btn" id="btn-tracks-clear" onclick="App.clearTracks()" data-i18n="main.clear">🗑 Очистить</button>
-				<button id="btn-ruler" class="track-btn" onclick="App.toggleRuler()" data-i18n="main.ruler">📏 Линейка</button>
+				<button class="track-btn active" id="btn-tracks-show" onclick="App.toggleTracks()" data-i18n-title="main.tracks" title="Треки">📐</button>
+				<button class="track-btn" id="btn-tracks-clear" onclick="App.clearTracks()" data-i18n-title="main.clear" title="Очистить">🗑</button>
+				<button id="btn-ruler" class="track-btn" onclick="App.toggleRuler()" data-i18n-title="main.ruler" title="Линейка">📏</button>
 
 				<div id="playback-progress">
 					<div id="playback-progress-fill"></div>
 				</div>
 				<div id="playback-speed-control">
-					<button id="btn-speed-down" class="track-btn">−</button>
+					<button id="btn-speed-down" class="track-btn" title="Медленнее">−</button>
 					<span id="playback-speed-current">1x</span>
-					<button id="btn-speed-up" class="track-btn">+</button>
+					<button id="btn-speed-up" class="track-btn" title="Быстрее">+</button>
 				</div>
 
 			</div>
