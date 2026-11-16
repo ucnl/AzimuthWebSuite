@@ -1721,7 +1721,7 @@ body {
         justify-content: flex-end;     /* прижимаем к правому краю */
         align-items: center;
         gap: 4px;
-        max-width: calc(100vw - 150px); /* не наезжает на antenna-info */
+        max-width: calc(100vw - 170px); /* не наезжает на antenna-info */
     }
     /* Кнопки-иконки — первая строка */
     #tracks-control .track-btn {
