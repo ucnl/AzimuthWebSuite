@@ -3,7 +3,7 @@
 
 const App = (() => {
 
-    const APP_VERSION = '1.6.4';
+    const APP_VERSION = '1.6.5';
 
 
     // ========== DOM-ЭЛЕМЕНТЫ ==========
@@ -1526,7 +1526,6 @@ const App = (() => {
     }
 
 	async function loadLog() {
-		setStatus('[A1]');
 		closeAllDropdowns();
 		
 		// Если идёт воспроизведение — останавливаем
@@ -1536,14 +1535,11 @@ const App = (() => {
 		}
 
 		try {
-			setStatus('[A2]');
 			const count = await Logger.loadLogFromFile();
-			setStatus('[A3]' + count);
 			if (count > 0) {
 				setStatus(I18n.message("app.log.loaded", { count }));
 			}
 		} catch (e) {
-			setStatus('[A4]' + (e && e.message ? e.message : e));
 			console.error(I18n.t("app.diagnostic.loadError"), e);
 		}
 	}

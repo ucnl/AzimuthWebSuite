@@ -1713,10 +1713,29 @@ body {
     #settings-modal { width: 100%; max-height: 90vh; }
     
     #tracks-control { 
-        top: auto; 
-        bottom: 100px; 
-        right: 8px; 
-        flex-direction: column; 
+        top: 8px;              /* остаётся сверху */
+        right: 8px;
+        flex-direction: row;    /* кнопки в строку */
+        flex-wrap: wrap;        /* если не влезают — переносятся, но не в колонку */
+        gap: 3px;
+        max-width: calc(100vw - 160px);  /* не наезжает на antenna-info */
+    }
+    .track-btn {
+        padding: 4px 6px;       /* компактнее */
+        font-size: 10px;
+    }
+    #playback-speed-control {
+        gap: 2px;
+        margin-left: 2px;
+    }
+    #playback-speed-current {
+        padding: 3px 6px;
+        font-size: 10px;
+    }
+    #btn-speed-down,
+    #btn-speed-up {
+        width: 24px;
+        padding: 4px 0;
     }
     
     #addr-checkboxes {

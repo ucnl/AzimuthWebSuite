@@ -338,40 +338,28 @@ const Logger = (() => {
 					window._nativeLogError = null;
 				};
 				const onReady = () => {
-					log('[L4a]');
 					const text = window._nativeLogContent || '';
-					log('[L4]' + text.length);
 					cleanup();
 					let count = 0;
-					try {
-						count = importLog(text);
-					} catch (e) {
-						log('[L4e]' + (e && e.message ? e.message : e));
-					}
-					log('[L5]' + count);
+					count = importLog(text);
 					resolve(count);
 				};
 				const onError = () => {
 					cleanup();
-					log('[L6]');
 					reject(window._nativeLogError || 'Ошибка чтения файла');
 				};
-				log('[L0]');
 				window._nativeLogContent_ready = onReady;
 				window._nativeLogContent_error = onError;
-				log('[L2]');
 				try {
 					window.NativeBridge.PickLogFile();
 				} catch (e) {
 					cleanup();
-					log('[L3]' + (e && e.message ? e.message : e));
 					reject(e);
 				}
 			});
 		}
 
 		// Fallback для ПК/браузера
-		log('[L1]');
 		return new Promise((resolve, reject) => {
 			const input = document.createElement('input');
 			input.type = 'file';
@@ -381,11 +369,9 @@ const Logger = (() => {
 			input.onchange = (e) => {
 				const file = e.target.files[0];
 				if (!file) { document.body.removeChild(input); reject('No file'); return; }
-				log('[L1b]' + file.size);
 				const reader = new FileReader();
 				reader.onload = () => {
 					const text = reader.result || '';
-					log('[L1c]' + text.length);
 					const count = importLog(text);
 					document.body.removeChild(input);
 					resolve(count);
