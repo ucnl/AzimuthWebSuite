@@ -1526,6 +1526,7 @@ const App = (() => {
     }
 
 	async function loadLog() {
+		setStatus('[App] loadLog called');
 		closeAllDropdowns();
 		
 		// Если идёт воспроизведение — останавливаем
@@ -1535,11 +1536,14 @@ const App = (() => {
 		}
 
 		try {
+			setStatus('[App] calling Logger.loadLogFromFile...');
 			const count = await Logger.loadLogFromFile();
+			setStatus('[App] loadLogFromFile returned ' + count);
 			if (count > 0) {
 				setStatus(I18n.message("app.log.loaded", { count }));
 			}
 		} catch (e) {
+			setStatus('[App] loadLog error: ' + (e && e.message ? e.message : e));
 			console.error(I18n.t("app.diagnostic.loadError"), e);
 		}
 	}
