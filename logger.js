@@ -297,45 +297,10 @@ const Logger = (() => {
     }
 
 	function loadLogFromFile() {
-		// Если есть нативный мост — используем его
-		if (typeof window.NativeBridge !== 'undefined') {
-			return new Promise((resolve, reject) => {
-				const onReady = () => {
-					cleanup();
-					const text = window._nativeLogContent || '';
-					const count = importLog(text);
-					resolve(count);
-				};
-				const onError = () => {
-					cleanup();
-					reject(window._nativeLogError || 'Ошибка чтения файла');
-				};
-				const cleanup = () => {
-					window.removeEventListener('native-log-ready', onReady);
-					window.removeEventListener('native-log-error', onError);
-					window._nativeLogContent = null;
-					window._nativeLogError = null;
-				};
-				window.addEventListener('native-log-ready', onReady);
-				window.addEventListener('native-log-error', onError);
-				window.NativeBridge.PickLogFile();
-			});
-		}
-		
 		return new Promise((resolve, reject) => {
 			const input = document.createElement('input');
 			input.type = 'file';
-			
-			const isAndroid = /Android/i.test(navigator.userAgent);
-			const isWebView = isAndroid && /wv/.test(navigator.userAgent); 
-
-			if (isAndroid && !window.NativeBridge) {				
-				input.accept = '*/*';
-			} else {				
-				input.accept = '.log,.txt,text/plain';
-			}
-			
-			
+			input.accept = '.log,.txt,text/plain';
 			input.style.display = 'none';
 			document.body.appendChild(input);
 			input.onchange = (e) => {
