@@ -325,15 +325,9 @@ const Logger = (() => {
 	function loadLogFromFile() {
 		if (typeof window.NativeBridge !== 'undefined' && window.NativeBridge.PickLogFile) {
 			return new Promise((resolve, reject) => {
-				const onReady = () => {
-					cleanup();
-					const text = window._nativeLogContent || '';
-					const count = importLog(text);
-					resolve(count);
-				};
-				const onError = () => {
-					cleanup();
-					reject(window._nativeLogError || 'Ошибка чтения файла');
+				const log = (msg) => {
+					console.log('[Logger]', msg);
+					try { if (typeof App !== 'undefined' && App.setStatus) App.setStatus('[Log] ' + msg); } catch (e) {}
 				};
 				const cleanup = () => {
 					window.removeEventListener('native-log-ready', onReady);
@@ -341,9 +335,29 @@ const Logger = (() => {
 					window._nativeLogContent = null;
 					window._nativeLogError = null;
 				};
+				const onReady = () => {
+					cleanup();
+					const text = window._nativeLogContent || '';
+					log('нативный: получено ' + text.length + ' символов');
+					const count = importLog(text);
+					log('нативный: распознано ' + count);
+					resolve(count);
+				};
+				const onError = () => {
+					cleanup();
+					log('нативный: ошибка ' + (window._nativeLogError || '?'));
+					reject(window._nativeLogError || 'Ошибка чтения файла');
+				};
 				window.addEventListener('native-log-ready', onReady);
 				window.addEventListener('native-log-error', onError);
-				window.NativeBridge.PickLogFile();
+				log('запрос нативного диалога...');
+				try {
+					window.NativeBridge.PickLogFile();
+				} catch (e) {
+					cleanup();
+					log('NativeBridge error: ' + e.message);
+					reject(e);
+				}
 			});
 		}
 
