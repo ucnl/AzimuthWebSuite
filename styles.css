@@ -1715,28 +1715,45 @@ body {
     #tracks-control { 
         top: 8px;
         right: 8px;
+        display: flex;
         flex-direction: row;
-        flex-wrap: nowrap;          /* иконки узкие — влезают в строку */
+        flex-wrap: wrap;               /* разрешаем перенос на вторую строку */
+        justify-content: flex-end;     /* прижимаем к правому краю */
+        align-items: center;
         gap: 4px;
-        max-width: calc(100vw - 150px);
+        max-width: calc(100vw - 150px); /* не наезжает на antenna-info */
     }
-    .track-btn {
+    /* Кнопки-иконки — первая строка */
+    #tracks-control .track-btn {
         padding: 0;
-        font-size: 16px;            /* эмодзи крупнее */
+        font-size: 16px;
         min-width: 34px;
         width: 34px;
         height: 34px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        flex-shrink: 0;
     }
+    /* Прогресс и скорость — вторая строка, на всю ширину контейнера */
     #playback-progress {
-        width: 80px;
+        order: 10;                     /* после кнопок */
+        flex-basis: 100%;              /* занять всю строку */
+        width: 100%;
         height: 3px;
+        margin: 2px 0 0 0;
     }
     #playback-speed-control {
-        gap: 2px;
-        margin-left: 4px;
+        order: 11;
+        flex-basis: 100%;
+        width: 100%;
+        justify-content: flex-end;     /* прижать к правому краю */
+        gap: 4px;
+        margin: 0;
+        display: none;                 /* по умолчанию скрыт */
+    }
+    #playback-speed-control.active {
+        display: flex;                 /* показываем, когда активно воспроизведение */
     }
     #playback-speed-current {
         padding: 4px 6px;
@@ -1749,6 +1766,7 @@ body {
         width: 28px;
         min-width: 28px;
         font-size: 14px;
+        height: 28px;
     }
     
     #addr-checkboxes {
