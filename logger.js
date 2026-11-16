@@ -326,7 +326,7 @@ const Logger = (() => {
 		return new Promise((resolve, reject) => {
 			const input = document.createElement('input');
 			input.type = 'file';
-			input.accept = '.log,.txt';
+			input.accept = '.log,.txt,text/plain';
 			input.style.display = 'none';
 			document.body.appendChild(input);
 			input.onchange = (e) => {
