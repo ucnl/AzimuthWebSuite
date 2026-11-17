@@ -1,36 +1,69 @@
-/* styles.css — Zima2 USBL Web PWA */
+/* ==========================================================================
+   styles.css — Zima2 USBL Web PWA
 
-/* ========== СБРОС И БАЗА ========== */
-*, *::before, *::after {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+   Содержание:
+     1. Общие токены (не зависят от темы)
+     2. Темы (цветовые переменные)
+     3. База и структура приложения
+     4. Верхняя панель
+     5. Кнопки и dropdown-меню
+     6. Карта, инфо антенны, шкала
+     7. Панель маяков
+     8. Панели (общие и индивидуальные)
+     9. Панель топопривязки (содержимое)
+    10. Модальное окно настроек
+    11. Управление треками
+    12. Подвал (footer)
+    13. Служебные классы и DRMS
+    14. Wizard
+    15. Опорные маяки и качество
+    16. Языковой селектор
+    17. Медиазапросы (все в одном месте)
+    18. Поддержка notch (safe-area)
+   ========================================================================== */
+
+/* ========== 1. ОБЩИЕ ТОКЕНЫ (не зависят от темы) ========== */
+:root {
+    /* Радиусы */
+    --radius-sm: 4px;
+    --radius: 8px;
+    --radius-lg: 12px;
+
+    /* Z-index иерархия */
+    --z-map: 10;          /* элементы на карте (antenna-info, scale-bar, tracks-control) */
+    --z-topbar: 50;       /* #top-bar */
+    --z-panel: 100;       /* панели (topo, calibration, reference, analysis) */
+    --z-modal: 200;       /* settings-overlay */
+    --z-dropdown: 300;    /* выпадающие меню (tools, export, log) */
+    --z-submenu: 400;     /* подменю внутри dropdown */
+    --z-wizard: 500;      /* wizard-overlay */
 }
 
-/* ========== ТЕМА: INDOOR (по умолчанию) ========== */
-:root,
-:root.theme-indoor {
+/* ========== 2. ТЕМЫ ========== */
+
+/* --- Тема: INDOOR (по умолчанию) --- */
+:root {
     --bg-primary: #1a1a2e;
     --bg-secondary: #16213e;
     --bg-tertiary: #0f3460;
     --bg-card: #0f3460;
     --bg-input: #0a0a1a;
     --bg-overlay: rgba(22, 33, 62, 0.95);
-	--bg-timeout: #2d0a0a;
-    
+    --bg-timeout: #2d0a0a;
+
     --border-primary: #0f3460;
     --border-accent: #e83e8c;
     --border-success: #28a745;
     --border-warning: #ffc107;
     --border-danger: #dc3545;
-    
+
     --text-primary: #e0e0e0;
     --text-secondary: #aaa;
     --text-muted: #666;
     --text-accent: #4ec9b0;
     --text-warning: #ffa500;
     --text-info: #569cd6;
-    
+
     --btn-connect: #28a745;
     --btn-connect-hover: #218838;
     --btn-disconnect: #dc3545;
@@ -44,68 +77,54 @@
     --btn-topo-active: #e83e8c;
     --btn-settings: #17a2b8;
     --btn-settings-hover: #138496;
-    
+
     --shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     --scale-color: #fff;
-	--btn-text: #fff;
-	
-	--map-grid: rgba(255, 255, 255, 0.1);
+    --btn-text: #fff;
+
+    --map-grid: rgba(255, 255, 255, 0.1);
     --map-axis: rgba(255, 255, 255, 0.25);
     --map-text: #ffffff;
     --antenna-fill: rgba(0, 255, 255, 0.5);
-	
-	--map-text-secondary: rgba(255, 255, 255, 0.8);
-	--map-stroke: #ffffff;
-	--antenna-heading-color: #ff4444;
-	--beacon-timeout-color: #dc3545;
-	--beacon-warning-color: #ffc107;
-	--beacon-rejected-color: rgba(128, 128, 128, 0.45);
-	--poi-marked-color: #ffcc00;
-	--poi-loaded-color: #ff6600;
-	--scale-shadow: #000;
-	
-	--btn-theme: #555;
-	--btn-gnss: #8e44ad;
-	--btn-export: #20c997;
-	--btn-tools: #fd7e14;
-	--btn-log: #555;
-	--btn-log-hover: #777;
 
-	--ruler-line: #ff4444;
-	--ruler-line-rubber: #ff8888;
-	--ruler-point-fill: #ff4444;
-	--ruler-point-stroke: #ffffff;
-	--ruler-text: #ff4444;
-	--ruler-text-rubber: #ff8888;
-	
-	--btn-close: #6c757d;
-	--btn-close-hover: #5a6268;
-	
-	--track-station-glow: rgba(0, 255, 255, 0.2);
-	--track-station-line: rgba(0, 255, 255, 0.7);
-	--track-beacon-glow-alpha: 0.2;
-	--track-beacon-line-alpha: 0.8;
-	
-	/* Режим опорных маяков */
-	--reference-beacon-color: #ffcc00;
-	--reference-beacon-glow: rgba(255, 204, 0, 0.3);
-	
-	/* === Общие размеры (не зависят от темы) === */
-    --radius-sm: 4px;
-    --radius: 8px;
-    --radius-lg: 12px;
-    
-    /* === Z-index иерархия === */
-    --z-map: 10;          /* элементы на карте (antenna-info, scale-bar, tracks-control) */
-    --z-topbar: 50;       /* #top-bar */
-    --z-panel: 100;       /* панели (topo, calibration, reference, analysis) */
-    --z-modal: 200;       /* settings-overlay */
-    --z-dropdown: 300;    /* выпадающие меню (tools, export, log) */
-    --z-submenu: 400;     /* подменю внутри dropdown */
-    --z-wizard: 500;      /* wizard-overlay */
+    --map-text-secondary: rgba(255, 255, 255, 0.8);
+    --map-stroke: #ffffff;
+    --antenna-heading-color: #ff4444;
+    --beacon-timeout-color: #dc3545;
+    --beacon-warning-color: #ffc107;
+    --beacon-rejected-color: rgba(128, 128, 128, 0.45);
+    --poi-marked-color: #ffcc00;
+    --poi-loaded-color: #ff6600;
+    --scale-shadow: #000;
+
+    --btn-theme: #555;
+    --btn-gnss: #8e44ad;
+    --btn-export: #20c997;
+    --btn-tools: #fd7e14;
+    --btn-log: #555;
+    --btn-log-hover: #777;
+
+    --ruler-line: #ff4444;
+    --ruler-line-rubber: #ff8888;
+    --ruler-point-fill: #ff4444;
+    --ruler-point-stroke: #ffffff;
+    --ruler-text: #ff4444;
+    --ruler-text-rubber: #ff8888;
+
+    --btn-close: #6c757d;
+    --btn-close-hover: #5a6268;
+
+    --track-station-glow: rgba(0, 255, 255, 0.2);
+    --track-station-line: rgba(0, 255, 255, 0.7);
+    --track-beacon-glow-alpha: 0.2;
+    --track-beacon-line-alpha: 0.8;
+
+    /* Режим опорных маяков */
+    --reference-beacon-color: #ffcc00;
+    --reference-beacon-glow: rgba(255, 204, 0, 0.3);
 }
 
-/* ========== ТЕМА: LIGHT (солнце) ========== */
+/* --- Тема: LIGHT (солнце) --- */
 :root.theme-light {
     --bg-primary: #f5f5f5;
     --bg-secondary: #ffffff;
@@ -113,21 +132,21 @@
     --bg-card: #ffffff;
     --bg-input: #ffffff;
     --bg-overlay: rgba(255, 255, 255, 0.95);
-	--bg-timeout: #fff0f0;
-    
+    --bg-timeout: #fff0f0;
+
     --border-primary: #cccccc;
     --border-accent: #c2185b;
     --border-success: #2e7d32;
     --border-warning: #f57c00;
     --border-danger: #c62828;
-    
+
     --text-primary: #1a1a1a;
     --text-secondary: #555555;
     --text-muted: #888888;
     --text-accent: #00695c;
     --text-warning: #e65100;
     --text-info: #1565c0;
-    
+
     --btn-connect: #2e7d32;
     --btn-connect-hover: #1b5e20;
     --btn-disconnect: #c62828;
@@ -141,53 +160,53 @@
     --btn-topo-active: #c2185b;
     --btn-settings: #00838f;
     --btn-settings-hover: #006064;
-    
+
     --shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     --scale-color: #1a1a1a;
-	--btn-text: #fff;
-	
-	--map-grid: rgba(0, 0, 0, 0.08);
+    --btn-text: #fff;
+
+    --map-grid: rgba(0, 0, 0, 0.08);
     --map-axis: rgba(0, 0, 0, 0.2);
     --map-text: #1a1a1a;
     --antenna-fill: rgba(0, 100, 200, 0.4);
-	
-	--map-text-secondary: rgba(0, 0, 0, 0.7);
-	--map-stroke: #1a1a1a;
-	--antenna-heading-color: #cc0000;
-	--beacon-timeout-color: #c62828;
-	--beacon-warning-color: #f57c00;
-	--beacon-rejected-color: rgba(128, 128, 128, 0.5);
-	--poi-marked-color: #ff8800;
-	--poi-loaded-color: #cc4400;
-	--scale-shadow: rgba(255, 255, 255, 0.8);
-	
-	--btn-theme: #555;
-	--btn-gnss: #8e44ad;
-	--btn-export: #20c997;
-	--btn-tools: #fd7e14;
-	--btn-log: #555;
-	--btn-log-hover: #777;
-	
-	--ruler-line: #ff4444;
-	--ruler-line-rubber: #ff8888;
-	--ruler-point-fill: #ff4444;
-	--ruler-point-stroke: #ffffff;
-	--ruler-text: #ff4444;
-	--ruler-text-rubber: #ff8888;
-	
-	--btn-close: #6c757d;
-	--btn-close-hover: #5a6268;
-	
-	--track-station-glow: rgba(0, 150, 200, 0.2);
-	--track-station-line: rgba(0, 150, 200, 0.7);
-	--track-beacon-glow-alpha: 0.15;
-	--track-beacon-line-alpha: 0.7;	
-	
-	--reference-beacon-color: #ff8800;
-	--reference-beacon-glow: rgba(255, 136, 0, 0.3);
+
+    --map-text-secondary: rgba(0, 0, 0, 0.7);
+    --map-stroke: #1a1a1a;
+    --antenna-heading-color: #cc0000;
+    --beacon-timeout-color: #c62828;
+    --beacon-warning-color: #f57c00;
+    --beacon-rejected-color: rgba(128, 128, 128, 0.5);
+    --poi-marked-color: #ff8800;
+    --poi-loaded-color: #cc4400;
+    --scale-shadow: rgba(255, 255, 255, 0.8);
+
+    --btn-theme: #555;
+    --btn-gnss: #8e44ad;
+    --btn-export: #20c997;
+    --btn-tools: #fd7e14;
+    --btn-log: #555;
+    --btn-log-hover: #777;
+
+    --ruler-line: #ff4444;
+    --ruler-line-rubber: #ff8888;
+    --ruler-point-fill: #ff4444;
+    --ruler-point-stroke: #ffffff;
+    --ruler-text: #ff4444;
+    --ruler-text-rubber: #ff8888;
+
+    --btn-close: #6c757d;
+    --btn-close-hover: #5a6268;
+
+    --track-station-glow: rgba(0, 150, 200, 0.2);
+    --track-station-line: rgba(0, 150, 200, 0.7);
+    --track-beacon-glow-alpha: 0.15;
+    --track-beacon-line-alpha: 0.7;
+
+    --reference-beacon-color: #ff8800;
+    --reference-beacon-glow: rgba(255, 136, 0, 0.3);
 }
 
-/* ========== ТЕМА: DARK CONTRAST (солнце + очки) ========== */
+/* --- Тема: DARK CONTRAST (солнце + очки) --- */
 :root.theme-dark-contrast {
     --bg-primary: #000000;
     --bg-secondary: #0a0a0a;
@@ -195,21 +214,21 @@
     --bg-card: #111111;
     --bg-input: #000000;
     --bg-overlay: rgba(0, 0, 0, 0.95);
-	--bg-timeout: #330000;
-    
+    --bg-timeout: #330000;
+
     --border-primary: #444444;
     --border-accent: #ff4081;
     --border-success: #69f0ae;
     --border-warning: #ffd740;
     --border-danger: #ff5252;
-    
+
     --text-primary: #ffffff;
     --text-secondary: #cccccc;
     --text-muted: #888888;
     --text-accent: #69f0ae;
     --text-warning: #ffd740;
     --text-info: #40c4ff;
-    
+
     --btn-connect: #69f0ae;
     --btn-connect-hover: #00e676;
     --btn-disconnect: #ff5252;
@@ -223,53 +242,53 @@
     --btn-topo-active: #ff4081;
     --btn-settings: #64ffda;
     --btn-settings-hover: #1de9b6;
-    
+
     --shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
     --scale-color: #ffffff;
-	--btn-text: #000;
-	
-	--map-grid: rgba(255, 255, 255, 0.3);
+    --btn-text: #000;
+
+    --map-grid: rgba(255, 255, 255, 0.3);
     --map-axis: rgba(255, 255, 255, 0.6);
     --map-text: #ffffff;
     --antenna-fill: rgba(0, 255, 255, 0.5);
-	
-	--map-text-secondary: rgba(255, 255, 255, 0.8);
-	--map-stroke: #ffffff;
-	--antenna-heading-color: #ff5252;
-	--beacon-timeout-color: #ff5252;
-	--beacon-warning-color: #ffd740;
-	--beacon-rejected-color: rgba(255, 255, 255, 0.3);
-	--poi-marked-color: #ffd740;
-	--poi-loaded-color: #ff9800;
-	--scale-shadow: #000;	
-	
-	--btn-theme: #555;
-	--btn-gnss: #b388ff;
-	--btn-export: #64ffda;
-	--btn-tools: #ffd740;
-	--btn-log: #555;
-	--btn-log-hover: #777;
-	
-	--ruler-line: #ff4444;
-	--ruler-line-rubber: #ff8888;
-	--ruler-point-fill: #ff4444;
-	--ruler-point-stroke: #ffffff;
-	--ruler-text: #ff4444;
-	--ruler-text-rubber: #ff8888;
-	
-	--btn-close: #6c757d;
-	--btn-close-hover: #5a6268;
-	
-	--track-station-glow: rgba(0, 255, 255, 0.25);
-	--track-station-line: rgba(0, 255, 255, 0.8);
-	--track-beacon-glow-alpha: 0.25;
-	--track-beacon-line-alpha: 0.9;
-	
-	--reference-beacon-color: #ffd740;
-	--reference-beacon-glow: rgba(255, 215, 64, 0.35);
+
+    --map-text-secondary: rgba(255, 255, 255, 0.8);
+    --map-stroke: #ffffff;
+    --antenna-heading-color: #ff5252;
+    --beacon-timeout-color: #ff5252;
+    --beacon-warning-color: #ffd740;
+    --beacon-rejected-color: rgba(255, 255, 255, 0.3);
+    --poi-marked-color: #ffd740;
+    --poi-loaded-color: #ff9800;
+    --scale-shadow: #000;
+
+    --btn-theme: #555;
+    --btn-gnss: #b388ff;
+    --btn-export: #64ffda;
+    --btn-tools: #ffd740;
+    --btn-log: #555;
+    --btn-log-hover: #777;
+
+    --ruler-line: #ff4444;
+    --ruler-line-rubber: #ff8888;
+    --ruler-point-fill: #ff4444;
+    --ruler-point-stroke: #ffffff;
+    --ruler-text: #ff4444;
+    --ruler-text-rubber: #ff8888;
+
+    --btn-close: #6c757d;
+    --btn-close-hover: #5a6268;
+
+    --track-station-glow: rgba(0, 255, 255, 0.25);
+    --track-station-line: rgba(0, 255, 255, 0.8);
+    --track-beacon-glow-alpha: 0.25;
+    --track-beacon-line-alpha: 0.9;
+
+    --reference-beacon-color: #ffd740;
+    --reference-beacon-glow: rgba(255, 215, 64, 0.35);
 }
 
-/* ========== ТЕМА: JACK BLACK (Черный фон, белый текст, серые акценты) ========== */
+/* --- Тема: JACK BLACK (черный фон, белый текст, серые акценты) --- */
 :root.theme-jack-black {
     --bg-primary: #000000;
     --bg-secondary: #0a0a0a;
@@ -278,20 +297,20 @@
     --bg-input: #000000;
     --bg-overlay: rgba(10, 10, 10, 0.95);
     --bg-timeout: #1a0a0a;
-    
+
     --border-primary: #444444;
     --border-accent: #ffffff;
     --border-success: #888888;
     --border-warning: #aaaaaa;
     --border-danger: #666666;
-    
+
     --text-primary: #ffffff;
     --text-secondary: #aaaaaa;
     --text-muted: #666666;
     --text-accent: #cccccc;
     --text-warning: #ffaa00;
     --text-info: #aaaacc;
-    
+
     --btn-connect: #333333;
     --btn-connect-hover: #555555;
     --btn-disconnect: #444444;
@@ -305,53 +324,53 @@
     --btn-topo-active: #888888;
     --btn-settings: #333333;
     --btn-settings-hover: #555555;
-    
+
     --shadow: 0 4px 20px rgba(255, 255, 255, 0.05);
     --scale-color: #ffffff;
     --btn-text: #cccccc;
-    
+
     --map-grid: rgba(255, 255, 255, 0.3);
     --map-axis: rgba(255, 255, 255, 0.6);
     --map-text: #ffffff;
     --antenna-fill: rgba(255, 255, 255, 0.3);
-	
-	--map-text-secondary: rgba(255, 255, 255, 0.7);
-	--map-stroke: #ffffff;
-	--antenna-heading-color: #ffffff;
-	--beacon-timeout-color: #ff4444;
-	--beacon-warning-color: #ffaa00;
-	--beacon-rejected-color: rgba(255, 255, 255, 0.25);
-	--poi-marked-color: #ffffff;
-	--poi-loaded-color: #aaaaaa;
-	--scale-shadow: #000;	
-	
-	--btn-theme: #444;
-	--btn-gnss: #666;
-	--btn-export: #555;
-	--btn-tools: #555;
-	--btn-log: #444;
-	--btn-log-hover: #777;
-	
-	--ruler-line: #ffffff;
-	--ruler-line-rubber: #aaaaaa;
-	--ruler-point-fill: #ffffff;
-	--ruler-point-stroke: #000000;
-	--ruler-text: #ffffff;
-	--ruler-text-rubber: #aaaaaa;
-	
-	--btn-close: #6c757d;
-	--btn-close-hover: #5a6268;
-	
-	--track-station-glow: rgba(255, 255, 255, 0.15);
-	--track-station-line: rgba(255, 255, 255, 0.6);
-	--track-beacon-glow-alpha: 0.15;
-	--track-beacon-line-alpha: 0.7;
-	
-	--reference-beacon-color: #ffffff;
-	--reference-beacon-glow: rgba(255, 255, 255, 0.3);
+
+    --map-text-secondary: rgba(255, 255, 255, 0.7);
+    --map-stroke: #ffffff;
+    --antenna-heading-color: #ffffff;
+    --beacon-timeout-color: #ff4444;
+    --beacon-warning-color: #ffaa00;
+    --beacon-rejected-color: rgba(255, 255, 255, 0.25);
+    --poi-marked-color: #ffffff;
+    --poi-loaded-color: #aaaaaa;
+    --scale-shadow: #000;
+
+    --btn-theme: #444;
+    --btn-gnss: #666;
+    --btn-export: #555;
+    --btn-tools: #555;
+    --btn-log: #444;
+    --btn-log-hover: #777;
+
+    --ruler-line: #ffffff;
+    --ruler-line-rubber: #aaaaaa;
+    --ruler-point-fill: #ffffff;
+    --ruler-point-stroke: #000000;
+    --ruler-text: #ffffff;
+    --ruler-text-rubber: #aaaaaa;
+
+    --btn-close: #6c757d;
+    --btn-close-hover: #5a6268;
+
+    --track-station-glow: rgba(255, 255, 255, 0.15);
+    --track-station-line: rgba(255, 255, 255, 0.6);
+    --track-beacon-glow-alpha: 0.15;
+    --track-beacon-line-alpha: 0.7;
+
+    --reference-beacon-color: #ffffff;
+    --reference-beacon-glow: rgba(255, 255, 255, 0.3);
 }
 
-/* ========== ТЕМА: JACK WHITE (Белый фон, черный текст, серые акценты, редкий красный) ========== */
+/* --- Тема: JACK WHITE (белый фон, черный текст, серые акценты, редкий красный) --- */
 :root.theme-jack-white {
     --bg-primary: #ffffff;
     --bg-secondary: #f0f0f0;
@@ -360,20 +379,20 @@
     --bg-input: #ffffff;
     --bg-overlay: rgba(240, 240, 240, 0.95);
     --bg-timeout: #fff0f0;
-    
+
     --border-primary: #cccccc;
     --border-accent: #000000;
     --border-success: #666666;
     --border-warning: #888888;
     --border-danger: #cc0000;
-    
+
     --text-primary: #000000;
     --text-secondary: #444444;
     --text-muted: #888888;
     --text-accent: #000000;
     --text-warning: #cc0000;
     --text-info: #333366;
-    
+
     --btn-connect: #333333;
     --btn-connect-hover: #000000;
     --btn-disconnect: #cc0000;
@@ -387,53 +406,53 @@
     --btn-topo-active: #000000;
     --btn-settings: #555555;
     --btn-settings-hover: #333333;
-    
+
     --shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     --scale-color: #000000;
     --btn-text: #ffffff;
-    
+
     --map-grid: rgba(0, 0, 0, 0.15);
     --map-axis: rgba(0, 0, 0, 0.35);
     --map-text: #000000;
     --antenna-fill: rgba(200, 0, 0, 0.2);
-	
-	--map-text-secondary: rgba(0, 0, 0, 0.6);
-	--map-stroke: #000000;
-	--antenna-heading-color: #cc0000;
-	--beacon-timeout-color: #cc0000;
-	--beacon-warning-color: #ff8800;
-	--beacon-rejected-color: rgba(0, 0, 0, 0.25);
-	--poi-marked-color: #000000;
-	--poi-loaded-color: #666666;
-	--scale-shadow: rgba(255, 255, 255, 0.8);	
-	
-	--btn-theme: #888;
-	--btn-gnss: #666;
-	--btn-export: #777;
-	--btn-tools: #777;
-	--btn-log: #888;
-	--btn-log-hover: #777;
-	
-	--ruler-line: #cc0000;
-	--ruler-line-rubber: #ff6666;
-	--ruler-point-fill: #cc0000;
-	--ruler-point-stroke: #ffffff;
-	--ruler-text: #cc0000;
-	--ruler-text-rubber: #ff6666;
-	
-	--btn-close: #6c757d;
-	--btn-close-hover: #5a6268;
-	
-	--track-station-glow: rgba(0, 0, 0, 0.1);
-	--track-station-line: rgba(0, 0, 0, 0.5);
-	--track-beacon-glow-alpha: 0.1;
-	--track-beacon-line-alpha: 0.6;
-	
-	--reference-beacon-color: #000000;
-	--reference-beacon-glow: rgba(0, 0, 0, 0.25);
+
+    --map-text-secondary: rgba(0, 0, 0, 0.6);
+    --map-stroke: #000000;
+    --antenna-heading-color: #cc0000;
+    --beacon-timeout-color: #cc0000;
+    --beacon-warning-color: #ff8800;
+    --beacon-rejected-color: rgba(0, 0, 0, 0.25);
+    --poi-marked-color: #000000;
+    --poi-loaded-color: #666666;
+    --scale-shadow: rgba(255, 255, 255, 0.8);
+
+    --btn-theme: #888;
+    --btn-gnss: #666;
+    --btn-export: #777;
+    --btn-tools: #777;
+    --btn-log: #888;
+    --btn-log-hover: #777;
+
+    --ruler-line: #cc0000;
+    --ruler-line-rubber: #ff6666;
+    --ruler-point-fill: #cc0000;
+    --ruler-point-stroke: #ffffff;
+    --ruler-text: #cc0000;
+    --ruler-text-rubber: #ff6666;
+
+    --btn-close: #6c757d;
+    --btn-close-hover: #5a6268;
+
+    --track-station-glow: rgba(0, 0, 0, 0.1);
+    --track-station-line: rgba(0, 0, 0, 0.5);
+    --track-beacon-glow-alpha: 0.1;
+    --track-beacon-line-alpha: 0.6;
+
+    --reference-beacon-color: #000000;
+    --reference-beacon-glow: rgba(0, 0, 0, 0.25);
 }
 
-/* ========== ТЕМА: VAX (Вырвиглазно-зеленый на черном, в стиле терминалов VAX/VT) ========== */
+/* --- Тема: VAX (вырвиглазно-зеленый на черном, в стиле терминалов VAX/VT) --- */
 :root.theme-vax {
     --bg-primary: #0c0c0c;
     --bg-secondary: #000000;
@@ -442,20 +461,20 @@
     --bg-input: #000000;
     --bg-overlay: rgba(0, 0, 0, 0.95);
     --bg-timeout: #0a1a0a;
-    
+
     --border-primary: #1aff1a;
     --border-accent: #39ff14;
     --border-success: #00ff00;
     --border-warning: #33ff33;
     --border-danger: #00cc00;
-    
+
     --text-primary: #33ff33;
     --text-secondary: #00cc00;
     --text-muted: #006600;
     --text-accent: #66ff66;
     --text-warning: #33ff33;
     --text-info: #00ff00;
-    
+
     --btn-connect: #00aa00;
     --btn-connect-hover: #00ff00;
     --btn-disconnect: #008800;
@@ -469,54 +488,55 @@
     --btn-topo-active: #00ff00;
     --btn-settings: #00aa00;
     --btn-settings-hover: #00ff00;
-    
+
     --shadow: 0 0 20px rgba(0, 255, 0, 0.2);
     --scale-color: #33ff33;
     --btn-text: #000000;
-    
+
     --map-grid: rgba(51, 255, 51, 0.25);
     --map-axis: rgba(51, 255, 51, 0.6);
     --map-text: #33ff33;
     --antenna-fill: rgba(51, 255, 51, 0.3);
-	
-	--map-text-secondary: rgba(0, 255, 0, 0.7);
-	--map-stroke: #33ff33;
-	--antenna-heading-color: #33ff33;
-	--beacon-timeout-color: #00cc00;
-	--beacon-warning-color: #33ff33;
-	--beacon-rejected-color: rgba(0, 204, 0, 0.35);
-	--poi-marked-color: #66ff66;
-	--poi-loaded-color: #33ff33;
-	--scale-shadow: #000;
-	
-	--btn-theme: #008800;
-	--btn-gnss: #00aa00;
-	--btn-export: #00aa00;
-	--btn-tools: #00aa00;
-	--btn-log: #00aa00;
-	--btn-log-hover: #00ff00;
-	
-	
-	--ruler-line: #33ff33;
-	--ruler-line-rubber: #66ff66;
-	--ruler-point-fill: #33ff33;
-	--ruler-point-stroke: #000000;
-	--ruler-text: #33ff33;
-	--ruler-text-rubber: #66ff66;
-	
-	--btn-close: #006600;
-	--btn-close-hover: #009900;
-	
-	--track-station-glow: rgba(51, 255, 51, 0.2);
-	--track-station-line: rgba(51, 255, 51, 0.7);
-	--track-beacon-glow-alpha: 0.25;
-	--track-beacon-line-alpha: 0.9;
-	
-	--reference-beacon-color: #66ff66;
-	--reference-beacon-glow: rgba(102, 255, 102, 0.3);
+
+    --map-text-secondary: rgba(0, 255, 0, 0.7);
+    --map-stroke: #33ff33;
+    --antenna-heading-color: #33ff33;
+    --beacon-timeout-color: #00cc00;
+    --beacon-warning-color: #33ff33;
+    --beacon-rejected-color: rgba(0, 204, 0, 0.35);
+    --poi-marked-color: #66ff66;
+    --poi-loaded-color: #33ff33;
+    --scale-shadow: #000;
+
+    --btn-theme: #008800;
+    --btn-gnss: #00aa00;
+    --btn-export: #00aa00;
+    --btn-tools: #00aa00;
+    --btn-log: #00aa00;
+    --btn-log-hover: #00ff00;
+
+    --ruler-line: #33ff33;
+    --ruler-line-rubber: #66ff66;
+    --ruler-point-fill: #33ff33;
+    --ruler-point-stroke: #000000;
+    --ruler-text: #33ff33;
+    --ruler-text-rubber: #66ff66;
+
+    --btn-close: #006600;
+    --btn-close-hover: #009900;
+
+    --track-station-glow: rgba(51, 255, 51, 0.2);
+    --track-station-line: rgba(51, 255, 51, 0.7);
+    --track-beacon-glow-alpha: 0.25;
+    --track-beacon-line-alpha: 0.9;
+
+    --reference-beacon-color: #66ff66;
+    --reference-beacon-glow: rgba(102, 255, 102, 0.3);
 }
 
-html, body {
+/* ========== 3. БАЗА И СТРУКТУРА ПРИЛОЖЕНИЯ ========== */
+html,
+body {
     height: 100%;
     overflow: hidden;
 }
@@ -530,7 +550,6 @@ body {
     user-select: none;
 }
 
-/* ========== СТРУКТУРА ПРИЛОЖЕНИЯ ========== */
 #app {
     display: flex;
     flex-direction: column;
@@ -538,7 +557,7 @@ body {
     height: 100dvh;
 }
 
-/* ========== ВЕРХНЯЯ ПАНЕЛЬ ========== */
+/* ========== 4. ВЕРХНЯЯ ПАНЕЛЬ ========== */
 #top-bar {
     display: flex;
     align-items: center;
@@ -560,9 +579,13 @@ body {
     flex-shrink: 0;
     transition: background 0.3s;
 }
-#connection-indicator.connected { background: var(--border-success); }
-#connection-indicator.active { 
-    background: var(--border-warning); 
+
+#connection-indicator.connected {
+    background: var(--border-success);
+}
+
+#connection-indicator.active {
+    background: var(--border-warning);
     animation: pulse 1.2s ease-in-out infinite;
 }
 
@@ -589,7 +612,7 @@ body {
     text-overflow: ellipsis;
 }
 
-/* ========== КНОПКИ ========== */
+/* ========== 5. КНОПКИ И DROPDOWN-МЕНЮ ========== */
 .top-btn {
     padding: 7px 14px;
     border: none;
@@ -602,30 +625,45 @@ body {
     letter-spacing: 0.3px;
     outline: none;
 }
-.top-btn:disabled { 
-    opacity: 0.4; 
-    cursor: not-allowed; 
+
+.top-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
     filter: grayscale(30%);
 }
-.top-btn:active:not(:disabled) { transform: scale(0.96); }
+
+.top-btn:active:not(:disabled) {
+    transform: scale(0.96);
+}
 
 .btn-theme { background: var(--btn-theme); color: var(--btn-text); }
 .btn-gnss { background: var(--btn-gnss); color: var(--btn-text); }
 .btn-export { background: var(--btn-export); color: var(--btn-text); }
 .btn-tools { background: var(--btn-tools); color: var(--btn-text); }
 
-
 .btn-connect { background: var(--btn-connect); color: var(--btn-text); }
-.btn-connect:hover:not(:disabled) { background: var(--btn-connect-hover); box-shadow: 0 2px 12px rgba(40,167,69,0.3); }
+.btn-connect:hover:not(:disabled) {
+    background: var(--btn-connect-hover);
+    box-shadow: 0 2px 12px rgba(40, 167, 69, 0.3);
+}
 
 .btn-disconnect { background: var(--btn-disconnect); color: var(--btn-text); }
-.btn-disconnect:hover:not(:disabled) { background: var(--btn-disconnect-hover); box-shadow: 0 2px 12px rgba(220,53,69,0.3); }
+.btn-disconnect:hover:not(:disabled) {
+    background: var(--btn-disconnect-hover);
+    box-shadow: 0 2px 12px rgba(220, 53, 69, 0.3);
+}
 
 .btn-start { background: var(--btn-start); color: var(--btn-text); }
-.btn-start:hover:not(:disabled) { background: var(--btn-start-hover); box-shadow: 0 2px 12px rgba(0,123,255,0.3); }
+.btn-start:hover:not(:disabled) {
+    background: var(--btn-start-hover);
+    box-shadow: 0 2px 12px rgba(0, 123, 255, 0.3);
+}
 
 .btn-stop { background: var(--btn-stop); color: #212529; }
-.btn-stop:hover:not(:disabled) { background: var(--btn-stop-hover); box-shadow: 0 2px 12px rgba(255,193,7,0.3); }
+.btn-stop:hover:not(:disabled) {
+    background: var(--btn-stop-hover);
+    box-shadow: 0 2px 12px rgba(255, 193, 7, 0.3);
+}
 
 .btn-topo { background: var(--btn-topo); color: var(--btn-text); }
 .btn-topo:hover:not(:disabled) { background: var(--btn-topo-hover); }
@@ -639,12 +677,56 @@ body {
 .btn-log.recording { background: #dc3545; animation: pulse 1s infinite; }
 .btn-log.playing { background: #28a745; }
 
-
+/* --- Прогресс воспроизведения --- */
 #playback-progress {
+    display: none;
+    width: 150px;
+    height: 4px;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
     align-self: center;
     margin: 0 4px;
 }
 
+#playback-progress.active {
+    display: block;
+}
+
+#playback-progress-fill {
+    width: 0%;
+    height: 100%;
+    background: var(--btn-start);
+    border-radius: 2px;
+    transition: width 0.1s linear;
+}
+
+#playback-speed-control {
+    display: none;
+    margin-left: 10px;
+    align-items: center;
+    gap: 5px;
+}
+
+#playback-speed-control.active {
+    display: inline-flex;
+}
+
+#playback-speed-current {
+    background: var(--btn-start);
+    color: var(--btn-text);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: bold;
+}
+
+#btn-speed-down,
+#btn-speed-up {
+    width: 32px;
+    padding: 6px 0;
+}
+
+/* --- Dropdown-меню --- */
 .dropdown-menu {
     display: none;
     position: absolute;
@@ -653,7 +735,7 @@ body {
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     z-index: var(--z-dropdown);
     min-width: 200px;
     padding: 0;
@@ -662,11 +744,13 @@ body {
 .dropdown-menu.visible {
     display: block;
 }
+
 /* Компактные меню (Экспорт, Лог) */
 #export-dropdown,
 #log-dropdown {
     min-width: 170px;
 }
+
 .dropdown-item {
     padding: 8px 14px;
     cursor: pointer;
@@ -674,13 +758,14 @@ body {
     color: var(--text-primary);
     white-space: nowrap;
     transition: background 0.15s;
-	position: relative;
+    position: relative;
 }
+
 .dropdown-item:hover {
     background: var(--bg-tertiary);
 }
 
-/* ===== Подменю (вложенные пункты dropdown) ===== */
+/* --- Подменю (вложенные пункты dropdown) --- */
 .submenu {
     display: none;
     position: absolute;
@@ -690,7 +775,7 @@ body {
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     overflow: hidden;
     z-index: var(--z-submenu);
     padding: 0;
@@ -706,7 +791,7 @@ body {
     right: 100%;
 }
 
-/* ========== КАРТА ========== */
+/* ========== 6. КАРТА, ИНФО АНТЕННЫ, ШКАЛА ========== */
 #map-container {
     flex: 1;
     position: relative;
@@ -719,11 +804,14 @@ body {
     height: 100%;
     display: block;
     cursor: grab;
-	background-color: var(--bg-primary);
+    background-color: var(--bg-primary);
 }
-#map-canvas:active { cursor: grabbing; }
 
-/* ========== ИНФО АНТЕННЫ ========== */
+#map-canvas:active {
+    cursor: grabbing;
+}
+
+/* --- Инфо антенны --- */
 #antenna-info {
     position: absolute;
     top: 12px;
@@ -739,22 +827,23 @@ body {
     backdrop-filter: blur(8px);
     min-width: 160px;
 }
+
 #antenna-info .ai-label { color: var(--text-secondary); }
 #antenna-info .ai-value { color: var(--text-accent); font-weight: 700; }
 
-/* ========== ШКАЛА ========== */
+/* --- Шкала --- */
 #scale-bar {
     position: absolute;
     bottom: 15px;
     right: 20px;
     color: var(--scale-color);
-    text-shadow: 0 0 4px rgba(0,0,0,0.8);
+    text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
     font-size: 11px;
     z-index: var(--z-map);
     pointer-events: none;
 }
 
-/* ========== НИЖНЯЯ ПАНЕЛЬ МАЯКОВ ========== */
+/* ========== 7. ПАНЕЛЬ МАЯКОВ ========== */
 #beacons-bar {
     display: flex;
     gap: 10px;
@@ -765,39 +854,56 @@ body {
     overflow-y: visible;
     flex-shrink: 0;
     min-height: 95px;
-    max-height: 25vh;       
+    max-height: 25vh;
     align-items: stretch;
 }
+
 #beacons-bar::-webkit-scrollbar { height: 4px; }
 #beacons-bar::-webkit-scrollbar-track { background: transparent; }
-#beacons-bar::-webkit-scrollbar-thumb { background: var(--border-primary); border-radius: 2px; }
+#beacons-bar::-webkit-scrollbar-thumb {
+    background: var(--border-primary);
+    border-radius: 2px;
+}
 
 #beacons-bar.empty {
     align-items: center;
     justify-content: center;
 }
+
 #beacons-bar.empty::after {
     content: attr(data-empty-label);
     color: var(--text-muted);
     font-size: 13px;
 }
 
+/* --- Карточка маяка --- */
 .beacon-card {
     flex: 0 0 auto;
-    width: 200px;          
-    padding: 7px 9px;      
+    width: 200px;
+    padding: 7px 9px;
     border-radius: var(--radius);
     background: var(--bg-card);
     border: 2px solid var(--border-primary);
     font-size: 11px;
-    line-height: 1.4;     
+    line-height: 1.4;
     transition: background 0.3s;
     cursor: pointer;
-	pointer-events: auto;
+    pointer-events: auto;
 }
-.beacon-card:hover { border-color: var(--text-accent); transition: none; }
-.beacon-card.timeout { border-color: var(--border-danger); background: var(--bg-timeout); }
-.beacon-card.warning { border-color: var(--border-warning); }
+
+.beacon-card:hover {
+    border-color: var(--text-accent);
+    transition: none;
+}
+
+.beacon-card.timeout {
+    border-color: var(--border-danger);
+    background: var(--bg-timeout);
+}
+
+.beacon-card.warning {
+    border-color: var(--border-warning);
+}
 
 .beacon-card .bc-msr { color: #8cc6ff; font-size: 10px; }
 .beacon-card .bc-vcc { color: #ffb347; font-size: 10px; }
@@ -808,16 +914,18 @@ body {
     color: var(--text-accent);
     margin-bottom: 3px;
 }
+
 .beacon-card .bc-range { color: var(--text-warning); font-weight: 600; }
 .beacon-card .bc-azimuth { color: var(--text-info); }
-.beacon-card .bc-coords { 
-    color: var(--text-secondary); 
-    font-size: 10px; 
+
+.beacon-card .bc-coords {
+    color: var(--text-secondary);
+    font-size: 10px;
     margin-top: 2px;
     font-family: 'Consolas', 'Monaco', monospace;
-    white-space: nowrap;      
-    overflow: hidden;         
-    text-overflow: ellipsis;  
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .beacon-card .bc-age {
@@ -825,12 +933,43 @@ body {
     margin-top: 4px;
     font-weight: 600;
 }
+
 .bc-age.fresh { color: var(--border-success); }
 .bc-age.old { color: var(--border-warning); }
 .bc-age.stale { color: var(--border-danger); }
 
-/* ========== ПАНЕЛЬ ТОПОПРИВЯЗКИ ========== */
-#topo-panel {
+/* --- Действия на карточке --- */
+.bc-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border-primary);
+}
+
+.bc-mark {
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    pointer-events: auto;
+}
+
+.bc-mark:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* ========== 8. ПАНЕЛИ (общие и индивидуальные) ========== */
+/* Панели: topo, reference, calibration, remote-config, analysis, antenna-calibration */
+#topo-panel,
+#reference-panel,
+#calibration-panel,
+#remote-config-panel,
+#analysis-panel,
+#antenna-calibration-panel {
     display: none;
     position: absolute;
     top: 50%;
@@ -841,12 +980,50 @@ body {
     border-radius: var(--radius-lg);
     padding: 20px 24px;
     z-index: var(--z-panel);
-    min-width: 300px;
-    max-width: 90vw;
     backdrop-filter: blur(12px);
     box-shadow: var(--shadow);
+    max-height: 85vh;
+    overflow-y: auto;
 }
-#topo-panel.visible { display: block; }
+
+/* --- Индивидуальные настройки панелей --- */
+#topo-panel {
+    min-width: 300px;
+    max-width: 90vw;
+    overflow-y: visible;   /* топопривязка — маленькая, скролл не нужен */
+    max-height: none;
+}
+
+#reference-panel {
+    min-width: 400px;
+    max-width: 90vw;
+}
+
+#calibration-panel {
+    min-width: 280px;
+    border-color: var(--border-accent);   /* было #fd7e14 — унифицируем */
+}
+
+#remote-config-panel {
+    min-width: 280px;
+    border-color: var(--btn-topo-active);
+}
+
+#analysis-panel {
+    max-width: 500px;
+    max-height: 70vh;
+    border-color: var(--btn-export);
+}
+
+#antenna-calibration-panel {
+    min-width: 320px;
+    border-color: var(--border-warning);
+}
+
+/* ========== 9. ПАНЕЛЬ ТОПОПРИВЯЗКИ (содержимое) ========== */
+#topo-panel.visible {
+    display: block;
+}
 
 #topo-panel h3 {
     color: var(--border-accent);
@@ -862,6 +1039,7 @@ body {
     gap: 8px;
     margin-bottom: 10px;
 }
+
 .topo-row label {
     width: 85px;
     font-size: 12px;
@@ -869,6 +1047,7 @@ body {
     text-align: right;
     flex-shrink: 0;
 }
+
 .topo-row input {
     flex: 1;
     padding: 7px 10px;
@@ -881,14 +1060,25 @@ body {
     transition: border-color 0.2s;
     min-width: 0;
 }
+
 .topo-row input:focus {
     outline: none;
     border-color: var(--border-accent);
     box-shadow: 0 0 0 2px rgba(232, 62, 140, 0.2);
 }
+
 .topo-row input[readonly] {
     opacity: 0.7;
     cursor: default;
+}
+
+/* Отключённые поля топопривязки */
+.topo-row input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--bg-primary);
+    color: var(--text-muted);
+    font-style: italic;
 }
 
 #topo-gnss-status {
@@ -899,13 +1089,17 @@ body {
     min-height: 16px;
     transition: color 0.3s;
 }
-#topo-gnss-status.locked { color: var(--border-success); }
+
+#topo-gnss-status.locked {
+    color: var(--border-success);
+}
 
 .topo-buttons {
     display: flex;
     gap: 8px;
     margin-top: 16px;
 }
+
 .topo-buttons button {
     flex: 1;
     padding: 10px;
@@ -916,11 +1110,17 @@ body {
     font-size: 13px;
     transition: all 0.2s;
 }
-.topo-buttons button:active { transform: scale(0.96); }
+
+.topo-buttons button:active {
+    transform: scale(0.96);
+}
+
 .btn-get-gnss { background: var(--btn-start); color: #fff; }
 .btn-get-gnss:hover { background: var(--btn-start-hover); }
+
 .btn-apply-topo { background: var(--btn-connect); color: #fff; }
 .btn-apply-topo:hover { background: var(--btn-connect-hover); }
+
 .btn-cancel-topo { background: var(--btn-close); color: var(--btn-text); }
 .btn-cancel-topo:hover { background: var(--btn-close-hover); }
 
@@ -936,9 +1136,229 @@ body {
     font-weight: 600;
     transition: all 0.2s;
 }
+
 .btn-reset-topo:hover { background: #c82333; }
 .btn-reset-topo:active { transform: scale(0.96); }
 
+/* Подсказка в топопанели */
+.topo-hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-input);
+    border-left: 3px solid var(--border-accent);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+/* ========== 10. МОДАЛЬНОЕ ОКНО НАСТРОЕК ========== */
+#settings-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: var(--z-modal);
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(4px);
+}
+
+#settings-overlay.visible {
+    display: flex;
+}
+
+#settings-modal {
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    width: 480px;
+    max-width: 95vw;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow);
+}
+
+#settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 2px solid var(--border-primary);
+}
+
+#settings-header h3 {
+    margin: 0;
+    color: var(--text-accent);
+    font-size: 16px;
+}
+
+#settings-header button {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s;
+}
+
+#settings-header button:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+#settings-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+#settings-body::-webkit-scrollbar { width: 5px; }
+#settings-body::-webkit-scrollbar-track { background: transparent; }
+#settings-body::-webkit-scrollbar-thumb {
+    background: var(--border-primary);
+    border-radius: 3px;
+}
+
+.settings-section {
+    margin-bottom: 18px;
+}
+
+.settings-section h4 {
+    color: var(--text-info);
+    font-size: 13px;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.settings-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.settings-row label {
+    width: 110px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.settings-row input[type="number"],
+.settings-row input[type="text"] {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: 'Consolas', monospace;
+    min-width: 0;
+}
+
+.settings-row input:focus {
+    outline: none;
+    border-color: var(--text-accent);
+}
+
+/* Чекбоксы маски адресов */
+#addr-checkboxes {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    margin-top: 6px;
+}
+
+#addr-checkboxes label {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+
+#addr-checkboxes label.checked {
+    background: var(--bg-tertiary);
+    color: var(--text-accent);
+}
+
+#addr-checkboxes input[type="checkbox"] {
+    width: 13px;
+    height: 13px;
+    cursor: pointer;
+    accent-color: var(--text-accent);
+}
+
+#settings-footer {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border-primary);
+}
+
+#settings-footer button {
+    padding: 8px 18px;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.btn-apply { background: var(--btn-connect); color: #fff; }
+.btn-apply:hover { background: var(--btn-connect-hover); }
+
+.btn-close-settings { background: var(--btn-close); color: var(--btn-text); }
+.btn-close-settings:hover { background: var(--btn-close-hover); }
+
+/* ========== 11. УПРАВЛЕНИЕ ТРЕКАМИ (на карте) ========== */
+#tracks-control {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    gap: 6px;
+    z-index: var(--z-map);
+}
+
+.track-btn {
+    padding: 6px 10px;
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    background: var(--bg-overlay);
+    color: var(--text-primary);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    backdrop-filter: blur(8px);
+    font-weight: 600;
+}
+
+.track-btn:hover { border-color: var(--text-accent); }
+
+.track-btn.active {
+    background: var(--btn-start);
+    border-color: var(--btn-start);
+    color: #fff;
+}
+
+/* ========== 12. ПОДВАЛ (FOOTER) ========== */
 .footer {
     flex-shrink: 0;
     background: var(--bg-secondary);
@@ -977,314 +1397,7 @@ body {
     gap: 12px;
 }
 
-/* ========== МОДАЛЬНОЕ ОКНО НАСТРОЕК ========== */
-#settings-overlay {
-    display: none;
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
-    z-index: var(--z-modal);
-    justify-content: center;
-    align-items: center;
-    backdrop-filter: blur(4px);
-}
-#settings-overlay.visible { display: flex; }
-
-#settings-modal {
-    background: var(--bg-secondary);
-    border: 2px solid var(--border-primary);
-    border-radius: var(--radius-lg);
-    width: 480px;
-    max-width: 95vw;
-    max-height: 85vh;
-    display: flex;
-    flex-direction: column;
-    box-shadow: var(--shadow);
-}
-
-#settings-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 14px 20px;
-    border-bottom: 2px solid var(--border-primary);
-}
-#settings-header h3 {
-    margin: 0;
-    color: var(--text-accent);
-    font-size: 16px;
-}
-#settings-header button {
-    background: none;
-    border: none;
-    font-size: 20px;
-    cursor: pointer;
-    color: var(--text-secondary);
-    padding: 4px 8px;
-    border-radius: var(--radius-sm);
-    transition: all 0.2s;
-}
-#settings-header button:hover { color: #fff; background: rgba(255,255,255,0.1); }
-
-#settings-body {
-    padding: 16px 20px;
-    overflow-y: auto;
-    flex: 1;
-}
-#settings-body::-webkit-scrollbar { width: 5px; }
-#settings-body::-webkit-scrollbar-track { background: transparent; }
-#settings-body::-webkit-scrollbar-thumb { background: var(--border-primary); border-radius: 3px; }
-
-.settings-section {
-    margin-bottom: 18px;
-}
-.settings-section h4 {
-    color: var(--text-info);
-    font-size: 13px;
-    margin-bottom: 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid var(--border-primary);
-}
-
-.settings-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-.settings-row label {
-    width: 110px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    text-align: right;
-    flex-shrink: 0;
-}
-.settings-row input[type="number"],
-.settings-row input[type="text"] {
-    flex: 1;
-    padding: 6px 8px;
-    border: 1px solid var(--border-primary);
-    border-radius: var(--radius-sm);
-    background: var(--bg-input);
-    color: var(--text-primary);
-    font-size: 12px;
-    font-family: 'Consolas', monospace;
-    min-width: 0;
-}
-.settings-row input:focus {
-    outline: none;
-    border-color: var(--text-accent);
-}
-
-/* Чекбоксы маски адресов */
-#addr-checkboxes {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: 4px;
-    margin-top: 6px;
-}
-#addr-checkboxes label {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 10px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 2px 4px;
-    border-radius: 3px;
-    transition: all 0.2s;
-}
-#addr-checkboxes label.checked {
-    background: var(--bg-tertiary);
-    color: var(--text-accent);
-}
-#addr-checkboxes input[type="checkbox"] {
-    width: 13px;
-    height: 13px;
-    cursor: pointer;
-    accent-color: var(--text-accent);
-}
-
-#settings-footer {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-    padding: 12px 20px;
-    border-top: 1px solid var(--border-primary);
-}
-#settings-footer button {
-    padding: 8px 18px;
-    border: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 12px;
-    transition: all 0.2s;
-}
-.btn-apply { background: var(--btn-connect); color: #fff; }
-.btn-apply:hover { background: var(--btn-connect-hover); }
-.btn-close-settings { background: var(--btn-close); color: var(--btn-text); }
-.btn-close-settings:hover { background: var(--btn-close-hover); }
-
-/* ========== ПАНЕЛЬ ТРЕКОВ (на карте) ========== */
-#tracks-control {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    display: flex;
-    gap: 6px;
-    z-index: var(--z-map);
-}
-.track-btn {
-    padding: 6px 10px;
-    border: 1px solid var(--border-primary);
-    border-radius: var(--radius-sm);
-    background: var(--bg-overlay);
-    color: var(--text-primary);
-    font-size: 11px;
-    cursor: pointer;
-    transition: all 0.2s;
-    backdrop-filter: blur(8px);
-    font-weight: 600;
-}
-.track-btn:hover { border-color: var(--text-accent); }
-.track-btn.active { background: var(--btn-start); border-color: var(--btn-start); color: #fff; }
-
-/* ========== ОБЩИЕ СТИЛИ ПАНЕЛЕЙ ========== */
-/* Панели (topo, reference, calibration, remote-config, analysis, antenna-calibration) */
-#topo-panel,
-#reference-panel,
-#calibration-panel,
-#remote-config-panel,
-#analysis-panel,
-#antenna-calibration-panel {
-    display: none;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--bg-overlay);
-    border: 2px solid var(--border-accent);
-    border-radius: var(--radius-lg);
-    padding: 20px 24px;
-    z-index: var(--z-panel);
-    backdrop-filter: blur(12px);
-    box-shadow: var(--shadow);
-    max-height: 85vh;
-    overflow-y: auto;
-}
-
-/* Индивидуальные настройки панелей */
-
-#topo-panel {
-    min-width: 300px;
-    max-width: 90vw;
-    overflow-y: visible;   /* топопривязка — маленькая, скролл не нужен */
-    max-height: none;
-}
-
-#reference-panel {
-    min-width: 400px;
-    max-width: 90vw;
-}
-
-#calibration-panel {
-    min-width: 280px;
-    border-color: var(--border-accent);   /* было #fd7e14 — унифицируем */
-}
-
-#remote-config-panel {
-    min-width: 280px;
-    border-color: var(--btn-topo-active);
-}
-
-#analysis-panel {
-    max-width: 500px;
-    max-height: 70vh;
-    border-color: var(--btn-export);
-}
-
-#antenna-calibration-panel {
-    min-width: 320px;
-    border-color: var(--border-warning);
-}
-
-
-/* ========== WIZARD ========== */
-#wizard-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.6);
-    z-index: var(--z-wizard);
-    align-items: center;
-    justify-content: center;
-}
-
-#wizard-overlay.visible {
-    display: flex;
-}
-
-#wizard-modal {
-    background: var(--bg-overlay);
-    border: 2px solid var(--border-accent);
-    border-radius: var(--radius-lg);
-    padding: 24px;
-    max-width: 420px;
-    width: 90%;
-    backdrop-filter: blur(10px);
-    box-shadow: var(--shadow);
-}
-
-.language-selector {
-    max-width: 125px;
-    min-height: 32px;
-    padding: 4px 7px;
-    border: 1px solid var(--border-primary);
-    border-radius: var(--radius-sm);
-    color: var(--text-primary);
-    background: var(--bg-secondary);
-    font: inherit;
-    font-size: 12px;
-    cursor: pointer;
-}
-.language-selector:focus-visible {
-    outline: 2px solid var(--border-accent);
-    outline-offset: 2px;
-}
-@media (max-width: 480px) {
-    #top-bar .language-selector { max-width: 100px; }
-    #wizard-modal { max-height: 92dvh; overflow-y: auto; }
-}
-
-
-.bc-actions {
-    display: flex;
-    gap: 4px;
-    margin-top: 4px;
-    padding-top: 4px;
-    border-top: 1px solid var(--border-primary);
-}
-
-.bc-mark {
-    cursor: pointer;
-    opacity: 0.5;
-    transition: opacity 0.15s;
-    padding: 2px 6px;
-    border-radius: var(--radius-sm);
-    font-size: 14px;
-    pointer-events: auto;
-}
-.bc-mark:hover {
-    opacity: 1;
-    background: rgba(255, 255, 255, 0.15);
-}
-
-
-/* ========== СЛУЖЕБНЫЕ КЛАССЫ (замена inline) ========== */
+/* ========== 13. СЛУЖЕБНЫЕ КЛАССЫ И DRMS ========== */
 
 /* Скрытый элемент (для управления через JS) */
 .hidden {
@@ -1440,7 +1553,25 @@ body {
     font-weight: 700;
 }
 
-/* Секция DRMS */
+/* Кнопки управления в панелях */
+.panel-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 12px;
+}
+
+.panel-buttons > button {
+    flex: 1;
+    min-width: 100px;
+}
+
+/* Текстовое поле для коротких значений */
+.input-narrow {
+    width: 80px;
+}
+
+/* --- Секция DRMS --- */
 .drms-section {
     display: none;
     margin-top: 16px;
@@ -1498,76 +1629,35 @@ body {
     font-weight: 700;
 }
 
-/* Кнопки управления в панелях */
-.panel-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 12px;
-}
-
-.panel-buttons > button {
-    flex: 1;
-    min-width: 100px;
-}
-
-/* Текстовое поле для коротких значений */
-.input-narrow {
-    width: 80px;
-}
-
-/* ========== PLAYBACK PROGRESS ========== */
-#playback-progress {
+/* ========== 14. WIZARD ========== */
+#wizard-overlay {
     display: none;
-    width: 150px;
-    height: 4px;
-    background: var(--bg-tertiary);
-    border-radius: 2px;
-    align-self: center;
-    margin: 0 4px;
-}
-
-#playback-progress-fill {
-    width: 0%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
     height: 100%;
-    background: var(--btn-start);
-    border-radius: 2px;
-    transition: width 0.1s linear;
-}
-
-#playback-speed-control {
-    display: none;
-    margin-left: 10px;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: var(--z-wizard);
     align-items: center;
-    gap: 5px;
+    justify-content: center;
 }
 
-#playback-speed-control.active {
-    display: inline-flex;
+#wizard-overlay.visible {
+    display: flex;
 }
 
-#playback-speed-current {
-    background: var(--btn-start);
-    color: var(--btn-text);
-    padding: 4px 10px;
-    border-radius: var(--radius-sm);
-    font-size: 12px;
-    font-weight: bold;
+#wizard-modal {
+    background: var(--bg-overlay);
+    border: 2px solid var(--border-accent);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    max-width: 420px;
+    width: 90%;
+    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow);
 }
 
-#btn-speed-down,
-#btn-speed-up {
-    width: 32px;
-    padding: 6px 0;
-}
-
-/* Показ прогресса */
-#playback-progress.active {
-    display: block;
-}
-
-
-/* ========== WIZARD (стили для кнопок) ========== */
 .wiz-btn {
     padding: 10px 20px;
     border: none;
@@ -1577,20 +1667,9 @@ body {
     font-weight: bold;
 }
 
-.wiz-btn-next {
-    background: var(--btn-start);
-    color: var(--btn-text);
-}
-
-.wiz-btn-back {
-    background: var(--btn-close);
-    color: var(--btn-text);
-}
-
-.wiz-btn-finish {
-    background: var(--btn-connect);
-    color: var(--btn-text);
-}
+.wiz-btn-next { background: var(--btn-start); color: var(--btn-text); }
+.wiz-btn-back { background: var(--btn-close); color: var(--btn-text); }
+.wiz-btn-finish { background: var(--btn-connect); color: var(--btn-text); }
 
 .wiz-btn-skip {
     background: transparent;
@@ -1598,8 +1677,7 @@ body {
     border: 1px solid var(--border-primary);
 }
 
-
-/* ========== ОПОРНЫЕ МАЯКИ ========== */
+/* ========== 15. ОПОРНЫЕ МАЯКИ И КАЧЕСТВО ========== */
 
 /* Карточка опорного маяка в beacons-bar */
 .beacon-card.reference {
@@ -1626,7 +1704,7 @@ body {
 .quality-poor { color: var(--border-danger); }
 .quality-none { color: var(--text-muted); }
 
-/* === Строка GNSS в antenna-info (только в beacon_referenced, если есть GNSS) === */
+/* Строка GNSS в antenna-info (только в beacon_referenced, если есть GNSS) */
 #ai-gnss-row {
     display: none;
     border-top: 1px solid var(--border-primary);
@@ -1642,77 +1720,85 @@ body {
     color: var(--border-warning);
 }
 
-
-/* ========== ПОДСКАЗКА В ТОПОПАНЕЛИ ========== */
-.topo-hint {
-    font-size: 11px;
-    color: var(--text-secondary);
-    background: var(--bg-input);
-    border-left: 3px solid var(--border-accent);
+/* ========== 16. ЯЗЫКОВОЙ СЕЛЕКТОР ========== */
+.language-selector {
+    max-width: 125px;
+    min-height: 32px;
+    padding: 4px 7px;
+    border: 1px solid var(--border-primary);
     border-radius: var(--radius-sm);
-    padding: 6px 10px;
-    margin-bottom: 10px;
-    line-height: 1.5;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
 }
 
-/* Отключённые поля топопривязки */
-.topo-row input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background: var(--bg-primary);
-    color: var(--text-muted);
-    font-style: italic;
+.language-selector:focus-visible {
+    outline: 2px solid var(--border-accent);
+    outline-offset: 2px;
 }
 
+/* ========== 17. МЕДИАЗАПРОСЫ (все в одном месте) ========== */
 
-/* ========== АДАПТИВНОСТЬ ========== */
+/* --- Планшеты и узкие экраны --- */
 @media (max-width: 768px) {
-    #top-bar { 
-        padding: 6px 8px; 
-        gap: 5px; 
+    /* Верхняя панель и кнопки */
+    #top-bar {
+        padding: 6px 8px;
+        gap: 5px;
         min-height: 42px;
     }
-    .top-btn { 
-        padding: 6px 10px; 
-        font-size: 10px; 
+
+    .top-btn {
+        padding: 6px 10px;
+        font-size: 10px;
     }
+
     #device-label { font-size: 11px; }
     #status-text { font-size: 9px; min-width: 80px; }
-    
+
+    /* Панель маяков */
     #beacons-bar {
         min-height: 80px;
         max-height: 20vh;
     }
-    
-    .beacon-card { 
+
+    .beacon-card {
         width: 160px;
         padding: 6px 8px;
-        font-size: 10px; 
+        font-size: 10px;
     }
+
     .beacon-card .bc-addr { font-size: 13px; }
-    
-    .beacon-card .bc-coords { 
+
+    .beacon-card .bc-coords {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    
-    #antenna-info { 
-        font-size: 10px; 
-        padding: 7px 10px; 
-        top: 8px; 
-        left: 8px; 
+
+    /* Инфо антенны и панели */
+    #antenna-info {
+        font-size: 10px;
+        padding: 7px 10px;
+        top: 8px;
+        left: 8px;
         min-width: 140px;
     }
-    
-    #topo-panel { 
-        min-width: 260px; 
-        padding: 15px; 
+
+    #topo-panel {
+        min-width: 260px;
+        padding: 15px;
     }
-    
-    #settings-modal { width: 100%; max-height: 90vh; }
-    
-    #tracks-control { 
+
+    #settings-modal {
+        width: 100%;
+        max-height: 90vh;
+    }
+
+    /* Управление треками */
+    #tracks-control {
         top: 8px;
         right: 8px;
         display: flex;
@@ -1723,6 +1809,7 @@ body {
         gap: 4px;
         max-width: calc(100vw - 170px); /* не наезжает на antenna-info */
     }
+
     /* Кнопки-иконки — первая строка */
     #tracks-control .track-btn {
         padding: 0;
@@ -1735,6 +1822,7 @@ body {
         justify-content: center;
         flex-shrink: 0;
     }
+
     /* Прогресс и скорость — вторая строка, на всю ширину контейнера */
     #playback-progress {
         order: 10;                     /* после кнопок */
@@ -1743,6 +1831,7 @@ body {
         height: 3px;
         margin: 2px 0 0 0;
     }
+
     #playback-speed-control {
         order: 11;
         flex-basis: 100%;
@@ -1752,15 +1841,18 @@ body {
         margin: 0;
         display: none;                 /* по умолчанию скрыт */
     }
+
     #playback-speed-control.active {
         display: flex;                 /* показываем, когда активно воспроизведение */
     }
+
     #playback-speed-current {
         padding: 4px 6px;
         font-size: 11px;
         min-width: 28px;
         text-align: center;
     }
+
     #btn-speed-down,
     #btn-speed-up {
         width: 28px;
@@ -1768,37 +1860,26 @@ body {
         font-size: 14px;
         height: 28px;
     }
-    
+
+    /* Чекбоксы маски адресов */
     #addr-checkboxes {
         grid-template-columns: repeat(4, 1fr);
     }
-}
 
-@media (max-width: 480px) {
-    .top-btn { padding: 5px 8px; font-size: 9px; }
-    #beacons-bar { 
-        min-height: 80px; 
-        max-height: 18vh;
-    }
-    .beacon-card { width: 140px; }
-}
-
-/* ========== АДАПТИВНОСТЬ DROPDOWN-МЕНЮ ========== */
-@media (max-width: 768px) {
+    /* Dropdown-меню: центрируем по кнопке */
     .dropdown-menu {
-        /* На узких экранах: центрируем по кнопке */
         right: auto;
         left: 50%;
         transform: translateX(-50%);
         min-width: 220px;
         max-width: calc(100vw - 20px);
     }
-    
+
     #export-dropdown,
     #log-dropdown {
         min-width: 200px;
     }
-    
+
     /* Подменю на узких экранах — раскрываем ВНИЗ */
     .submenu {
         position: static;
@@ -1814,33 +1895,60 @@ body {
         border-radius: 0;
         background: rgba(0, 0, 0, 0.15);
     }
-    
-    /* Чтобы на планшете подменю открывалось не только по hover, 
+
+    /* Чтобы на планшете подменю открывалось не только по hover,
        но и по tap — добавляем правило для .submenu-open (см. JS) */
     .dropdown-item.submenu-open > .submenu {
         display: block;
     }
 }
 
-/* Очень узкие экраны */
+/* --- Очень узкие экраны (телефоны) --- */
 @media (max-width: 480px) {
+    /* Верхняя панель */
+    .top-btn {
+        padding: 5px 8px;
+        font-size: 9px;
+    }
+
+    #top-bar .language-selector {
+        max-width: 100px;
+    }
+
+    /* Панель маяков */
+    #beacons-bar {
+        min-height: 80px;
+        max-height: 18vh;
+    }
+
+    .beacon-card { width: 140px; }
+
+    /* Wizard */
+    #wizard-modal {
+        max-height: 92dvh;
+        overflow-y: auto;
+    }
+
+    /* Dropdown-меню */
     .dropdown-menu {
         min-width: 180px;
         max-width: calc(100vw - 16px);
         font-size: 11px;
     }
-    
+
     .dropdown-item {
         padding: 8px 10px;
         font-size: 11px;
     }
-	
-	.track-btn {
-		min-width: 30px;
-		width: 30px;
-		height: 30px;
-		font-size: 14px;
+
+    /* Управление треками */
+    #tracks-control .track-btn {
+        min-width: 30px;
+        width: 30px;
+        height: 30px;
+        font-size: 14px;
     }
+
     #btn-speed-down,
     #btn-speed-up {
         width: 24px;
@@ -1849,8 +1957,7 @@ body {
     }
 }
 
-
-/* ========== ПОДДЕРЖКА NOTCH ========== */
+/* ========== 18. ПОДДЕРЖКА NOTCH (safe-area) ========== */
 @supports (padding: max(0px)) {
     #app {
         padding-left: env(safe-area-inset-left);
