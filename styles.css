@@ -535,6 +535,14 @@
 }
 
 /* ========== 3. БАЗА И СТРУКТУРА ПРИЛОЖЕНИЯ ========== */
+/* Универсальный сброс — критичен: без box-sizing: border-box
+   все элементы с padding/border становятся шире расчётных */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 html,
 body {
     height: 100%;
