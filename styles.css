@@ -535,9 +535,11 @@
 }
 
 /* ========== 3. БАЗА И СТРУКТУРА ПРИЛОЖЕНИЯ ========== */
-/* Универсальный сброс — критичен: без box-sizing: border-box
-   все элементы с padding/border становятся шире расчётных */
-*, *::before, *::after {
+/* ВАЖНО: не удалять — все размеры в файле рассчитаны на border-box.
+   Без сброса плашка антенны раздувается и наезжает на tracks-control */
+*,
+*::before,
+*::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -1874,18 +1876,42 @@ body {
         grid-template-columns: repeat(4, 1fr);
     }
 
-    /* Dropdown-меню: центрируем по кнопке */
+    /* Dropdown-меню: нижняя панель (bottom sheet).
+       Кнопки-триггеры остаются в top-bar, содержимое раскрывается снизу
+       во всю ширину экрана. Класс .visible и логика JS не меняются */
     .dropdown-menu {
-        right: auto;
-        left: 50%;
-        transform: translateX(-50%);
-        min-width: 220px;
-        max-width: calc(100vw - 20px);
+        position: fixed;
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        transform: none;
+        min-width: 0;
+        width: 100%;
+        max-width: 100%;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        padding: 4px 0 calc(8px + env(safe-area-inset-bottom));
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
     }
 
     #export-dropdown,
     #log-dropdown {
-        min-width: 200px;
+        min-width: 0;
+    }
+
+    /* Затемнение фона на время открытого меню.
+       pointer-events: none — клики проходят сквозь,
+       закрытие по тапу снаружи продолжает работать */
+    .dropdown-menu::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.45);
+        pointer-events: none;
+        z-index: -1;
     }
 
     /* Подменю на узких экранах — раскрываем ВНИЗ */
@@ -1937,16 +1963,16 @@ body {
         overflow-y: auto;
     }
 
-    /* Dropdown-меню */
+    /* Dropdown-меню (нижняя панель) */
     .dropdown-menu {
-        min-width: 180px;
-        max-width: calc(100vw - 16px);
-        font-size: 11px;
+        min-width: 0;
+        max-width: 100%;
+        font-size: 13px;
     }
 
     .dropdown-item {
-        padding: 8px 10px;
-        font-size: 11px;
+        padding: 14px 16px;
+        font-size: 13px;
     }
 
     /* Управление треками */
