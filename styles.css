@@ -1877,8 +1877,8 @@ body {
     /* Dropdown-меню: центрируем по кнопке */
     .dropdown-menu {
         right: auto;
-        left: 50%;
-        transform: translateX(-50%);
+        left: 8 px
+        transform: none;
         min-width: 220px;
         max-width: calc(100vw - 20px);
     }
